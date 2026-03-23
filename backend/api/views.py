@@ -621,7 +621,6 @@ class ProposalAcceptCounterView(APIView):
         if proposal.status != "counter_offer":
             return Response({"detail": "No counter offer to accept."}, status=status.HTTP_400_BAD_REQUEST)
         proposal.proposed_price = proposal.counter_price
-        proposal.counter_price = None
         proposal.status = "accepted"
         proposal.save()
         create_notification(
@@ -858,7 +857,6 @@ class MessageListView(generics.ListAPIView):
         if not is_participant:
             return Message.objects.none()
 
-        Message.objects.filter(proposal=proposal).exclude(sender=user).update(read=True)
         return Message.objects.filter(proposal=proposal).order_by("created_at")
 
 

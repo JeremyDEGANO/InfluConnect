@@ -14,8 +14,16 @@ from .models import (
 
 
 def get_fernet():
-    key = settings.FERNET_KEY
+    key = getattr(settings, 'FERNET_KEY', None)
     if not key:
+        import warnings
+        warnings.warn(
+            "FERNET_KEY is not set in environment variables. "
+            "Payment details encryption is using an insecure fallback key. "
+            "Set FERNET_KEY to a valid Fernet key in production.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         raw = b'influconnect-default-encryption-key-32b!'
         key = base64.urlsafe_b64encode(hashlib.sha256(raw).digest())
     elif isinstance(key, str):
