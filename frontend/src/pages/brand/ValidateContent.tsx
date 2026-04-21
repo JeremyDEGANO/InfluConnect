@@ -34,7 +34,7 @@ export default function ValidateContent() {
             <div className="text-center text-gray-400">
               <ExternalLink className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p className="text-sm">Content preview would appear here</p>
-              <a href="#" className="text-purple-600 text-sm hover:underline mt-1 block">View on Instagram →</a>
+              <a href="#" className="text-indigo-600 text-sm hover:underline mt-1 block">View on Instagram →</a>
             </div>
           </div>
           <div className="space-y-3">

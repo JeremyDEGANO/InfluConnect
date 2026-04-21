@@ -67,8 +67,8 @@ export function FilterPanel({ onFilterChange }: FilterPanelProps) {
             {THEME_OPTIONS.map((theme) => (
               <Badge
                 key={theme}
-                variant={filters.themes.includes(theme) ? "purple" : "outline"}
-                className="cursor-pointer hover:bg-purple-50 text-xs"
+                variant={filters.themes.includes(theme) ? "info" : "outline"}
+                className="cursor-pointer hover:bg-indigo-50 text-xs"
                 onClick={() => toggleTheme(theme)}
               >
                 {theme}

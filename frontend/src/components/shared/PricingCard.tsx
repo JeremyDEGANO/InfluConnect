@@ -16,10 +16,10 @@ interface PricingCardProps {
 
 export function PricingCard({ name, price, period = "/mo", description, features, highlighted = false, cta, onSelect }: PricingCardProps) {
   return (
-    <Card className={cn("relative card-base transition-all duration-200 hover:shadow-lg", highlighted && "border-2 border-purple-500 shadow-lg shadow-purple-100")}>
+    <Card className={cn("relative card-base transition-all duration-300 hover:shadow-xl hover:-translate-y-1", highlighted && "border-2 border-indigo-500 shadow-xl shadow-indigo-500/10")}>
       {highlighted && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full">Most Popular</span>
+          <span className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm">Most Popular</span>
         </div>
       )}
       <CardHeader className="text-center pb-2">

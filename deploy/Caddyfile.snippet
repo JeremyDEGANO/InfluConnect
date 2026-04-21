@@ -1,0 +1,43 @@
+# Add this block to your existing Caddyfile (next to the heritage-exclusive.com block).
+# The upstream hostnames (`influconnect-frontend-1`, `influconnect-backend-1`) are the
+# default Docker container names created by `docker compose -p influconnect …`.
+# Adjust if you use a different project/container name.
+
+influconnect.fr, www.influconnect.fr {
+    encode zstd gzip
+
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-XSS-Protection "1; mode=block"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    # Block sensitive paths
+    @sensitive path /.env /.git*
+    respond @sensitive 403
+
+    # Django API, admin and uploaded / collected files go to the Django container
+    @django {
+        path /api/* /admin /admin/* /static/* /media/*
+    }
+    handle @django {
+        reverse_proxy influconnect-backend-1:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote_host}
+            header_up Host {host}
+        }
+    }
+
+    # Everything else → the React SPA (served by nginx inside the frontend container)
+    handle {
+        reverse_proxy influconnect-frontend-1:80
+    }
+
+    log {
+        output file /var/log/caddy/influconnect.log
+        format json
+    }
+}

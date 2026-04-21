@@ -11,7 +11,7 @@ interface StatsCardProps {
   iconBg?: string
 }
 
-export function StatsCard({ title, value, icon: Icon, trend, trendLabel, iconBg = "from-purple-500 to-indigo-600" }: StatsCardProps) {
+export function StatsCard({ title, value, icon: Icon, trend, trendLabel, iconBg = "from-indigo-500 to-violet-600" }: StatsCardProps) {
   const isPositive = (trend ?? 0) >= 0
 
   return (

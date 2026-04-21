@@ -1,44 +1,49 @@
 import { Link } from "react-router-dom"
-import { Twitter, Linkedin, Instagram, Github } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 export function Footer() {
+  const { t } = useTranslation()
+
   return (
-    <footer className="bg-gray-900 text-gray-400">
-      <div className="container max-w-7xl mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="col-span-1 md:col-span-2">
-            <div className="text-white font-bold text-xl mb-3">
-              InfluConnect <span className="text-lg">✨</span>
+    <footer className="bg-slate-950 text-gray-400">
+      <div className="container max-w-7xl mx-auto px-4 py-16">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
+          <div className="col-span-1 md:col-span-1">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white text-xs font-black">IC</div>
+              <span className="text-white font-bold text-lg tracking-tight">InfluConnect</span>
             </div>
-            <p className="text-sm leading-relaxed max-w-xs">The premium marketplace connecting brands with authentic influencers for impactful campaigns.</p>
-            <div className="flex gap-3 mt-4">
-              {[Twitter, Linkedin, Instagram, Github].map((Icon, i) => (
-                <a key={i} href="#" className="h-9 w-9 rounded-full bg-gray-800 flex items-center justify-center hover:bg-purple-700 transition-colors">
-                  <Icon className="h-4 w-4 text-gray-300" />
-                </a>
-              ))}
-            </div>
+            <p className="text-sm leading-relaxed text-gray-500">{t("footer.description")}</p>
           </div>
           <div>
-            <h4 className="text-white font-semibold mb-3 text-sm">Platform</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link to="/#features" className="hover:text-white transition-colors">Features</Link></li>
-              <li><Link to="/#pricing" className="hover:text-white transition-colors">Pricing</Link></li>
-              <li><Link to="/register" className="hover:text-white transition-colors">Get Started</Link></li>
+            <h4 className="text-white font-semibold mb-4 text-sm">{t("footer.for_influencers")}</h4>
+            <ul className="space-y-3 text-sm">
+              <li><a href="#how-it-works" className="hover:text-white transition-colors">{t("footer.how_it_works")}</a></li>
+              <li><Link to="/register?type=influencer" className="hover:text-white transition-colors">{t("footer.sign_up_free")}</Link></li>
+              <li><a href="#" className="hover:text-white transition-colors">{t("footer.creator_resources")}</a></li>
             </ul>
           </div>
           <div>
-            <h4 className="text-white font-semibold mb-3 text-sm">Legal</h4>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Cookie Policy</a></li>
+            <h4 className="text-white font-semibold mb-4 text-sm">{t("footer.for_brands")}</h4>
+            <ul className="space-y-3 text-sm">
+              <li><a href="#pricing" className="hover:text-white transition-colors">{t("footer.pricing_plans")}</a></li>
+              <li><Link to="/register?type=brand" className="hover:text-white transition-colors">{t("footer.book_demo")}</Link></li>
+              <li><a href="#" className="hover:text-white transition-colors">{t("footer.case_studies")}</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="text-white font-semibold mb-4 text-sm">{t("footer.company")}</h4>
+            <ul className="space-y-3 text-sm">
+              <li><a href="#" className="hover:text-white transition-colors">{t("footer.about_us")}</a></li>
+              <li><Link to="/legal/privacy" className="hover:text-white transition-colors">{t("footer.privacy_policy")}</Link></li>
+              <li><Link to="/legal/terms" className="hover:text-white transition-colors">{t("footer.terms")}</Link></li>
+              <li><Link to="/legal/notice" className="hover:text-white transition-colors">Mentions légales</Link></li>
+              <li><a href="#" className="hover:text-white transition-colors">{t("footer.contact")}</a></li>
             </ul>
           </div>
         </div>
-        <div className="border-t border-gray-800 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs">© {new Date().getFullYear()} InfluConnect. All rights reserved.</p>
-          <p className="text-xs">Made with ❤️ for creators & brands</p>
+        <div className="border-t border-white/10 mt-12 pt-8 text-center">
+          <p className="text-sm text-gray-600">© {new Date().getFullYear()} InfluConnect. {t("footer.rights")}</p>
         </div>
       </div>
     </footer>

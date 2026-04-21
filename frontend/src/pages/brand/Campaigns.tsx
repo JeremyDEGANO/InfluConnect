@@ -1,36 +1,37 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import api from "@/lib/api"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { CampaignCard } from "@/components/shared/CampaignCard"
-import { Plus } from "lucide-react"
-
-type CampaignStatus = "pending" | "active" | "completed" | "cancelled" | "accepted" | "declined" | "draft" | "published"
+import { Plus, Loader2 } from "lucide-react"
 
 interface Campaign {
   id: number
   title: string
-  budget: number
+  price_per_influencer: number
   deadline: string
-  status: CampaignStatus
-  themes: string[]
-  proposals_count: number
+  status: string
+  target_networks: string[]
 }
-
-const MOCK: Campaign[] = [
-  { id: 1, title: "Summer Collection 2024", budget: 2000, deadline: "2024-03-31", status: "active", themes: ["Fashion", "Lifestyle"], proposals_count: 8 },
-  { id: 2, title: "Product Launch - TechPad", budget: 5000, deadline: "2024-04-15", status: "draft", themes: ["Tech", "Gaming"], proposals_count: 0 },
-  { id: 3, title: "Healthy Living Campaign", budget: 1500, deadline: "2024-02-28", status: "completed", themes: ["Fitness", "Food"], proposals_count: 12 },
-  { id: 4, title: "Holiday Special", budget: 3000, deadline: "2024-12-25", status: "draft", themes: ["Lifestyle", "Fashion"], proposals_count: 0 },
-]
 
 export default function BrandCampaigns() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [tab, setTab] = useState("all")
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filtered = tab === "all" ? MOCK : MOCK.filter((c) => c.status === tab)
+  useEffect(() => {
+    api.get("/campaigns/").then((res) => {
+      setCampaigns(res.data.results ?? res.data)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const filtered = tab === "all" ? campaigns : campaigns.filter((c) => c.status === tab)
+
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -42,7 +43,7 @@ export default function BrandCampaigns() {
       </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="all">{t("campaigns_page.all")}</TabsTrigger>
           <TabsTrigger value="active">{t("campaigns.active")}</TabsTrigger>
           <TabsTrigger value="draft">{t("campaigns.draft")}</TabsTrigger>
           <TabsTrigger value="completed">{t("campaigns.completed")}</TabsTrigger>
@@ -50,12 +51,24 @@ export default function BrandCampaigns() {
         <TabsContent value={tab} className="mt-4">
           {filtered.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
-              <p className="text-lg mb-4">No campaigns yet.</p>
-              <Button variant="gradient" onClick={() => navigate("/brand/campaigns/new")}><Plus className="h-4 w-4 mr-2" />Create Campaign</Button>
+              <p className="text-lg mb-4">{t("campaigns_page.no_campaigns")}</p>
+              <Button variant="gradient" onClick={() => navigate("/brand/campaigns/new")}><Plus className="h-4 w-4 mr-2" />{t("campaigns_page.create")}</Button>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((c) => <CampaignCard key={c.id} {...c} onView={(id) => navigate(`/brand/campaigns/${id}`)} />)}
+              {filtered.map((c) => (
+                <CampaignCard
+                  key={c.id}
+                  id={c.id}
+                  title={c.title}
+                  budget={Number(c.price_per_influencer) || 0}
+                  deadline={c.deadline ?? ""}
+                  status={c.status as any}
+                  themes={c.target_networks ?? []}
+                  proposals_count={0}
+                  onView={(id) => navigate(`/brand/campaigns/${id}`)}
+                />
+              ))}
             </div>
           )}
         </TabsContent>

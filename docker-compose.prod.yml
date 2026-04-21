@@ -1,0 +1,95 @@
+# Production compose — InfluConnect
+# Reverse-proxied by an **external** Caddy container on the shared `proxy` network.
+# Create the network once:   docker network create proxy
+# Then make sure your Caddy container is also attached to that network.
+#
+# Usage:
+#   cp .env.prod.example .env.prod
+#   # edit .env.prod (passwords, Stripe, SMTP, FERNET_KEY…)
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-influconnect}
+      POSTGRES_USER: ${DB_USER:-influconnect}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-influconnect}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    image: influconnect-backend:prod
+    restart: unless-stopped
+    environment:
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - DEBUG=False
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-influconnect.fr,www.influconnect.fr,backend}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://influconnect.fr,https://www.influconnect.fr}
+      - DB_NAME=${DB_NAME:-influconnect}
+      - DB_USER=${DB_USER:-influconnect}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - FERNET_KEY=${FERNET_KEY:?FERNET_KEY is required}
+      - FRONTEND_URL=${FRONTEND_URL:-https://influconnect.fr}
+      # Email
+      - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+      - EMAIL_HOST=${EMAIL_HOST:-}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_USE_SSL=${EMAIL_USE_SSL:-False}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-InfluConnect <noreply@influconnect.fr>}
+      - ADMIN_NOTIFICATION_EMAILS=${ADMIN_NOTIFICATION_EMAILS:-}
+      # Stripe
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - PLATFORM_COMMISSION_RATE=${PLATFORM_COMMISSION_RATE:-15}
+      # Social OAuth (optional)
+      - SOCIAL_OAUTH_REDIRECT_BASE=${SOCIAL_OAUTH_REDIRECT_BASE:-https://influconnect.fr}
+    volumes:
+      - media_files:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn influconnect.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 90 --access-logfile - --error-logfile -"
+    networks:
+      - internal
+      - proxy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    image: influconnect-frontend:prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - proxy
+
+volumes:
+  postgres_data:
+  media_files:
+
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true

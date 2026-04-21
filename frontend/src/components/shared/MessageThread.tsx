@@ -33,13 +33,13 @@ export function MessageThread({ messages, onSend }: MessageThreadProps) {
         {messages.map((msg) => (
           <div key={msg.id} className={cn("flex gap-2", msg.is_mine && "flex-row-reverse")}>
             <Avatar className="h-8 w-8 shrink-0">
-              <AvatarFallback className={cn("text-xs text-white font-semibold", msg.is_mine ? "bg-gradient-to-br from-purple-500 to-indigo-600" : "bg-gray-400")}>
+              <AvatarFallback className={cn("text-xs text-white font-semibold", msg.is_mine ? "bg-gradient-to-br from-indigo-500 to-violet-600" : "bg-gray-400")}>
                 {msg.sender_name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", msg.is_mine ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-tr-sm" : "bg-gray-100 text-gray-900 rounded-tl-sm")}>
+            <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", msg.is_mine ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-tr-sm" : "bg-gray-100 text-gray-900 rounded-tl-sm")}>
               <p className="text-sm">{msg.content}</p>
-              <p className={cn("text-xs mt-1", msg.is_mine ? "text-purple-200" : "text-gray-400")}>
+              <p className={cn("text-xs mt-1", msg.is_mine ? "text-indigo-200" : "text-gray-400")}>
                 {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </p>
             </div>

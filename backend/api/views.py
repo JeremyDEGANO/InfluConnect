@@ -1,3 +1,6 @@
+from decimal import Decimal
+from django.conf import settings as django_settings
+from django.core.files.base import ContentFile
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q, Sum, Avg
@@ -11,7 +14,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import (
     User, InfluencerProfile, SocialNetwork, BrandProfile,
     Campaign, CampaignProposal, ContentSubmission,
-    Message, Review, Notification, PlatformSettings,
+    Message, Review, Notification, PlatformSettings, AuditLog,
 )
 from .serializers import (
     UserSerializer, InfluencerProfileSerializer, InfluencerProfileWithPaymentSerializer,
@@ -20,6 +23,23 @@ from .serializers import (
     MessageSerializer, ReviewSerializer, NotificationSerializer, PlatformSettingsSerializer,
     RegisterSerializer, LoginSerializer,
 )
+from .services import email_service, stripe_service
+from .services.pdf_service import generate_contract_pdf
+
+
+def _client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+def _audit(actor, action, target_type="", target_id=None, metadata=None, ip=None):
+    AuditLog.objects.create(
+        actor=actor if (actor and getattr(actor, "is_authenticated", False)) else None,
+        action=action, target_type=target_type, target_id=target_id,
+        metadata=metadata or {}, ip_address=ip,
+    )
 
 
 def create_notification(user, notification_type, title, message, proposal=None):
@@ -60,6 +80,19 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             tokens = get_tokens_for_user(user)
+            # CDC §5.1 — brand registration kicks off the validation workflow
+            if user.user_type == "brand":
+                profile = user.brand_profile
+                email_service.send_brand_registration_received(user.email, profile.company_name)
+                admin_emails = list(getattr(django_settings, "ADMIN_NOTIFICATION_EMAILS", []) or [])
+                if not admin_emails:
+                    admin_emails = list(
+                        User.objects.filter(user_type="admin").values_list("email", flat=True)
+                    )
+                if admin_emails:
+                    email_service.send_admin_new_brand_to_validate(
+                        admin_emails, profile.company_name, profile.id,
+                    )
             return Response(
                 {"user": UserSerializer(user).data, **tokens},
                 status=status.HTTP_201_CREATED,
@@ -74,6 +107,20 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data["user"]
+            # 2FA gate: if enabled, require a valid TOTP code in the same request
+            if user.totp_enabled:
+                from .views_auth import verify_user_totp
+                code = (request.data.get("totp_code") or "").strip()
+                if not code:
+                    return Response(
+                        {"totp_required": True},
+                        status=status.HTTP_200_OK,
+                    )
+                if not verify_user_totp(user, code):
+                    return Response(
+                        {"totp_required": True, "detail": "Invalid verification code."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             tokens = get_tokens_for_user(user)
             return Response({"user": UserSerializer(user).data, **tokens})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -213,13 +260,34 @@ class InfluencerDashboardView(APIView):
             total=Sum("escrow_amount")
         )["total"] or 0
 
+        # Monthly timeseries (last 6 months) — new proposals, earnings
+        now = timezone.now()
+        months = []
+        for i in range(5, -1, -1):
+            month_start = (now.replace(day=1) - timedelta(days=30 * i)).replace(day=1)
+            next_month = (month_start + timedelta(days=32)).replace(day=1)
+            label = month_start.strftime("%b %Y")
+            prop_count = proposals.filter(
+                created_at__gte=month_start, created_at__lt=next_month
+            ).count()
+            earnings = proposals.filter(
+                status="paid",
+                escrow_released_at__gte=month_start, escrow_released_at__lt=next_month,
+            ).aggregate(total=Sum("escrow_amount"))["total"] or 0
+            months.append({
+                "label": label,
+                "proposals": prop_count,
+                "earnings": float(earnings),
+            })
+
         return Response({
             "total_proposals": proposals.count(),
             "pending_proposals": proposals.filter(status="pending").count(),
             "active_proposals": proposals.filter(
                 status__in=["accepted", "contract_signed", "in_progress", "content_submitted"]
             ).count(),
-            "total_earnings": total_earnings,
+            "total_earnings": float(total_earnings),
+            "timeseries": months,
             "recent_proposals": CampaignProposalSerializer(
                 proposals.order_by("-created_at")[:5], many=True
             ).data,
@@ -321,11 +389,42 @@ class BrandDashboardView(APIView):
             total=Sum("escrow_amount")
         )["total"] or 0
 
+        # Monthly timeseries (last 6 months) — campaigns created, spend
+        now = timezone.now()
+        months = []
+        for i in range(5, -1, -1):
+            month_start = (now.replace(day=1) - timedelta(days=30 * i)).replace(day=1)
+            next_month = (month_start + timedelta(days=32)).replace(day=1)
+            label = month_start.strftime("%b %Y")
+            camp_count = campaigns.filter(
+                created_at__gte=month_start, created_at__lt=next_month
+            ).count()
+            spend = proposals.filter(
+                status="paid",
+                escrow_funded_at__gte=month_start, escrow_funded_at__lt=next_month,
+            ).aggregate(total=Sum("escrow_amount"))["total"] or 0
+            prop_count = proposals.filter(
+                created_at__gte=month_start, created_at__lt=next_month,
+            ).count()
+            months.append({
+                "label": label,
+                "campaigns": camp_count,
+                "spend": float(spend),
+                "proposals": prop_count,
+            })
+
+        status_breakdown = {}
+        for s in ["pending", "accepted", "declined", "counter_offer", "contract_signed",
+                  "in_progress", "content_submitted", "validated", "paid", "disputed"]:
+            status_breakdown[s] = proposals.filter(status=s).count()
+
         return Response({
             "total_campaigns": campaigns.count(),
             "active_campaigns": campaigns.filter(status="active").count(),
             "total_proposals_received": proposals.count(),
-            "total_spent": total_spent,
+            "total_spent": float(total_spent),
+            "timeseries": months,
+            "status_breakdown": status_breakdown,
         })
 
 
@@ -359,8 +458,12 @@ class CampaignViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.brand.user != self.request.user and not self.request.user.is_staff:
             raise PermissionDenied("You do not own this campaign.")
-        if instance.status != "draft":
-            raise ValidationError("Only draft campaigns can be deleted.")
+        # Allow deletion unless there are proposals with signed contracts / in progress / paid
+        blocking = instance.proposals.filter(
+            status__in=["contract_signed", "in_progress", "content_submitted", "validated", "paid"]
+        ).exists()
+        if blocking:
+            raise ValidationError("Cannot delete a campaign with active or completed contracts.")
         instance.delete()
 
     def update(self, request, *args, **kwargs):
@@ -373,16 +476,10 @@ class CampaignViewSet(viewsets.ModelViewSet):
 class CampaignTargetView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, pk):
-        if request.user.user_type != "brand":
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            campaign = Campaign.objects.get(pk=pk, brand__user=request.user)
-        except Campaign.DoesNotExist:
-            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        filters = request.data.get("filters", campaign.target_filters or {})
-        qs = InfluencerProfile.objects.filter(is_verified=True).prefetch_related("social_networks")
+    def _filter(self, campaign, extra_filters=None):
+        """Return matching influencer profiles based on campaign criteria."""
+        filters = {**(campaign.target_filters or {}), **(extra_filters or {})}
+        qs = InfluencerProfile.objects.prefetch_related("social_networks")
 
         platform = filters.get("platform")
         if platform:
@@ -392,11 +489,14 @@ class CampaignTargetView(APIView):
         if min_followers:
             qs = qs.filter(social_networks__followers_count__gte=int(min_followers))
 
-        content_themes = filters.get("content_themes")
+        # Use campaign's target_networks as theme filter if no explicit themes
+        content_themes = filters.get("content_themes") or campaign.target_networks
         if content_themes:
-            themes = content_themes if isinstance(content_themes, list) else [content_themes]
-            for theme in themes:
-                qs = qs.filter(content_themes__contains=theme)
+            from django.db.models import Q
+            theme_q = Q()
+            for theme in content_themes:
+                theme_q |= Q(content_themes__icontains=theme)
+            qs = qs.filter(theme_q)
 
         min_rating = filters.get("min_rating")
         if min_rating:
@@ -406,7 +506,29 @@ class CampaignTargetView(APIView):
         if location:
             qs = qs.filter(user__location__icontains=location)
 
-        return Response(InfluencerProfileSerializer(qs.distinct(), many=True).data)
+        return qs.distinct()
+
+    def get(self, request, pk):
+        """GET — auto-match influencers based on campaign's own criteria."""
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            campaign = Campaign.objects.get(pk=pk, brand__user=request.user)
+        except Campaign.DoesNotExist:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
+        qs = self._filter(campaign)
+        return Response(InfluencerProfileSerializer(qs, many=True, context={"request": request}).data)
+
+    def post(self, request, pk):
+        """POST — filter with custom overrides."""
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            campaign = Campaign.objects.get(pk=pk, brand__user=request.user)
+        except Campaign.DoesNotExist:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
+        qs = self._filter(campaign, request.data.get("filters"))
+        return Response(InfluencerProfileSerializer(qs, many=True, context={"request": request}).data)
 
 
 class CampaignSendProposalsView(APIView):
@@ -633,6 +755,39 @@ class ProposalAcceptCounterView(APIView):
         return Response(CampaignProposalSerializer(proposal).data)
 
 
+class ProposalCancelView(APIView):
+    """Brand cancels a proposal they sent (only in pending / counter_offer states)."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        proposal, err = _get_proposal_for_brand(request, pk)
+        if err:
+            return err
+        if proposal.status not in ("pending", "counter_offer"):
+            return Response(
+                {"detail": "Proposal cannot be cancelled in its current state."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        proposal.status = "declined"
+        proposal.decline_reason = request.data.get("reason", "Cancelled by brand")
+        proposal.save()
+        create_notification(
+            user=proposal.influencer.user,
+            notification_type="proposal_declined",
+            title="Proposal cancelled",
+            message=f'The brand cancelled the proposal for "{proposal.campaign.title}".',
+            proposal=proposal,
+        )
+        return Response(CampaignProposalSerializer(proposal).data)
+
+
+class BrandPublicDetailView(generics.RetrieveAPIView):
+    """Public brand profile view (auth required) — used by influencers to inspect a brand."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = BrandProfileSerializer
+    queryset = BrandProfile.objects.all()
+
+
 class ProposalSignContractView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -662,13 +817,34 @@ class ProposalSignContractView(APIView):
         if is_influencer:
             proposal.contract_signed_influencer = True
 
+        # Track who signed when (CDC §6.4 — IP + timestamp audit trail)
+        ip = _client_ip(request)
+        now = timezone.now()
+        if is_brand and not proposal.brand_signed_at:
+            proposal.brand_signed_at = now
+            proposal.brand_signature_ip = ip
+        if is_influencer and not proposal.influencer_signed_at:
+            proposal.influencer_signed_at = now
+            proposal.influencer_signature_ip = ip
+
         if proposal.contract_signed_brand and proposal.contract_signed_influencer:
             proposal.status = "contract_signed"
-            proposal.contract_signed_at = timezone.now()
+            proposal.contract_signed_at = now
+            # Auto-generate (or refresh) the contract PDF on full signature
+            if not proposal.contract_pdf:
+                try:
+                    pdf_bytes = generate_contract_pdf(proposal=proposal)
+                    proposal.contract_pdf.save(
+                        f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
+                        ContentFile(pdf_bytes), save=False,
+                    )
+                except Exception:
+                    pass
+            _audit(user, "contract_signed", "CampaignProposal", proposal.id, ip=ip)
             for recipient in (proposal.influencer.user, proposal.campaign.brand.user):
                 create_notification(
                     user=recipient,
-                    notification_type="contract_ready",
+                    notification_type="contract_signed",
                     title="Contract fully signed",
                     message=f'The contract for "{proposal.campaign.title}" has been signed by both parties.',
                     proposal=proposal,
@@ -689,11 +865,38 @@ class ProposalFundEscrowView(APIView):
                 {"detail": "Contract must be signed before funding escrow."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        amount = request.data.get("amount", proposal.proposed_price)
+        amount = Decimal(str(request.data.get("amount", proposal.proposed_price)))
+        # Stripe stub — create escrow PaymentIntent
+        brand_profile = proposal.campaign.brand
+        if not brand_profile.stripe_customer_id:
+            brand_profile.stripe_customer_id = stripe_service.create_customer(
+                email=brand_profile.user.email, name=brand_profile.company_name,
+            )
+            brand_profile.save(update_fields=["stripe_customer_id"])
+        pi = stripe_service.create_escrow_payment_intent(
+            customer_id=brand_profile.stripe_customer_id,
+            amount_eur=amount, proposal_id=proposal.id,
+        )
+        stripe_service.confirm_escrow_payment(pi["id"])
+        proposal.stripe_payment_intent_id = pi["id"]
         proposal.escrow_amount = amount
         proposal.escrow_funded = True
+        proposal.escrow_funded_at = timezone.now()
         proposal.status = "in_progress"
+        # Compute submission deadline (campaign deadline or +14 days)
+        if proposal.campaign.deadline:
+            proposal.submission_deadline = timezone.datetime.combine(
+                proposal.campaign.deadline, timezone.datetime.min.time(),
+                tzinfo=timezone.get_current_timezone(),
+            )
+        else:
+            proposal.submission_deadline = timezone.now() + timedelta(days=14)
         proposal.save()
+        _audit(request.user, "escrow_funded", "CampaignProposal", proposal.id,
+               metadata={"amount": str(amount)}, ip=_client_ip(request))
+        email_service.send_escrow_funded(
+            proposal.influencer.user.email, str(amount), proposal.campaign.title,
+        )
         create_notification(
             user=proposal.influencer.user,
             notification_type="escrow_funded",
@@ -725,6 +928,9 @@ class ProposalSubmitContentView(APIView):
         serializer.save()
 
         proposal.status = "content_submitted"
+        # Brand has 5 days to validate (CDC §2.2)
+        deadline_days = PlatformSettings.get_instance().validation_deadline_days
+        proposal.validation_deadline = timezone.now() + timedelta(days=int(deadline_days))
         proposal.save()
         create_notification(
             user=proposal.campaign.brand.user,
@@ -758,6 +964,39 @@ class ProposalValidateContentView(APIView):
         submission.save()
         proposal.status = "validated"
         proposal.save()
+        _audit(request.user, "content_validated", "CampaignProposal", proposal.id,
+               ip=_client_ip(request))
+        # Auto-release escrow after validation (CDC §2.1)
+        if proposal.escrow_funded and not proposal.escrow_released:
+            settings_obj = PlatformSettings.get_instance()
+            commission_rate = Decimal(str(settings_obj.commission_rate))
+            try:
+                release = stripe_service.release_escrow_to_influencer(
+                    payment_intent_id=proposal.stripe_payment_intent_id or "stub",
+                    influencer_account_id=proposal.influencer.stripe_account_id or None,
+                    amount_eur=Decimal(str(proposal.escrow_amount)),
+                    commission_rate=commission_rate,
+                )
+                proposal.stripe_transfer_id = release["transfer_id"]
+                proposal.escrow_released = True
+                proposal.escrow_released_at = timezone.now()
+                proposal.status = "paid"
+                proposal.save()
+                _audit(request.user, "escrow_released", "CampaignProposal", proposal.id,
+                       metadata=release, ip=_client_ip(request))
+                email_service.send_payment_released(
+                    proposal.influencer.user.email,
+                    release["net_amount_eur"], proposal.campaign.title,
+                )
+                create_notification(
+                    user=proposal.influencer.user,
+                    notification_type="payment_released",
+                    title="Payment released",
+                    message=f'Payment for "{proposal.campaign.title}" has been released.',
+                    proposal=proposal,
+                )
+            except Exception:
+                pass
         create_notification(
             user=proposal.influencer.user,
             notification_type="content_validated",

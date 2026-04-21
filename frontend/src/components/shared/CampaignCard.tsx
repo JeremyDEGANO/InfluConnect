@@ -28,7 +28,7 @@ export function CampaignCard({ id, title, budget, deadline, status, themes, prop
         </div>
         <div className="flex flex-wrap gap-1.5 mt-2">
           {themes.slice(0, 3).map((theme) => (
-            <span key={theme} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{theme}</span>
+            <span key={theme} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{theme}</span>
           ))}
         </div>
         <div className="grid grid-cols-3 gap-3 mt-4">
@@ -42,7 +42,7 @@ export function CampaignCard({ id, title, budget, deadline, status, themes, prop
           </div>
           {proposals_count !== undefined && (
             <div className="flex items-center gap-1 text-sm text-gray-500">
-              <Users className="h-4 w-4 text-purple-500" />
+              <Users className="h-4 w-4 text-indigo-500" />
               <span>{proposals_count} proposals</span>
             </div>
           )}

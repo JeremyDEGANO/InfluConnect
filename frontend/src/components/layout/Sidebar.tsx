@@ -5,15 +5,20 @@ import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard, FileText, DollarSign, User, Briefcase, PlusCircle,
-  CreditCard, ChevronLeft, ChevronRight, Shield
+  CreditCard, ChevronLeft, ChevronRight, Shield, Sparkles, Star, ScrollText, Building2,
+  Bell, Megaphone, Crown,
 } from "lucide-react"
 
 interface NavItem { label: string; href: string; icon: React.ElementType }
 
 const INFLUENCER_NAV: NavItem[] = [
   { label: "nav.dashboard", href: "/influencer/dashboard", icon: LayoutDashboard },
+  { label: "nav.onboarding", href: "/influencer/onboarding", icon: Sparkles },
   { label: "nav.proposals", href: "/influencer/proposals", icon: FileText },
+  { label: "nav.castings", href: "/influencer/castings", icon: Megaphone },
+  { label: "nav.contracts", href: "/influencer/contracts", icon: FileText },
   { label: "nav.earnings", href: "/influencer/earnings", icon: DollarSign },
+  { label: "nav.notifications", href: "/influencer/notifications", icon: Bell },
   { label: "nav.profile", href: "/influencer/profile/edit", icon: User },
 ]
 
@@ -21,12 +26,20 @@ const BRAND_NAV: NavItem[] = [
   { label: "nav.dashboard", href: "/brand/dashboard", icon: LayoutDashboard },
   { label: "nav.campaigns", href: "/brand/campaigns", icon: Briefcase },
   { label: "campaigns.new_campaign", href: "/brand/campaigns/new", icon: PlusCircle },
+  { label: "nav.castings", href: "/brand/castings", icon: Megaphone },
+  { label: "nav.contracts", href: "/brand/contracts", icon: FileText },
+  { label: "nav.ambassadors", href: "/brand/ambassadors", icon: Crown },
+  { label: "nav.contract_templates", href: "/brand/contract-templates", icon: ScrollText },
+  { label: "nav.notifications", href: "/brand/notifications", icon: Bell },
   { label: "nav.profile", href: "/brand/profile/edit", icon: User },
   { label: "nav.subscription", href: "/brand/subscription", icon: CreditCard },
 ]
 
 const ADMIN_NAV: NavItem[] = [
   { label: "nav.admin", href: "/admin", icon: Shield },
+  { label: "nav.admin_brands", href: "/admin/brands", icon: Building2 },
+  { label: "nav.admin_reviews", href: "/admin/reviews", icon: Star },
+  { label: "nav.admin_audit", href: "/admin/audit-log", icon: ScrollText },
 ]
 
 export function Sidebar() {
@@ -57,11 +70,11 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
                 active
-                  ? "bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700 border border-purple-100"
+                  ? "bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-700 border border-indigo-100"
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               )}
             >
-              <Icon className={cn("h-4.5 w-4.5 shrink-0", active ? "text-purple-600" : "text-gray-400")} style={{ width: "18px", height: "18px" }} />
+              <Icon className={cn("h-4.5 w-4.5 shrink-0", active ? "text-indigo-600" : "text-gray-400")} style={{ width: "18px", height: "18px" }} />
               {!collapsed && <span className="truncate">{t(item.label)}</span>}
             </Link>
           )

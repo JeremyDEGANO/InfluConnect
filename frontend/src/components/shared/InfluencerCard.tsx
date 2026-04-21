@@ -25,7 +25,7 @@ export function InfluencerCard({ id, name, avatar, followers, engagement_rate, t
         <div className="flex items-start gap-3">
           <Avatar className="h-12 w-12">
             <AvatarImage src={avatar} />
-            <AvatarFallback className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white font-semibold">
+            <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-semibold">
               {name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -40,7 +40,7 @@ export function InfluencerCard({ id, name, avatar, followers, engagement_rate, t
         </div>
         <div className="flex flex-wrap gap-1.5 mt-3">
           {themes.slice(0, 3).map((theme) => (
-            <Badge key={theme} variant="purple" className="text-xs">
+            <Badge key={theme} variant="info" className="text-xs">
               <Tag className="h-2.5 w-2.5 mr-1" />{theme}
             </Badge>
           ))}

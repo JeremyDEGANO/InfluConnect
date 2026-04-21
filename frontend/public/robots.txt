@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /brand/
+Disallow: /influencer/
+
+Sitemap: https://influconnect.fr/sitemap.xml

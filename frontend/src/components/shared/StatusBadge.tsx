@@ -11,7 +11,7 @@ const STATUS_VARIANT: Record<Status, "warning" | "success" | "secondary" | "dest
   accepted: "success",
   declined: "destructive",
   draft: "secondary",
-  published: "purple",
+  published: "info",
 }
 
 export function StatusBadge({ status }: { status: Status }) {
