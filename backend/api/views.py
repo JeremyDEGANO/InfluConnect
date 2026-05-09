@@ -1,6 +1,7 @@
 from decimal import Decimal
 import base64
 import binascii
+import logging
 from django.conf import settings as django_settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.core.files.base import ContentFile
@@ -29,6 +30,9 @@ from .serializers import (
 from .services import email_service, stripe_service
 from .services.pdf_service import generate_contract_pdf
 from .constants import CONTENT_THEMES
+
+
+logger = logging.getLogger(__name__)
 
 
 _THEME_ALIAS_TO_CODE = {}
@@ -210,8 +214,8 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
                 f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
                 ContentFile(pdf_bytes), save=False,
             )
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("signed-contract PDF refresh failed for proposal %s: %s", proposal.id, exc)
 
     if proposal.contract_signed_brand and proposal.contract_signed_influencer:
         proposal.status = "contract_signed"
@@ -223,8 +227,8 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
                     f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
                     ContentFile(pdf_bytes), save=False,
                 )
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("final contract PDF generation failed for proposal %s: %s", proposal.id, exc)
         _audit(signer_user, "contract_signed", "CampaignProposal", proposal.id, ip=ip)
         for recipient in (proposal.influencer.user, proposal.campaign.brand.user):
             create_notification(

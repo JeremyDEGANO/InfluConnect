@@ -45,6 +45,7 @@ interface Proposal {
   proposed_price: number
   status: string
   contract_pdf?: string | null
+  contract_version?: number | null
   brand_signed_at?: string | null
   influencer_signed_at?: string | null
   escrow_funded_at?: string | null
@@ -557,6 +558,17 @@ export default function CampaignDetail() {
                         <Button size="sm" variant="gradient" disabled={fundingProposal === p.id} onClick={() => handleFundEscrow(p.id)}>
                           {fundingProposal === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><DollarSign className="h-3.5 w-3.5 mr-1" />Approvisionner escrow</>}
                         </Button>
+                      )}
+                      {p.contract_pdf && (
+                        <a
+                          href={`${p.contract_pdf}${p.contract_pdf.includes("?") ? "&" : "?"}v=${encodeURIComponent(`${p.contract_version ?? ""}-${p.brand_signed_at ?? ""}-${p.influencer_signed_at ?? ""}`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Button size="sm" variant="outline">
+                            <Eye className="h-3.5 w-3.5 mr-1" />Voir contrat
+                          </Button>
+                        </a>
                       )}
                       {["pending", "counter_offer", "content_submitted"].includes(p.status) && (
                         <Button size="sm" variant="gradient" onClick={() => navigate(`/brand/proposals/${p.id}`)}>{t("campaign_detail.review")}</Button>

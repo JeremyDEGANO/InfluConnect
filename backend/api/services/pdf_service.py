@@ -13,6 +13,7 @@ import io
 import logging
 import os
 from typing import Iterable
+from xml.sax.saxutils import escape
 
 from django.conf import settings
 from django.utils import timezone
@@ -560,9 +561,11 @@ def _cropped_image_buffer(image_path: str, target_ratio: float) -> io.BytesIO:
 
 
 def _signature_label(mode: str, value: str, fallback_label: str, when_text: str, styles):
-    label = value or fallback_label or "—"
+    label = escape(value or fallback_label or "—")
     mode_label = "Signature manuscrite" if mode == "draw" else "Signature électronique"
-    return Paragraph(f"<b>{label}</b><br/><font color='#6b7280'>{mode_label} — {when_text}</font>", styles["body"])
+    when_label = escape(when_text or "—")
+    mode_label = escape(mode_label)
+    return Paragraph(f"<b>{label}</b><br/><font color='#6b7280'>{mode_label} — {when_label}</font>", styles["body"])
 
 
 def _signature_image(data: str):
