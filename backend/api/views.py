@@ -1088,12 +1088,24 @@ class ProposalSignSessionDetailView(APIView):
         used = _session_used_for_signer(proposal, signer)
         completed_at = _session_completed_at_for_signer(proposal, signer)
         expires_at = (timezone.now() + timedelta(seconds=SIGN_SESSION_TTL_SECONDS)).isoformat()
+        if signer.user_type == "brand" and hasattr(signer, "brand_profile"):
+            signer_label = signer.brand_profile.company_name or signer.username
+        elif signer.user_type == "influencer" and hasattr(signer, "influencer_profile"):
+            signer_label = (
+                signer.influencer_profile.display_name
+                or signer.get_full_name().strip()
+                or signer.username
+            )
+        else:
+            signer_label = signer.get_full_name().strip() or signer.username
         return Response({
             "token": token,
             "proposal_id": proposal.id,
             "used": used,
             "expires_at": expires_at,
             "completed_at": completed_at,
+            "signer_role": signer.user_type,
+            "signer_label": signer_label,
         })
 
 

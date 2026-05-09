@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
-import api from "@/lib/api"
 import { completeSignSession, getSignSession } from "@/lib/apiExtra"
 import { SignaturePad } from "@/components/shared/SignaturePad"
 import { Button } from "@/components/ui/button"
@@ -12,7 +11,7 @@ export default function SignMobile() {
   const [loading, setLoading] = useState(true)
   const [invalid, setInvalid] = useState(false)
   const [done, setDone] = useState(false)
-  const [proposal, setProposal] = useState<any | null>(null)
+  const [sessionInfo, setSessionInfo] = useState<any | null>(null)
   const [signature, setSignature] = useState<string | null>(null)
   const [accept, setAccept] = useState(false)
   const [mode, setMode] = useState<"draw" | "brand_name" | "person_name">("draw")
@@ -28,6 +27,9 @@ export default function SignMobile() {
       }
       try {
         const session = await getSignSession(token)
+        if (mounted) {
+          setSessionInfo(session)
+        }
         if (session.used) {
           if (mounted) {
             setDone(true)
@@ -35,9 +37,7 @@ export default function SignMobile() {
           }
           return
         }
-        const proposalRes = await api.get(`/proposals/${session.proposal_id}/`)
         if (mounted) {
-          setProposal(proposalRes.data)
           setLoading(false)
         }
       } catch {
@@ -54,10 +54,8 @@ export default function SignMobile() {
   }, [token])
 
   const signAsLabel = useMemo(() => {
-    if (!proposal) return "Signataire"
-    if (!proposal.brand_signed_at) return proposal.brand_company_name || "Marque"
-    return proposal.influencer_display_name || "Influenceur"
-  }, [proposal])
+    return sessionInfo?.signer_label || "Signataire"
+  }, [sessionInfo])
 
   const submit = async () => {
     if (!token) return

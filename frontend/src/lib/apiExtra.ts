@@ -114,7 +114,15 @@ export const signContract = (
 export const createSignSession = (proposalId: number) =>
   api.post<{ token: string; sign_url: string; expires_at: string }>(`/proposals/${proposalId}/sign-session/`).then((r) => r.data)
 export const getSignSession = (token: string) =>
-  api.get<{ token: string; proposal_id: number; expires_at: string; used: boolean; completed_at?: string | null }>(`/sign-sessions/${token}/`).then((r) => r.data)
+  api.get<{
+    token: string
+    proposal_id: number
+    expires_at: string
+    used: boolean
+    completed_at?: string | null
+    signer_role?: string
+    signer_label?: string
+  }>(`/sign-sessions/${token}/`).then((r) => r.data)
 export const completeSignSession = (
   token: string,
   payload: { signature_mode?: string; signature_value?: string; signature_data?: string | null; consent?: boolean },
