@@ -1,7 +1,6 @@
 from decimal import Decimal
-import secrets
 from django.conf import settings as django_settings
-from django.core.cache import cache
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from datetime import timedelta
@@ -78,8 +77,40 @@ def create_notification(user, notification_type, title, message, proposal=None):
 SIGN_SESSION_TTL_SECONDS = 15 * 60
 
 
-def _sign_session_cache_key(token: str) -> str:
-    return f"proposal-sign-session:{token}"
+def _sign_session_signer() -> TimestampSigner:
+    return TimestampSigner(salt="proposal-sign-session")
+
+
+def _build_sign_session_token(proposal_id: int, user_id: int) -> str:
+    return _sign_session_signer().sign(f"{proposal_id}:{user_id}")
+
+
+def _decode_sign_session_token(token: str):
+    try:
+        unsigned = _sign_session_signer().unsign(token, max_age=SIGN_SESSION_TTL_SECONDS)
+    except (SignatureExpired, BadSignature):
+        return None, None
+    try:
+        proposal_id_str, user_id_str = str(unsigned).split(":", 1)
+        return int(proposal_id_str), int(user_id_str)
+    except (TypeError, ValueError):
+        return None, None
+
+
+def _session_used_for_signer(proposal, signer):
+    if signer.user_type == "brand":
+        return bool(proposal.brand_signed_at)
+    if signer.user_type == "influencer":
+        return bool(proposal.influencer_signed_at)
+    return True
+
+
+def _session_completed_at_for_signer(proposal, signer):
+    if signer.user_type == "brand" and proposal.brand_signed_at:
+        return proposal.brand_signed_at.isoformat()
+    if signer.user_type == "influencer" and proposal.influencer_signed_at:
+        return proposal.influencer_signed_at.isoformat()
+    return None
 
 
 def _extract_signature_payload(request_data, signer_user, proposal):
@@ -1007,23 +1038,13 @@ class ProposalSignSessionCreateView(APIView):
         if is_influencer and proposal.influencer_signed_at:
             return Response({"detail": "Influencer has already signed."}, status=status.HTTP_400_BAD_REQUEST)
 
-        token = secrets.token_urlsafe(24)
+        token = _build_sign_session_token(proposal.id, user.id)
         expires_at = timezone.now() + timedelta(seconds=SIGN_SESSION_TTL_SECONDS)
-        payload = {
-            "token": token,
-            "proposal_id": proposal.id,
-            "user_id": user.id,
-            "used": False,
-            "created_at": timezone.now().isoformat(),
-            "expires_at": expires_at.isoformat(),
-            "completed_at": None,
-        }
-        cache.set(_sign_session_cache_key(token), payload, timeout=SIGN_SESSION_TTL_SECONDS)
         sign_url = f"{django_settings.FRONTEND_URL.rstrip('/')}/sign/mobile/{token}"
         return Response({
             "token": token,
             "sign_url": sign_url,
-            "expires_at": payload["expires_at"],
+            "expires_at": expires_at.isoformat(),
         })
 
 
@@ -1031,15 +1052,27 @@ class ProposalSignSessionDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, token):
-        session = cache.get(_sign_session_cache_key(token))
-        if not session:
+        proposal_id, user_id = _decode_sign_session_token(token)
+        if not proposal_id or not user_id:
             return Response({"detail": "Session not found or expired."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            proposal = CampaignProposal.objects.select_related(
+                "campaign__brand__user", "influencer__user"
+            ).get(pk=proposal_id)
+            signer = User.objects.get(pk=user_id)
+        except (CampaignProposal.DoesNotExist, User.DoesNotExist):
+            return Response({"detail": "Session not found or expired."}, status=status.HTTP_404_NOT_FOUND)
+
+        used = _session_used_for_signer(proposal, signer)
+        completed_at = _session_completed_at_for_signer(proposal, signer)
+        expires_at = (timezone.now() + timedelta(seconds=SIGN_SESSION_TTL_SECONDS)).isoformat()
         return Response({
             "token": token,
-            "proposal_id": session.get("proposal_id"),
-            "used": bool(session.get("used")),
-            "expires_at": session.get("expires_at"),
-            "completed_at": session.get("completed_at"),
+            "proposal_id": proposal.id,
+            "used": used,
+            "expires_at": expires_at,
+            "completed_at": completed_at,
         })
 
 
@@ -1047,11 +1080,9 @@ class ProposalSignSessionCompleteView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, token):
-        session = cache.get(_sign_session_cache_key(token))
-        if not session:
+        proposal_id, user_id = _decode_sign_session_token(token)
+        if not proposal_id or not user_id:
             return Response({"detail": "Session not found or expired."}, status=status.HTTP_404_NOT_FOUND)
-        if session.get("used"):
-            return Response({"detail": "This signing link has already been used."}, status=status.HTTP_400_BAD_REQUEST)
 
         if request.data.get("consent") is not True:
             return Response({"detail": "Consent is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1059,10 +1090,13 @@ class ProposalSignSessionCompleteView(APIView):
         try:
             proposal = CampaignProposal.objects.select_related(
                 "campaign__brand__user", "influencer__user"
-            ).get(pk=session.get("proposal_id"))
-            signer = User.objects.get(pk=session.get("user_id"))
+            ).get(pk=proposal_id)
+            signer = User.objects.get(pk=user_id)
         except (CampaignProposal.DoesNotExist, User.DoesNotExist):
             return Response({"detail": "Invalid signing session."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if _session_used_for_signer(proposal, signer):
+            return Response({"detail": "This signing link has already been used."}, status=status.HTTP_400_BAD_REQUEST)
 
         if signer.user_type == "brand" and proposal.campaign.brand.user_id != signer.id:
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
@@ -1078,14 +1112,12 @@ class ProposalSignSessionCompleteView(APIView):
         if err:
             return err
 
-        session["used"] = True
-        session["completed_at"] = timezone.now().isoformat()
-        cache.set(_sign_session_cache_key(token), session, timeout=5 * 60)
+        completed_at = _session_completed_at_for_signer(proposal, signer)
 
         return Response({
             "ok": True,
             "proposal_id": proposal.id,
-            "completed_at": session["completed_at"],
+            "completed_at": completed_at,
         })
 
 
