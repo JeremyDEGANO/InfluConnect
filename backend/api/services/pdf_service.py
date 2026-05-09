@@ -116,6 +116,9 @@ def _label_map(items: Iterable[dict]) -> dict[str, str]:
 THEME_LABELS    = _label_map(CONTENT_THEMES)
 TYPE_LABELS     = _label_map(CONTENT_TYPES)
 PLATFORM_LABELS = _label_map(SOCIAL_PLATFORMS)
+SIGNATURE_TOKEN_1 = "[[INFLUCONNECT_SIGNATURE_1]]"
+SIGNATURE_TOKEN_2 = "[[INFLUCONNECT_SIGNATURE_2]]"
+SIGNATURE_TOKEN_RE = re.compile(r"(\[\[INFLUCONNECT_SIGNATURE_[12]\]\])")
 
 
 def _format_count(n: float | int) -> str:
@@ -217,6 +220,10 @@ def _render_contract_template_html(body_html: str, proposal) -> str:
 
     def replace_var(match: re.Match[str]) -> str:
         key = match.group(1).strip()
+        if key in {"signature1", "signature_brand", "brand_signature"}:
+            return SIGNATURE_TOKEN_1
+        if key in {"signature2", "signature_influencer", "influencer_signature"}:
+            return SIGNATURE_TOKEN_2
         if key not in context:
             return match.group(0)
         return _pdf_escape(context[key])
@@ -324,7 +331,7 @@ class _ContractTemplateHTMLParser(HTMLParser):
         self._flush()
 
 
-def _contract_template_story(body_html: str, proposal, styles) -> list:
+def _contract_template_story(body_html: str, proposal, styles) -> tuple[list, bool]:
     rendered = _render_contract_template_html(body_html, proposal)
     rendered = re.sub(r"<script[^>]*>.*?</script>", "", rendered, flags=re.S | re.I)
     rendered = re.sub(r"<style[^>]*>.*?</style>", "", rendered, flags=re.S | re.I)
@@ -333,18 +340,31 @@ def _contract_template_story(body_html: str, proposal, styles) -> list:
     parser.close()
 
     flowables: list = []
+    has_signature_placeholders = False
     for style_key, text in parser.blocks:
         style = styles.get(style_key) or styles["body"]
-        try:
-            flowables.append(Paragraph(text, style))
-        except Exception:  # noqa: BLE001
-            plain = re.sub(r"<[^>]+>", " ", text)
-            plain = re.sub(r"\s+", " ", plain).strip()
-            flowables.append(Paragraph(_pdf_escape(plain), styles["body"]))
-        flowables.append(Spacer(1, 4))
+        parts = [p for p in SIGNATURE_TOKEN_RE.split(text) if p]
+        for part in parts:
+            if part == SIGNATURE_TOKEN_1:
+                flowables.append(_signature_box(proposal, styles, "brand", CONTENT_W))
+                flowables.append(Spacer(1, 8))
+                has_signature_placeholders = True
+                continue
+            if part == SIGNATURE_TOKEN_2:
+                flowables.append(_signature_box(proposal, styles, "influencer", CONTENT_W))
+                flowables.append(Spacer(1, 8))
+                has_signature_placeholders = True
+                continue
+            try:
+                flowables.append(Paragraph(part, style))
+            except Exception:  # noqa: BLE001
+                plain = re.sub(r"<[^>]+>", " ", part)
+                plain = re.sub(r"\s+", " ", plain).strip()
+                flowables.append(Paragraph(_pdf_escape(plain), styles["body"]))
+            flowables.append(Spacer(1, 4))
     if not flowables:
         flowables.append(Paragraph("Aucun contenu dans le modèle de contrat.", styles["muted"]))
-    return flowables
+    return flowables, has_signature_placeholders
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -800,6 +820,103 @@ def _signature_image(data: str):
     except Exception as exc:
         logger.warning("signature image render failed: %s", exc)
         return None
+
+
+def _signature_info(proposal, signer: str) -> dict:
+    if signer == "brand":
+        signed_at = getattr(proposal, "brand_signed_at", None)
+        signed = bool(getattr(proposal, "contract_signed_brand", False) and signed_at)
+        return {
+            "slot": "Signature 1",
+            "role": "Marque",
+            "name": getattr(proposal.campaign.brand, "company_name", "") or "Marque",
+            "mode": getattr(proposal, "brand_signature_mode", ""),
+            "value": getattr(proposal, "brand_signature_value", ""),
+            "data": getattr(proposal, "brand_signature_data", ""),
+            "signed": signed,
+            "signed_at": signed_at,
+        }
+
+    signed_at = getattr(proposal, "influencer_signed_at", None)
+    signed = bool(getattr(proposal, "contract_signed_influencer", False) and signed_at)
+    return {
+        "slot": "Signature 2",
+        "role": "Influenceur",
+        "name": getattr(proposal.influencer, "display_name", "") or getattr(proposal.influencer.user, "username", "") or "Influenceur",
+        "mode": getattr(proposal, "influencer_signature_mode", ""),
+        "value": getattr(proposal, "influencer_signature_value", ""),
+        "data": getattr(proposal, "influencer_signature_data", ""),
+        "signed": signed,
+        "signed_at": signed_at,
+    }
+
+
+def _signature_box_content(proposal, styles, signer: str) -> list:
+    info = _signature_info(proposal, signer)
+    content = [
+        Paragraph(f"<b>{_pdf_escape(info['slot'])}</b> — {_pdf_escape(info['role'])}", styles["body_bold"]),
+        Spacer(1, 5),
+    ]
+    if info["signed"]:
+        when = info["signed_at"].strftime("Signé le %d/%m/%Y à %H:%M")
+        content.append(_signature_label(info["mode"], info["value"], info["name"], when, styles))
+        signature_image = _signature_image(info["data"])
+        if signature_image is not None:
+            content.append(Spacer(1, 7))
+            content.append(signature_image)
+    else:
+        content.append(Paragraph(_pdf_escape(info["name"]), styles["body"]))
+        content.append(Spacer(1, 18 * mm))
+        content.append(Paragraph("<font color='#9ca3af'>Signature en attente</font>", styles["muted"]))
+    return content
+
+
+def _signature_box(proposal, styles, signer: str, width: float) -> Table:
+    table = Table([[_signature_box_content(proposal, styles, signer)]], colWidths=[width], hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (-1, -1), 0.7, GRAY_300),
+        ("LINEABOVE", (0, 0), (-1, 0), 2.0, INDIGO_600),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+    ]))
+    return table
+
+
+def _signature_columns(proposal, styles) -> Table:
+    gap = 8 * mm
+    col_w = (CONTENT_W - gap) / 2
+    table = Table(
+        [[
+            _signature_box_content(proposal, styles, "brand"),
+            _signature_box_content(proposal, styles, "influencer"),
+        ]],
+        colWidths=[col_w, col_w],
+        hAlign="LEFT",
+    )
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (0, 0), 0.7, GRAY_300),
+        ("BOX", (1, 0), (1, 0), 0.7, GRAY_300),
+        ("LINEABOVE", (0, 0), (0, 0), 2.0, INDIGO_600),
+        ("LINEABOVE", (1, 0), (1, 0), 2.0, VIOLET_600),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (0, 0), 12 + gap / 2),
+        ("LEFTPADDING", (1, 0), (1, 0), 12 + gap / 2),
+    ]))
+    return table
+
+
+def _append_signature_section(story: list, proposal, styles) -> None:
+    story.append(Paragraph("8. Signatures", styles["h2"]))
+    story.append(_signature_columns(proposal, styles))
 
 
 def _gallery_cell(image_path: str, caption: str, cell_w_mm: float, cell_h_mm: float):
@@ -1738,8 +1855,8 @@ def _append_default_contract_body(story: list, proposal, styles) -> None:
 
 def generate_contract_pdf(*, proposal) -> bytes:
     s = _styles()
-    campaign = proposal.campaign
     template = getattr(proposal, "contract_template", None)
+    has_signature_placeholders = False
 
     story: list = []
     # Title block
@@ -1758,49 +1875,13 @@ def generate_contract_pdf(*, proposal) -> bytes:
     if template and (getattr(template, "body_html", "") or "").strip():
         story.append(Paragraph(f"Modèle utilisé : <b>{_pdf_escape(template.name)}</b>", s["muted"]))
         story.append(Spacer(1, 8))
-        story.extend(_contract_template_story(template.body_html, proposal, s))
+        template_story, has_signature_placeholders = _contract_template_story(template.body_html, proposal, s)
+        story.extend(template_story)
     else:
         _append_default_contract_body(story, proposal, s)
 
-    story.append(Paragraph("8. Signatures", s["h2"]))
-    brand_signed = (
-        _signature_label(
-            getattr(proposal, "brand_signature_mode", ""),
-            getattr(proposal, "brand_signature_value", ""),
-            getattr(proposal.campaign.brand, "company_name", "Marque"),
-            proposal.brand_signed_at.strftime("Signé le %d/%m/%Y à %H:%M") if proposal.brand_signed_at else "— en attente —",
-            s,
-        )
-        if getattr(proposal, "contract_signed_brand", False) and proposal.brand_signed_at
-        else "— en attente —"
-    )
-    influ_signed = (
-        _signature_label(
-            getattr(proposal, "influencer_signature_mode", ""),
-            getattr(proposal, "influencer_signature_value", ""),
-            getattr(proposal.influencer, "display_name", "Influenceur"),
-            proposal.influencer_signed_at.strftime("Signé le %d/%m/%Y à %H:%M") if proposal.influencer_signed_at else "— en attente —",
-            s,
-        )
-        if getattr(proposal, "contract_signed_influencer", False) and proposal.influencer_signed_at
-        else "— en attente —"
-    )
-    story.append(_kv_table([
-        ("Marque (signé le)", brand_signed),
-        ("Influenceur (signé le)", influ_signed),
-    ]))
-
-    brand_signature_image = _signature_image(getattr(proposal, "brand_signature_data", ""))
-    if brand_signature_image is not None:
-        story.append(Spacer(1, 8))
-        story.append(Paragraph("Aperçu signature marque", s["body_bold"]))
-        story.append(brand_signature_image)
-
-    influencer_signature_image = _signature_image(getattr(proposal, "influencer_signature_data", ""))
-    if influencer_signature_image is not None:
-        story.append(Spacer(1, 8))
-        story.append(Paragraph("Aperçu signature influenceur", s["body_bold"]))
-        story.append(influencer_signature_image)
+    if not has_signature_placeholders:
+        _append_signature_section(story, proposal, s)
 
     story.append(Spacer(1, 14))
     story.append(Paragraph(

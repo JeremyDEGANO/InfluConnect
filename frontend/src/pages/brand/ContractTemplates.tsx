@@ -190,7 +190,7 @@ export default function ContractTemplates() {
                   placeholder={t("contracts.editor_placeholder")}
                   minHeight="280px"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">{t("contracts.body_hint")} <code>{"{{brand_name}}"}</code>, <code>{"{{influencer_name}}"}</code>, <code>{"{{campaign_title}}"}</code>, <code>{"{{price}}"}</code>, <code>{"{{deadline}}"}</code>, <code>{"{{deliverables}}"}</code>, <code>{"{{rights}}"}</code>, <code>{"{{proposal_reference}}"}</code>.</p>
+                <p className="text-[11px] text-gray-400 mt-1">{t("contracts.body_hint")} <code>{"{{brand_name}}"}</code>, <code>{"{{influencer_name}}"}</code>, <code>{"{{campaign_title}}"}</code>, <code>{"{{price}}"}</code>, <code>{"{{deadline}}"}</code>, <code>{"{{deliverables}}"}</code>, <code>{"{{rights}}"}</code>, <code>{"{{proposal_reference}}"}</code>, <code>{"{{signature1}}"}</code> marque, <code>{"{{signature2}}"}</code> influenceur.</p>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />
