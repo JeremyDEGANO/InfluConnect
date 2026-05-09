@@ -289,6 +289,9 @@ class MeView(APIView):
         user = request.user
         user_data = {k: v for k, v in request.data.items()
                      if k not in ("influencer_profile", "brand_profile")}
+        # Merge uploaded files (e.g. avatar) so the serializer can save them.
+        user_data.update({k: v for k, v in request.FILES.items()
+                          if k not in ("influencer_profile", "brand_profile")})
         user_serializer = UserSerializer(user, data=user_data, partial=True)
         if not user_serializer.is_valid():
             return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
