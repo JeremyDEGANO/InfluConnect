@@ -12,6 +12,8 @@ import base64
 import io
 import logging
 import os
+import re
+from html.parser import HTMLParser
 from typing import Iterable
 from xml.sax.saxutils import escape
 
@@ -127,6 +129,222 @@ def _format_count(n: float | int) -> str:
 
 def _format_eur(v: float | int) -> str:
     return f"{int(v or 0):,} €".replace(",", " ")
+
+
+def _pdf_escape(value) -> str:
+    return escape(str(value or ""), {"'": "&#39;", '"': "&quot;"})
+
+
+def _format_contract_deliverables(campaign) -> str:
+    items: list[str] = []
+    for item in campaign.content_formats or []:
+        if isinstance(item, dict):
+            code = item.get("code") or item.get("type") or item.get("format") or ""
+            label = TYPE_LABELS.get(code, code) if code else "Livrable"
+            quantity = item.get("quantity") or item.get("qty") or 1
+            try:
+                quantity = int(quantity)
+            except (TypeError, ValueError):
+                quantity = 1
+            items.append(f"{quantity} × {label}" if quantity > 1 else label)
+        else:
+            text = str(item).strip()
+            if text:
+                items.append(text)
+
+    for item in campaign.deliverables_requested or []:
+        if isinstance(item, dict):
+            text = item.get("label") or item.get("name") or item.get("title") or item.get("code") or ""
+        else:
+            text = str(item)
+        text = str(text).strip()
+        if text and text not in items:
+            items.append(text)
+
+    return ", ".join(items) or "—"
+
+
+def _format_contract_rights(campaign) -> str:
+    if isinstance(campaign.image_rights, dict) and campaign.image_rights:
+        parts: list[str] = []
+        usage = campaign.image_rights.get("usage") or campaign.image_rights.get("scope")
+        duration = campaign.image_rights.get("duration")
+        channels = campaign.image_rights.get("channels")
+        if usage:
+            parts.append(str(usage))
+        if duration:
+            parts.append(f"durée {duration}")
+        if channels:
+            if isinstance(channels, list):
+                channels = ", ".join(str(c) for c in channels)
+            parts.append(str(channels))
+        if parts:
+            return " — ".join(parts)
+    return (campaign.target_filters or {}).get("rights", "Réseaux sociaux uniquement, durée 12 mois.")
+
+
+def _contract_template_context(proposal) -> dict[str, str]:
+    campaign = proposal.campaign
+    brand = campaign.brand
+    influencer = proposal.influencer
+    amount = proposal.escrow_amount or proposal.proposed_price or 0
+    networks = ", ".join(PLATFORM_LABELS.get(n, n) for n in (campaign.target_networks or [])) or "—"
+    deadline = campaign.deadline.strftime("%d/%m/%Y") if campaign.deadline else "—"
+    influencer_name = influencer.display_name or influencer.user.get_full_name() or influencer.user.username
+    generated_at = timezone.now().strftime("%d/%m/%Y %H:%M")
+    return {
+        "brand_name": brand.company_name or "—",
+        "brand_company": brand.company_name or "—",
+        "influencer_name": influencer_name,
+        "campaign_title": campaign.title or "—",
+        "campaign_description": campaign.description or "—",
+        "brief": campaign.brief_text or campaign.description or "—",
+        "price": _format_eur(amount),
+        "amount": _format_eur(amount),
+        "deadline": deadline,
+        "deliverables": _format_contract_deliverables(campaign),
+        "networks": networks,
+        "content_format": campaign.content_format or "—",
+        "rights": _format_contract_rights(campaign),
+        "proposal_id": str(proposal.id),
+        "proposal_reference": f"PROP-{proposal.id}",
+        "generated_at": generated_at,
+    }
+
+
+def _render_contract_template_html(body_html: str, proposal) -> str:
+    context = _contract_template_context(proposal)
+
+    def replace_var(match: re.Match[str]) -> str:
+        key = match.group(1).strip()
+        if key not in context:
+            return match.group(0)
+        return _pdf_escape(context[key])
+
+    return re.sub(r"{{\s*([a-zA-Z0-9_]+)\s*}}", replace_var, body_html or "")
+
+
+class _ContractTemplateHTMLParser(HTMLParser):
+    _BLOCK_STYLES = {
+        "h1": "h2",
+        "h2": "h2",
+        "h3": "body_bold",
+        "h4": "body_bold",
+        "p": "body",
+        "div": "body",
+        "section": "body",
+        "article": "body",
+        "blockquote": "body",
+    }
+    _INLINE_TAGS = {"b": "b", "strong": "b", "i": "i", "em": "i", "u": "u"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.blocks: list[tuple[str, str]] = []
+        self._parts: list[str] = []
+        self._style_key = "body"
+        self._prefix = ""
+        self._inline_stack: list[str] = []
+        self._list_stack: list[dict[str, int | str]] = []
+
+    def _start_block(self, style_key: str = "body", prefix: str = ""):
+        self._flush()
+        self._style_key = style_key
+        self._prefix = prefix
+
+    def _flush(self):
+        if self._inline_stack:
+            self._parts.extend(f"</{tag}>" for tag in reversed(self._inline_stack))
+            self._inline_stack = []
+        text = "".join(self._parts).strip()
+        text = re.sub(r"(\s*<br\s*/>\s*)+$", "", text, flags=re.I).strip()
+        if text:
+            if self._prefix:
+                text = f"{_pdf_escape(self._prefix)} {text}"
+            self.blocks.append((self._style_key or "body", text))
+        self._parts = []
+        self._style_key = "body"
+        self._prefix = ""
+
+    def _li_prefix(self) -> str:
+        if self._list_stack and self._list_stack[-1].get("tag") == "ol":
+            index = int(self._list_stack[-1].get("index") or 1)
+            self._list_stack[-1]["index"] = index + 1
+            return f"{index}."
+        return "•"
+
+    def handle_starttag(self, tag, attrs):  # noqa: ARG002
+        tag = tag.lower()
+        if tag in self._BLOCK_STYLES:
+            self._start_block(self._BLOCK_STYLES[tag])
+        elif tag in ("ul", "ol"):
+            self._flush()
+            self._list_stack.append({"tag": tag, "index": 1})
+        elif tag == "li":
+            self._start_block("body", self._li_prefix())
+        elif tag in ("br",):
+            self._parts.append("<br/>")
+        elif tag in self._INLINE_TAGS:
+            mapped = self._INLINE_TAGS[tag]
+            self._parts.append(f"<{mapped}>")
+            self._inline_stack.append(mapped)
+        elif tag == "a":
+            self._parts.append("<font color='#4338ca'>")
+            self._inline_stack.append("font")
+        elif tag in ("tr",):
+            self._flush()
+        elif tag in ("td", "th") and self._parts:
+            self._parts.append(" — ")
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in self._INLINE_TAGS:
+            mapped = self._INLINE_TAGS[tag]
+            if self._inline_stack and self._inline_stack[-1] == mapped:
+                self._parts.append(f"</{mapped}>")
+                self._inline_stack.pop()
+        elif tag == "a":
+            if self._inline_stack and self._inline_stack[-1] == "font":
+                self._parts.append("</font>")
+                self._inline_stack.pop()
+        elif tag in self._BLOCK_STYLES or tag in ("li", "tr"):
+            self._flush()
+        elif tag in ("ul", "ol"):
+            self._flush()
+            if self._list_stack:
+                self._list_stack.pop()
+
+    def handle_data(self, data):
+        text = _pdf_escape(data)
+        if text:
+            self._parts.append(text)
+
+    def close(self):
+        super().close()
+        self._flush()
+
+
+def _contract_template_story(body_html: str, proposal, styles) -> list:
+    rendered = _render_contract_template_html(body_html, proposal)
+    rendered = re.sub(r"<script[^>]*>.*?</script>", "", rendered, flags=re.S | re.I)
+    rendered = re.sub(r"<style[^>]*>.*?</style>", "", rendered, flags=re.S | re.I)
+    parser = _ContractTemplateHTMLParser()
+    parser.feed(rendered)
+    parser.close()
+
+    flowables: list = []
+    for style_key, text in parser.blocks:
+        style = styles.get(style_key) or styles["body"]
+        try:
+            flowables.append(Paragraph(text, style))
+        except Exception:  # noqa: BLE001
+            plain = re.sub(r"<[^>]+>", " ", text)
+            plain = re.sub(r"\s+", " ", plain).strip()
+            flowables.append(Paragraph(_pdf_escape(plain), styles["body"]))
+        flowables.append(Spacer(1, 4))
+    if not flowables:
+        flowables.append(Paragraph("Aucun contenu dans le modèle de contrat.", styles["muted"]))
+    return flowables
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1459,12 +1677,69 @@ def _contract_header(canvas, doc):
     canvas.restoreState()
 
 
-def generate_contract_pdf(*, proposal) -> bytes:
-    s = _styles()
+def _append_default_contract_body(story: list, proposal, styles) -> None:
+    """Fallback contract body used only when no custom template is attached."""
     campaign = proposal.campaign
     brand = campaign.brand
     influencer = proposal.influencer
-    rights = (campaign.target_filters or {}).get("rights", "Réseaux sociaux uniquement, durée 12 mois.")
+    rights = _format_contract_rights(campaign)
+
+    story.append(Paragraph("1. Parties", styles["h2"]))
+    story.append(_kv_table([
+        ("Marque", brand.company_name or "—"),
+        ("Influenceur", influencer.display_name or influencer.user.username),
+    ]))
+
+    story.append(Paragraph("2. Objet de la prestation", styles["h2"]))
+    brief = (campaign.brief_text or campaign.description or "—")[:2500]
+    story.append(Paragraph(_pdf_escape(brief).replace("\n", "<br/>"), styles["body"]))
+    story.append(Spacer(1, 6))
+    story.append(_kv_table([
+        ("Réseaux ciblés", ", ".join(campaign.target_networks or []) or "—"),
+        ("Format", campaign.content_format or "—"),
+        ("Délai de livraison",
+         campaign.deadline.strftime("%d/%m/%Y") if campaign.deadline else "—"),
+    ]))
+
+    story.append(Paragraph("3. Rémunération", styles["h2"]))
+    amount = proposal.escrow_amount or proposal.proposed_price or 0
+    story.append(_kv_table([
+        ("Montant", _format_eur(amount)),
+        ("Commission plateforme", "15 %"),
+        ("Modalité", "Escrow Stripe — libéré après validation du contenu"),
+    ]))
+
+    story.append(Paragraph("4. Droits d'utilisation", styles["h2"]))
+    story.append(Paragraph(_pdf_escape(rights), styles["body"]))
+
+    story.append(Paragraph("5. Confidentialité", styles["h2"]))
+    story.append(Paragraph(
+        "Les Parties s'engagent à préserver la confidentialité des informations échangées "
+        "dans le cadre de cette collaboration.",
+        styles["body"],
+    ))
+
+    story.append(Paragraph("6. Résiliation et litige", styles["h2"]))
+    story.append(Paragraph(
+        "En cas de désaccord, l'arbitrage est confié à l'équipe InfluConnect sous un délai "
+        "de 48 h ouvrées. La marque dispose de 5 jours ouvrés pour valider le contenu après "
+        "soumission de la preuve.",
+        styles["body"],
+    ))
+
+    story.append(Paragraph("7. Mécanisme d'escrow", styles["h2"]))
+    story.append(Paragraph(
+        "Les fonds versés par la marque sont séquestrés sur le compte plateforme Stripe Connect. "
+        "Ils sont libérés vers l'influenceur après validation du contenu, déduction faite de la "
+        "commission InfluConnect.",
+        styles["body"],
+    ))
+
+
+def generate_contract_pdf(*, proposal) -> bytes:
+    s = _styles()
+    campaign = proposal.campaign
+    template = getattr(proposal, "contract_template", None)
 
     story: list = []
     # Title block
@@ -1480,56 +1755,12 @@ def generate_contract_pdf(*, proposal) -> bytes:
         s["muted"],
     ))
 
-    story.append(Paragraph("1. Parties", s["h2"]))
-    story.append(_kv_table([
-        ("Marque", brand.company_name or "—"),
-        ("Influenceur", influencer.display_name or influencer.user.username),
-    ]))
-
-    story.append(Paragraph("2. Objet de la prestation", s["h2"]))
-    brief = (campaign.brief_text or campaign.description or "—")[:2500]
-    story.append(Paragraph(brief.replace("\n", "<br/>"), s["body"]))
-    story.append(Spacer(1, 6))
-    story.append(_kv_table([
-        ("Réseaux ciblés", ", ".join(campaign.target_networks or []) or "—"),
-        ("Format", campaign.content_format or "—"),
-        ("Délai de livraison",
-         campaign.deadline.strftime("%d/%m/%Y") if campaign.deadline else "—"),
-    ]))
-
-    story.append(Paragraph("3. Rémunération", s["h2"]))
-    amount = proposal.escrow_amount or proposal.proposed_price or 0
-    story.append(_kv_table([
-        ("Montant", _format_eur(amount)),
-        ("Commission plateforme", "15 %"),
-        ("Modalité", "Escrow Stripe — libéré après validation du contenu"),
-    ]))
-
-    story.append(Paragraph("4. Droits d'utilisation", s["h2"]))
-    story.append(Paragraph(rights, s["body"]))
-
-    story.append(Paragraph("5. Confidentialité", s["h2"]))
-    story.append(Paragraph(
-        "Les Parties s'engagent à préserver la confidentialité des informations échangées "
-        "dans le cadre de cette collaboration.",
-        s["body"],
-    ))
-
-    story.append(Paragraph("6. Résiliation et litige", s["h2"]))
-    story.append(Paragraph(
-        "En cas de désaccord, l'arbitrage est confié à l'équipe InfluConnect sous un délai "
-        "de 48 h ouvrées. La marque dispose de 5 jours ouvrés pour valider le contenu après "
-        "soumission de la preuve.",
-        s["body"],
-    ))
-
-    story.append(Paragraph("7. Mécanisme d'escrow", s["h2"]))
-    story.append(Paragraph(
-        "Les fonds versés par la marque sont séquestrés sur le compte plateforme Stripe Connect. "
-        "Ils sont libérés vers l'influenceur après validation du contenu, déduction faite de la "
-        "commission InfluConnect.",
-        s["body"],
-    ))
+    if template and (getattr(template, "body_html", "") or "").strip():
+        story.append(Paragraph(f"Modèle utilisé : <b>{_pdf_escape(template.name)}</b>", s["muted"]))
+        story.append(Spacer(1, 8))
+        story.extend(_contract_template_story(template.body_html, proposal, s))
+    else:
+        _append_default_contract_body(story, proposal, s)
 
     story.append(Paragraph("8. Signatures", s["h2"]))
     brand_signed = (

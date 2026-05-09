@@ -392,7 +392,7 @@ class ProposalGenerateContractView(APIView):
     def post(self, request, pk):
         try:
             proposal = CampaignProposal.objects.select_related(
-                "campaign__brand", "influencer__user", "contract_template"
+                "campaign__brand", "campaign__contract_template", "influencer__user", "contract_template"
             ).get(pk=pk)
         except CampaignProposal.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -413,16 +413,17 @@ class ProposalGenerateContractView(APIView):
             except ContractTemplate.DoesNotExist:
                 return Response({"detail": "Template not found or unauthorized."},
                                 status=status.HTTP_400_BAD_REQUEST)
-        # If no template specified but campaign has a default, use it
+        # If no template specified, use the campaign template first, then the brand default.
         elif not proposal.contract_template:
-            try:
+            campaign_template = getattr(proposal.campaign, "contract_template", None)
+            if campaign_template and campaign_template.brand_id == proposal.campaign.brand_id:
+                proposal.contract_template = campaign_template
+            else:
                 default_template = ContractTemplate.objects.filter(
                     brand=proposal.campaign.brand, is_default=True
                 ).first()
                 if default_template:
                     proposal.contract_template = default_template
-            except ContractTemplate.DoesNotExist:
-                pass
         
         try:
             pdf = generate_contract_pdf(proposal=proposal)
@@ -523,7 +524,10 @@ class CastingApplicationDecisionView(APIView):
         if decision == "selected":
             CampaignProposal.objects.get_or_create(
                 campaign=app.campaign, influencer=app.influencer,
-                defaults={"proposed_price": app.campaign.price_per_influencer or 0},
+                defaults={
+                    "proposed_price": app.campaign.price_per_influencer or 0,
+                    "contract_template": app.campaign.contract_template,
+                },
             )
         return Response(CastingApplicationSerializer(app).data)
 

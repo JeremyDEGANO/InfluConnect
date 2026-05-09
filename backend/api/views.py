@@ -782,6 +782,7 @@ class CampaignSendProposalsView(APIView):
                 campaign=campaign,
                 influencer=influencer,
                 proposed_price=proposed_price,
+                contract_template=campaign.contract_template,
             )
             create_notification(
                 user=influencer.user,
