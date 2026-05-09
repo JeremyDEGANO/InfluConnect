@@ -195,6 +195,9 @@ class BrandAdminSerializer(serializers.ModelSerializer):
 # User
 # ---------------------------------------------------------------------------
 class UserSerializer(serializers.ModelSerializer):
+    # Write-only upload field — accepts a file upload.
+    avatar_upload = serializers.ImageField(source='avatar', write_only=True, required=False, allow_null=True)
+    # Read-only display field — returns an absolute URL.
     avatar = serializers.SerializerMethodField()
     influencer_profile = InfluencerProfileSerializer(read_only=True)
     brand_profile = BrandProfileSerializer(read_only=True)
@@ -203,7 +206,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'user_type', 'language_preference', 'avatar', 'phone', 'location',
+            'user_type', 'language_preference', 'avatar', 'avatar_upload', 'phone', 'location',
             'totp_enabled',
             'created_at', 'updated_at', 'influencer_profile', 'brand_profile',
         ]

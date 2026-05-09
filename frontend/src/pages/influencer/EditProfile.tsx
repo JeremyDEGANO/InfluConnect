@@ -408,7 +408,7 @@ export default function InfluencerEditProfile() {
       if (avatarFile) {
         const fd = new FormData()
         fd.append("avatar", avatarFile)
-        await api.patch("/auth/me/", fd, { headers: { "Content-Type": "multipart/form-data" } })
+        await api.patch("/auth/me/", fd)  // let axios set Content-Type + boundary automatically
         setAvatarFile(null)
       }
       const cleanPhone = toE164Phone(user_form.phone, selectedDialCode)
