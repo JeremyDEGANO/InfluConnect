@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog"
-import { ScrollText, Loader2, Plus, Trash2, Upload } from "lucide-react"
+import { ScrollText, Loader2, Plus, Trash2, Upload, Pencil } from "lucide-react"
 import TipTapEditor from "@/components/shared/TipTapEditor"
 
 interface Template {
@@ -30,6 +30,7 @@ export default function ContractTemplates() {
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState({ name: "", description: "", body_html: "", is_default: false })
   const [preview, setPreview] = useState<Template | null>(null)
   const [importing, setImporting] = useState(false)
@@ -44,17 +45,43 @@ export default function ContractTemplates() {
   }
   useEffect(load, [])
 
-  const create = async () => {
+  const resetForm = () => {
+    setForm({ name: "", description: "", body_html: "", is_default: false })
+    setEditingId(null)
+  }
+
+  const openCreate = () => {
+    resetForm()
+    setOpen(true)
+  }
+
+  const openEdit = (tpl: Template) => {
+    setEditingId(tpl.id)
+    setForm({
+      name: tpl.name,
+      description: tpl.description || "",
+      body_html: tpl.body_html || "",
+      is_default: tpl.is_default,
+    })
+    setOpen(true)
+  }
+
+  const save = async () => {
     if (!form.name || !form.body_html) {
       toast({ variant: "destructive", title: t("contracts.required") })
       return
     }
     setSaving(true)
     try {
-      await api.post("/contract-templates/", form)
-      toast({ title: t("contracts.created") })
+      if (editingId != null) {
+        await api.patch(`/contract-templates/${editingId}/`, form)
+        toast({ title: t("contracts.updated") })
+      } else {
+        await api.post("/contract-templates/", form)
+        toast({ title: t("contracts.created") })
+      }
       setOpen(false)
-      setForm({ name: "", description: "", body_html: "", is_default: false })
+      resetForm()
       load()
     } catch {
       toast({ variant: "destructive", title: t("contracts.error") })
@@ -97,8 +124,13 @@ export default function ContractTemplates() {
         name: f.name || file.name.replace(/\.(docx|pdf)$/i, ""),
       }))
       toast({ title: t("contracts.import_success") })
-    } catch {
-      toast({ variant: "destructive", title: t("contracts.import_error") })
+    } catch (e: any) {
+      const detail = e?.response?.data?.file || e?.response?.data?.detail
+      toast({
+        variant: "destructive",
+        title: t("contracts.import_error"),
+        description: Array.isArray(detail) ? detail.join(" ") : detail,
+      })
     } finally {
       setImporting(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -114,13 +146,13 @@ export default function ContractTemplates() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">{t("contracts.subtitle")}</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm() }}>
           <DialogTrigger asChild>
-            <Button variant="gradient"><Plus className="h-4 w-4 mr-2" />{t("contracts.new")}</Button>
+            <Button variant="gradient" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />{t("contracts.new")}</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>{t("contracts.new_title")}</DialogTitle></DialogHeader>
-            <div className="space-y-3">
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+            <DialogHeader><DialogTitle>{editingId != null ? t("contracts.edit_title") : t("contracts.new_title")}</DialogTitle></DialogHeader>
+            <div className="space-y-3 overflow-y-auto pr-2 flex-1 min-h-0">
               <div>
                 <Label>{t("contracts.name_label")}</Label>
                 <Input className="mt-1" placeholder={t("contracts.name_placeholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -167,8 +199,8 @@ export default function ContractTemplates() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>{t("contracts.cancel")}</Button>
-              <Button variant="gradient" onClick={create} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t("contracts.create")}
+              <Button variant="gradient" onClick={save} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingId != null ? t("contracts.save") : t("contracts.create"))}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -194,6 +226,9 @@ export default function ContractTemplates() {
                 <p className="text-xs text-gray-400">{t("contracts.created_at")} {new Date(tpl.created_at).toLocaleDateString(i18n.language)}</p>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" className="flex-1" onClick={() => setPreview(tpl)}>{t("contracts.preview")}</Button>
+                  <Button size="sm" variant="outline" onClick={() => openEdit(tpl)} title={t("contracts.edit")}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(tpl.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>

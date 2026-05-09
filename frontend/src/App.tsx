@@ -41,6 +41,8 @@ import AdminBrands from "@/pages/admin/Brands"
 import AdminReviews from "@/pages/admin/Reviews"
 import AdminAuditLog from "@/pages/admin/AuditLog"
 import InfluencerOnboarding from "@/pages/influencer/Onboarding"
+import InfluencerMediaKit from "@/pages/influencer/MediaKit"
+import SignMobile from "@/pages/SignMobile"
 
 function PublicLayout() {
   return (
@@ -88,12 +90,14 @@ export default function App() {
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/notice" element={<LegalNotice />} />
+          <Route path="/sign/mobile/:token" element={<SignMobile />} />
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route element={<ProtectedRoute roles={["influencer"]} />}>
               <Route path="/influencer/dashboard" element={<InfluencerDashboard />} />
               <Route path="/influencer/onboarding" element={<InfluencerOnboarding />} />
+              <Route path="/influencer/media-kit" element={<InfluencerMediaKit />} />
               <Route path="/influencer/proposals" element={<InfluencerProposals />} />
               <Route path="/influencer/proposals/:id" element={<ProposalDetail />} />
               <Route path="/influencer/brands/:id" element={<BrandPublicProfile />} />
@@ -111,6 +115,7 @@ export default function App() {
               <Route path="/brand/campaigns/:id" element={<CampaignDetail />} />
               <Route path="/brand/campaigns/:id/validate/:proposalId" element={<ValidateContent />} />
               <Route path="/brand/proposals/:id" element={<BrandProposalDetail />} />
+              <Route path="/brand/influencers/:id" element={<InfluencerPublicProfile />} />
               <Route path="/brand/profile/edit" element={<BrandEditProfile />} />
               <Route path="/brand/subscription" element={<Subscription />} />
               <Route path="/brand/ambassadors" element={<AmbassadorPrograms />} />

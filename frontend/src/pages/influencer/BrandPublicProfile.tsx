@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { fetchBrandPublic, BrandPublic } from "@/lib/apiExtra"
+import { resolveMediaUrl } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -36,6 +37,9 @@ export default function BrandPublicProfile() {
   }
   if (!brand) return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
 
+  const ratingValue = Number((brand as any).average_rating)
+  const ratingLabel = Number.isFinite(ratingValue) ? ratingValue.toFixed(1) : null
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
@@ -47,7 +51,7 @@ export default function BrandPublicProfile() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
-              {brand.logo && <AvatarImage src={brand.logo} />}
+              {brand.logo && <AvatarImage src={resolveMediaUrl(brand.logo)} />}
               <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-lg font-semibold">
                 {(brand.company_name || "??").slice(0, 2).toUpperCase()}
               </AvatarFallback>
@@ -56,10 +60,10 @@ export default function BrandPublicProfile() {
               <CardTitle className="text-xl">{brand.company_name}</CardTitle>
               {brand.sector && <p className="text-sm text-gray-500 flex items-center gap-1 mt-1"><Briefcase className="h-3.5 w-3.5" />{brand.sector}</p>}
             </div>
-            {brand.average_rating !== null && (
+            {ratingLabel && (
               <div className="flex items-center gap-1 text-amber-500">
                 <Star className="h-4 w-4 fill-amber-500" />
-                <span className="font-semibold">{brand.average_rating.toFixed(1)}</span>
+                <span className="font-semibold">{ratingLabel}</span>
               </div>
             )}
           </div>

@@ -138,7 +138,7 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='InfluConnect <noreply@influconnect.local>')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='InfluConnect <noreply@influconnect.fr>')
 ADMIN_NOTIFICATION_EMAILS = [
     e.strip() for e in config('ADMIN_NOTIFICATION_EMAILS', default='').split(',') if e.strip()
 ]
@@ -154,7 +154,7 @@ PLATFORM_COMMISSION_RATE = config('PLATFORM_COMMISSION_RATE', default=15, cast=f
 # ---------------------------------------------------------------------------
 # Frontend URL (for email links, QR codes, etc.)
 # ---------------------------------------------------------------------------
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+FRONTEND_URL = config('FRONTEND_URL', default='https://influconnect.fr')
 
 # ---------------------------------------------------------------------------
 # Social network OAuth credentials (CDC §8 — auto stats import)

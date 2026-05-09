@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
-import { fundEscrow, generateContractPdf, validateContent, rejectContent, submitContent, acceptCounterOffer } from "@/lib/apiExtra"
+import { fundEscrow, validateContent, rejectContent, submitContent, acceptCounterOffer } from "@/lib/apiExtra"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,12 +12,19 @@ import { CounterOfferDialog } from "@/components/shared/CounterOfferDialog"
 import { ReviewDialog } from "@/components/shared/ReviewDialog"
 import { SignContractDialog } from "@/components/shared/SignContractDialog"
 import { PaymentDialog } from "@/components/shared/PaymentDialog"
+import { ContractWorkflow } from "@/components/shared/ContractWorkflow"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, CheckCircle, XCircle, MessageSquare, Loader2, FileText, PenTool, Wallet, Upload, Download, Shield, Repeat, Star } from "lucide-react"
+import { ArrowLeft, CheckCircle, XCircle, MessageSquare, Loader2, PenTool, Wallet, Upload, Download, Repeat, Star } from "lucide-react"
 
 interface ProposalData {
   id: number
   campaign_title: string
+  campaign_description?: string
+  campaign_target_networks?: string[]
+  campaign_target_filters?: Record<string, any>
+  campaign_content_formats?: any[]
+  campaign_deadline?: string
+  campaign_status?: string
   brand_company_name: string
   brand_id?: number
   influencer_name?: string
@@ -33,6 +40,10 @@ interface ProposalData {
   escrow_released_at?: string | null
   submission_deadline?: string | null
   validation_deadline?: string | null
+  latest_submission_kind?: "link" | "photo" | "video" | "upload" | null
+  latest_submission_pre_publish?: boolean | null
+  latest_submission_rejection_reason?: string | null
+  latest_submission_rejection_comment?: string | null
 }
 
 interface Message {
@@ -42,6 +53,27 @@ interface Message {
   created_at: string
   is_mine: boolean
 }
+
+const getApiErrorMessage = (error: any) => {
+  const data = error?.response?.data
+  if (!data) return undefined
+  if (typeof data.detail === "string") return data.detail
+  if (typeof data === "string") return data
+
+  const firstEntry = Object.entries(data).find(([, value]) => value)
+  if (!firstEntry) return undefined
+
+  const [, value] = firstEntry
+  if (Array.isArray(value)) return String(value[0])
+  if (typeof value === "string") return value
+  return undefined
+}
+
+const formatStatusLabel = (status: string) =>
+  status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 
 export default function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
@@ -54,7 +86,9 @@ export default function ProposalDetail() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [contentUrl, setContentUrl] = useState("")
-  const [contentNotes, setContentNotes] = useState("")
+  const [submissionKind, setSubmissionKind] = useState<"link" | "photo" | "video">("link")
+  const [prePublishReview, setPrePublishReview] = useState(false)
+  const [contentFile, setContentFile] = useState<File | null>(null)
   const [showSubmit, setShowSubmit] = useState(false)
   const [showCounter, setShowCounter] = useState(false)
   const [showReview, setShowReview] = useState(false)
@@ -65,6 +99,7 @@ export default function ProposalDetail() {
 
   const reload = async () => {
     const r = await api.get(`/proposals/${id}/`)
+    console.log("[ProposalDetail] Loaded proposal:", r.data)
     setProposal(r.data)
   }
 
@@ -122,16 +157,6 @@ export default function ProposalDetail() {
     finally { setActionLoading(false) }
   }
 
-  const handleGenerateContract = async () => {
-    setActionLoading(true)
-    try {
-      const r = await generateContractPdf(Number(id))
-      toast({ title: t("proposal_detail.contract_generated", "Contrat PDF généré") })
-      setProposal((p) => p ? { ...p, contract_pdf: r.contract_pdf } : p)
-    } catch (e: any) { toast({ title: t("common.error"), description: e?.response?.data?.detail, variant: "destructive" }) }
-    finally { setActionLoading(false) }
-  }
-
   const handleFundEscrow = async () => {
     setShowPayDialog(true)
   }
@@ -148,14 +173,20 @@ export default function ProposalDetail() {
   }
 
   const handleSubmitContent = async () => {
-    if (!contentUrl) return
+    if (submissionKind === "link" && !contentUrl) return
+    if ((submissionKind === "photo" || submissionKind === "video") && !contentFile) return
     setActionLoading(true)
     try {
-      await submitContent(Number(id), { content_url: contentUrl, notes: contentNotes })
+      const isUpload = submissionKind === "photo" || submissionKind === "video"
+      await submitContent(Number(id), {
+        submission_type: isUpload ? "upload" : "link",
+        publication_url: prePublishReview ? "" : contentUrl,
+        uploaded_file: isUpload ? contentFile : null,
+      })
       toast({ title: t("proposal_detail.content_submitted", "Contenu soumis") })
-      setShowSubmit(false); setContentUrl(""); setContentNotes("")
+      setShowSubmit(false); setContentUrl(""); setContentFile(null); setPrePublishReview(false); setSubmissionKind("link")
       await reload()
-    } catch (e: any) { toast({ title: t("common.error"), description: e?.response?.data?.detail, variant: "destructive" }) }
+    } catch (e: any) { toast({ title: t("common.error"), description: getApiErrorMessage(e), variant: "destructive" }) }
     finally { setActionLoading(false) }
   }
 
@@ -174,7 +205,7 @@ export default function ProposalDetail() {
     if (!reason) return
     setActionLoading(true)
     try {
-      await rejectContent(Number(id), reason)
+      await rejectContent(Number(id), { rejection_reason: "other", rejection_comment: reason })
       toast({ title: t("proposal_detail.content_rejected", "Contenu refusé — correction demandée") })
       await reload()
     } catch (e: any) { toast({ title: t("common.error"), description: e?.response?.data?.detail, variant: "destructive" }) }
@@ -196,10 +227,13 @@ export default function ProposalDetail() {
 
   const bothSigned = proposal.brand_signed_at && proposal.influencer_signed_at
   const mySigned = isBrand ? proposal.brand_signed_at : proposal.influencer_signed_at
-  const canSign = proposal.status === "accepted" && !mySigned
+  const canSign = !isBrand && proposal.status === "accepted" && proposal.brand_signed_at && !mySigned
   const canFund = isBrand && bothSigned && !proposal.escrow_funded_at
-  const canSubmit = !isBrand && proposal.escrow_funded_at && proposal.status !== "completed"
+  const canSubmit = !isBrand && proposal.status === "in_progress"
   const canValidate = isBrand && proposal.status === "content_submitted"
+  const correctionReasonLabel = proposal.latest_submission_rejection_reason
+    ? t(`brand_proposal.rejection_reason_${proposal.latest_submission_rejection_reason}`)
+    : null
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -228,10 +262,76 @@ export default function ProposalDetail() {
                     <p className="font-semibold mt-1 text-green-700">€{proposal.proposed_price}</p>
                   </div>
                   <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-gray-500 text-xs">Status</p>
-                    <p className="font-semibold mt-1">{proposal.status}</p>
+                    <p className="text-gray-500 text-xs">{t("common.status", "Statut")}</p>
+                    <p className="font-semibold mt-1">{t(`status.${proposal.status}`, { defaultValue: formatStatusLabel(proposal.status) })}</p>
                   </div>
                 </div>
+
+                {proposal.campaign_description && (
+                  <div className="p-3 bg-blue-50 rounded-xl">
+                    <p className="text-gray-700 text-sm">{proposal.campaign_description}</p>
+                  </div>
+                )}
+
+                {proposal.campaign_target_networks && proposal.campaign_target_networks.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">{t("campaigns.target_networks", "Réseaux ciblés")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {proposal.campaign_target_networks.map((net) => (
+                        <span key={net} className="inline-block px-2.5 py-1 text-xs font-medium bg-indigo-100 text-indigo-700 rounded-full">{net}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {proposal.campaign_content_formats && proposal.campaign_content_formats.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">{t("campaigns.content_formats", "Formats demandés")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {proposal.campaign_content_formats.map((fmt: any, idx: number) => (
+                        typeof fmt === "string" ? (
+                          <span key={idx} className="inline-block px-2.5 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">{fmt}</span>
+                        ) : (
+                          <span key={idx} className="inline-block px-2.5 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">{fmt.code || fmt}</span>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {proposal.campaign_target_filters?.content_themes && Array.isArray(proposal.campaign_target_filters.content_themes) && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">{t("campaigns.themes", "Thématiques")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {proposal.campaign_target_filters.content_themes.map((theme: string) => (
+                        <span key={theme} className="inline-block px-2.5 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">{theme}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {proposal.campaign_deadline && (
+                  <div className="p-3 bg-yellow-50 rounded-xl text-sm">
+                    <p className="text-gray-500 text-xs uppercase font-medium">{t("campaigns.deadline")}</p>
+                    <p className="font-semibold text-gray-900 mt-1">{new Date(proposal.campaign_deadline).toLocaleDateString()}</p>
+                  </div>
+                )}
+
+                {!isBrand && proposal.status === "in_progress" && (proposal.latest_submission_rejection_reason || proposal.latest_submission_rejection_comment) && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm space-y-2">
+                    <p className="font-semibold text-amber-900">{t("proposal_detail.correction_requested_title")}</p>
+                    {correctionReasonLabel && (
+                      <p className="text-amber-800">
+                        <span className="font-medium">{t("proposal_detail.correction_reason_label")}:</span> {correctionReasonLabel}
+                      </p>
+                    )}
+                    {proposal.latest_submission_rejection_comment && (
+                      <p className="text-amber-800">
+                        <span className="font-medium">{t("proposal_detail.correction_note_label")}:</span> {proposal.latest_submission_rejection_comment}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {!isBrand && proposal.status === "pending" && (
                   <div className="flex flex-wrap gap-3 pt-2">
@@ -284,27 +384,18 @@ export default function ProposalDetail() {
 
           {/* Workflow Card */}
           {proposal.status !== "pending" && proposal.status !== "declined" && (
-            <Card className="card-base">
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Shield className="h-4 w-4" /> {t("proposal_detail.workflow", "Workflow contractuel")}</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p>✓ Marque signée: {proposal.brand_signed_at ? new Date(proposal.brand_signed_at).toLocaleString() : "—"}</p>
-                  <p>✓ Influenceur signé: {proposal.influencer_signed_at ? new Date(proposal.influencer_signed_at).toLocaleString() : "—"}</p>
-                  <p>✓ Escrow: {proposal.escrow_funded_at ? "✅ approvisionné " + new Date(proposal.escrow_funded_at).toLocaleDateString() : "en attente"}</p>
-                  <p>✓ Paiement libéré: {proposal.escrow_released_at ? "✅ " + new Date(proposal.escrow_released_at).toLocaleDateString() : "—"}</p>
-                  {proposal.submission_deadline && <p>📅 Soumission avant: {new Date(proposal.submission_deadline).toLocaleDateString()}</p>}
-                  {proposal.validation_deadline && <p>📅 Validation avant: {new Date(proposal.validation_deadline).toLocaleDateString()}</p>}
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-2">
+            <ContractWorkflow
+              proposal={proposal}
+              actions={(
+                <>
                   {proposal.contract_pdf ? (
                     <a href={proposal.contract_pdf} target="_blank" rel="noopener noreferrer">
                       <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" />{t("proposal_detail.download_contract", "Télécharger contrat")}</Button>
                     </a>
                   ) : (
-                    <Button variant="outline" size="sm" disabled={actionLoading} onClick={handleGenerateContract}>
-                      <FileText className="h-4 w-4 mr-1" />{t("proposal_detail.generate_contract", "Générer contrat")}
-                    </Button>
+                    <div className="text-xs text-gray-500 p-2 rounded bg-gray-50">
+                      {t("proposal_detail.contract_pending", "En attente de génération par la marque")}
+                    </div>
                   )}
                   {canSign && (
                     <Button variant="gradient" size="sm" disabled={actionLoading} onClick={handleSign}>
@@ -331,28 +422,65 @@ export default function ProposalDetail() {
                       </Button>
                     </>
                   )}
-                </div>
-
-                {showSubmit && (
+                </>
+              )}
+              extraContent={showSubmit ? (
                   <div className="border-t pt-3 space-y-2">
-                    <input
-                      type="url" placeholder="URL du contenu publié"
-                      value={contentUrl} onChange={(e) => setContentUrl(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    />
-                    <textarea
-                      placeholder="Notes (optionnel)" value={contentNotes}
-                      onChange={(e) => setContentNotes(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm" rows={2}
-                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button size="sm" variant={submissionKind === "link" ? "gradient" : "outline"} onClick={() => setSubmissionKind("link")}>{t("proposal_detail.submission_kind_link")}</Button>
+                      <Button size="sm" variant={submissionKind === "photo" ? "gradient" : "outline"} onClick={() => setSubmissionKind("photo")}>{t("proposal_detail.submission_kind_photo")}</Button>
+                      <Button size="sm" variant={submissionKind === "video" ? "gradient" : "outline"} onClick={() => setSubmissionKind("video")}>{t("proposal_detail.submission_kind_video")}</Button>
+                    </div>
+
+                    {(submissionKind === "photo" || submissionKind === "video") && (
+                      <input
+                        type="file"
+                        accept={submissionKind === "photo" ? "image/*" : "video/*"}
+                        onChange={(e) => setContentFile(e.target.files?.[0] ?? null)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                      />
+                    )}
+
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={prePublishReview}
+                        onChange={(e) => {
+                          setPrePublishReview(e.target.checked)
+                          if (e.target.checked) setContentUrl("")
+                        }}
+                      />
+                      {t("proposal_detail.pre_publish_review")}
+                    </label>
+
+                    {!prePublishReview && (
+                      <input
+                        type="url"
+                        placeholder={t("proposal_detail.submission_url_placeholder")}
+                        value={contentUrl}
+                        onChange={(e) => setContentUrl(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                      />
+                    )}
+
                     <div className="flex gap-2">
-                      <Button size="sm" variant="gradient" disabled={!contentUrl || actionLoading} onClick={handleSubmitContent}>{t("common.submit", "Envoyer")}</Button>
+                      <Button
+                        size="sm"
+                        variant="gradient"
+                        disabled={
+                          actionLoading ||
+                          (submissionKind === "link" && !prePublishReview && !contentUrl) ||
+                          ((submissionKind === "photo" || submissionKind === "video") && !contentFile)
+                        }
+                        onClick={handleSubmitContent}
+                      >
+                        {t("common.submit", "Envoyer")}
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => setShowSubmit(false)}>{t("common.cancel", "Annuler")}</Button>
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                ) : null}
+            />
           )}
 
           <Card className="card-base">

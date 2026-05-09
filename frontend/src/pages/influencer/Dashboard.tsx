@@ -60,7 +60,7 @@ export default function InfluencerDashboard() {
       {data?.timeseries && data.timeseries.length > 0 && (
         <div className="grid md:grid-cols-2 gap-4">
           <Card className="card-base">
-            <CardHeader><CardTitle className="text-base">Gains mensuels</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">{t("influencer_dashboard.monthly_earnings")}</CardTitle></CardHeader>
             <CardContent>
               <SimpleBarChart
                 data={data.timeseries.map((m) => ({ label: m.label, value: m.earnings }))}
@@ -71,7 +71,7 @@ export default function InfluencerDashboard() {
             </CardContent>
           </Card>
           <Card className="card-base">
-            <CardHeader><CardTitle className="text-base">Nouvelles propositions</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">{t("influencer_dashboard.new_proposals")}</CardTitle></CardHeader>
             <CardContent>
               <SimpleBarChart
                 data={data.timeseries.map((m) => ({ label: m.label, value: m.proposals }))}

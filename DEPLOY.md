@@ -2,18 +2,18 @@
 
 This guide wires InfluConnect (Django + React) behind the **Caddy container you
 already run for heritage-exclusive.com / WordPress**. No extra proxy, no port
-conflict — the existing Caddy on :80 / :443 also serves `influconnect.fr`.
+conflict — the existing Caddy on :80 / :443 also serves `InfluConnect.fr`.
 
 ## 1. Point your DNS
 
 Create two A (or AAAA) records pointing to the server's public IP:
 
 ```
-influconnect.fr        A   <server-ip>
-www.influconnect.fr    A   <server-ip>
+InfluConnect.fr        A   <server-ip>
+www.InfluConnect.fr    A   <server-ip>
 ```
 
-Wait until `dig +short influconnect.fr` returns your server IP before
+Wait until `dig +short InfluConnect.fr` returns your server IP before
 continuing (Caddy needs DNS to obtain the Let's Encrypt cert).
 
 ## 2. Create the shared Docker network
@@ -37,11 +37,11 @@ network as external and add it to the `caddy` service, then `docker compose up -
 
 ## 3. Upload the project
 
-On the server (e.g. `/opt/influconnect`):
+On the server (e.g. `/opt/InfluConnect`):
 
 ```bash
-sudo mkdir -p /opt/influconnect && sudo chown $USER /opt/influconnect
-cd /opt/influconnect
+sudo mkdir -p /opt/InfluConnect && sudo chown $USER /opt/InfluConnect
+cd /opt/InfluConnect
 git clone <your repo url> .
 ```
 
@@ -59,23 +59,23 @@ nano .env.prod
 ## 5. Build & launch the stack
 
 ```bash
-docker compose -p influconnect -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -p InfluConnect -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-The `-p influconnect` flag fixes the project name so container names are
-predictable (`influconnect-backend-1`, `influconnect-frontend-1`, `influconnect-db-1`).
+The `-p InfluConnect` flag fixes the project name so container names are
+predictable (`InfluConnect-backend-1`, `InfluConnect-frontend-1`, `InfluConnect-db-1`).
 
 Check everything is up:
 
 ```bash
-docker compose -p influconnect -f docker-compose.prod.yml ps
-docker compose -p influconnect -f docker-compose.prod.yml logs -f backend
+docker compose -p InfluConnect -f docker-compose.prod.yml ps
+docker compose -p InfluConnect -f docker-compose.prod.yml logs -f backend
 ```
 
 Create the Django admin user:
 
 ```bash
-docker compose -p influconnect -f docker-compose.prod.yml exec backend \
+docker compose -p InfluConnect -f docker-compose.prod.yml exec backend \
     python manage.py createsuperuser
 ```
 
@@ -89,42 +89,42 @@ Caddyfile your existing Caddy container uses (typically
 docker exec wordpress-caddy-1 caddy reload --config /etc/caddy/Caddyfile
 ```
 
-Caddy will automatically issue a Let's Encrypt certificate for `influconnect.fr`
-and `www.influconnect.fr` on first request.
+Caddy will automatically issue a Let's Encrypt certificate for `InfluConnect.fr`
+and `www.InfluConnect.fr` on first request.
 
 ## 7. Smoke test
 
 ```bash
-curl -I https://influconnect.fr/                 # 200 — SPA
-curl -I https://influconnect.fr/api/reference/plans/   # 200 — JSON
-curl -I https://influconnect.fr/admin/           # 302 — Django admin
+curl -I https://InfluConnect.fr/                 # 200 — SPA
+curl -I https://InfluConnect.fr/api/reference/plans/   # 200 — JSON
+curl -I https://InfluConnect.fr/admin/           # 302 — Django admin
 ```
 
-Then open `https://influconnect.fr` in a browser.
+Then open `https://InfluConnect.fr` in a browser.
 
 ## Updates
 
 ```bash
-cd /opt/influconnect
+cd /opt/InfluConnect
 git pull
-docker compose -p influconnect -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -p InfluConnect -f docker-compose.prod.yml --env-file .env.prod up -d --build
 # Migrations run automatically via the compose `command:` block.
 ```
 
 ## Backups (Postgres)
 
 ```bash
-docker compose -p influconnect -f docker-compose.prod.yml exec -T db \
-    pg_dump -U influconnect influconnect | gzip > backup-$(date +%F).sql.gz
+docker compose -p InfluConnect -f docker-compose.prod.yml exec -T db \
+    pg_dump -U InfluConnect InfluConnect | gzip > backup-$(date +%F).sql.gz
 ```
 
 ## Troubleshooting
 
 - **502 from Caddy** → the `proxy` network doesn't include the Caddy container.
   Run `docker network inspect proxy` and check both `wordpress-caddy-1` and
-  `influconnect-backend-1` are listed.
+  `InfluConnect-backend-1` are listed.
 - **CSRF errors on /admin** → add your hostname to `CSRF_TRUSTED_ORIGINS` in
   `.env.prod` (full `https://…` URLs, comma separated).
 - **"ALLOWED_HOSTS" 400** → same, extend `ALLOWED_HOSTS` in `.env.prod`.
 - **Static files missing** → rebuild the backend image:
-  `docker compose -p influconnect -f docker-compose.prod.yml build backend`.
+  `docker compose -p InfluConnect -f docker-compose.prod.yml build backend`.

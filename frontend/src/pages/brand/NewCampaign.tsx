@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
-import { fetchReference, ReferenceData, sendCampaignProposals, fetchMarketplace } from "@/lib/apiExtra"
+import { fetchReference, ReferenceData, sendCampaignProposals } from "@/lib/apiExtra"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,9 +12,16 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, ArrowLeft, Users, Megaphone, UserCheck, Plus, X, Eye, CheckCircle2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, resolveMediaUrl } from "@/lib/utils"
+import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
 
-const THEME_OPTIONS = ["Fashion", "Beauty", "Tech", "Food", "Travel", "Fitness", "Gaming", "Lifestyle", "Finance", "Education"]
+const FALLBACK_THEME_OPTIONS = [
+  { code: "fashion", label: "Mode" }, { code: "beauty", label: "Beauté" },
+  { code: "tech", label: "Tech" }, { code: "food", label: "Cuisine" },
+  { code: "travel", label: "Voyage" }, { code: "sport", label: "Sport" },
+  { code: "gaming", label: "Gaming" }, { code: "lifestyle", label: "Lifestyle" },
+  { code: "finance", label: "Finance" }, { code: "health_wellness", label: "Santé & Bien-être" },
+]
 const FALLBACK_CONTENT_TYPES = [
   { code: "post", label: "Post" },
   { code: "story", label: "Story" },
@@ -66,13 +73,19 @@ export default function NewCampaign() {
 
   useEffect(() => {
     fetchReference().then(setReference).catch(() => {})
-    fetchMarketplace()
-      .then((d: any) => setInfluencers(d.results ?? d))
-      .catch(() => {})
+    api.get("/influencers/")
+      .then((r: any) => {
+        console.log("[NewCampaign] /influencers/ success:", r.data)
+        setInfluencers(r.data.results ?? r.data)
+      })
+      .catch((e: any) => {
+        console.error("[NewCampaign] /influencers/ failed:", e?.response?.status, e?.message)
+      })
   }, [])
 
   const contentTypeOptions = reference?.content_types ?? FALLBACK_CONTENT_TYPES
   const platformOptions = reference?.social_platforms ?? FALLBACK_PLATFORMS
+  const themeOptions = reference?.themes ?? FALLBACK_THEME_OPTIONS
 
   const STEPS = [
     { id: 1, title: t("new_campaign.basics") },
@@ -103,12 +116,21 @@ export default function NewCampaign() {
       if (!(i.display_name ?? "").toLowerCase().includes(s) && !(i.city ?? "").toLowerCase().includes(s)) return false
     }
     if (form.target_networks.length > 0) {
-      const infPlatforms = i.social_networks?.map((sn) => sn.platform.toLowerCase()) ?? []
-      if (!form.target_networks.some((p) => infPlatforms.includes(p.toLowerCase()))) return false
+      const normalizePlatform = (p: string) => {
+        const v = p.toLowerCase()
+        return v === "x" ? "twitter" : v
+      }
+      const infPlatforms = i.social_networks?.map((sn) => normalizePlatform(sn.platform)) ?? []
+      if (!form.target_networks.some((p) => infPlatforms.includes(normalizePlatform(p)))) return false
     }
     if (form.min_followers) {
       const totalFollowers = i.social_networks?.reduce((s, sn) => s + sn.followers_count, 0) ?? 0
       if (totalFollowers < Number(form.min_followers)) return false
+    }
+    if (form.themes.length > 0) {
+      const infThemes = (i.content_themes ?? []).map((x) => x.toLowerCase().trim())
+      const wants = form.themes.map((x) => x.toLowerCase().trim())
+      if (!wants.some((th) => infThemes.includes(th))) return false
     }
     return true
   })
@@ -151,8 +173,13 @@ export default function NewCampaign() {
 
       toast({ title: t("new_campaign.created"), description: t("new_campaign.created_desc") })
       navigate("/brand/campaigns")
-    } catch {
-      toast({ title: t("common.error"), variant: "destructive" })
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail
+      toast({
+        title: t("common.error"),
+        description: typeof detail === "string" ? detail : t("campaigns.create_error"),
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -184,8 +211,8 @@ export default function NewCampaign() {
                 <div>
                   <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("campaigns.themes")}</Label>
                   <div className="flex flex-wrap gap-2">
-                    {THEME_OPTIONS.map((theme) => (
-                      <Badge key={theme} variant={form.themes.includes(theme) ? "info" : "outline"} className="cursor-pointer" onClick={() => toggle("themes", theme)}>{theme}</Badge>
+                    {themeOptions.map((th) => (
+                      <Badge key={th.code} variant={form.themes.includes(th.code) ? "info" : "outline"} className="cursor-pointer" onClick={() => toggle("themes", th.code)}>{th.label}</Badge>
                     ))}
                   </div>
                 </div>
@@ -344,13 +371,24 @@ export default function NewCampaign() {
                           >
                             <div className="flex items-start gap-3">
                               <Avatar className="h-14 w-14 shrink-0">
-                                {inf.avatar && <AvatarImage src={inf.avatar} />}
+                                {inf.avatar && <AvatarImage src={resolveMediaUrl(inf.avatar)} />}
                                 <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white font-semibold">
                                   {(inf.display_name || "??").slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-gray-900 truncate">{inf.display_name || `#${inf.id}`}</p>
+                                <InfluencerHoverCard
+                                  influencerId={inf.id}
+                                  displayName={inf.display_name || `#${inf.id}`}
+                                  avatar={inf.avatar}
+                                  city={inf.city}
+                                  socialNetworks={inf.social_networks}
+                                  contentThemes={inf.content_themes}
+                                >
+                                  <a href={`/brand/influencers/${inf.id}`} target="_blank" rel="noopener noreferrer" className="group">
+                                    <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{inf.display_name || `#${inf.id}`}</p>
+                                  </a>
+                                </InfluencerHoverCard>
                                 <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                                   <Users className="h-3 w-3" />{fmt(totalFollowers)}
                                   {inf.city && <span className="ml-1">· {inf.city}</span>}
@@ -375,9 +413,9 @@ export default function NewCampaign() {
                                 size="sm"
                                 variant="outline"
                                 className="flex-1"
-                                onClick={() => window.open(`/marketplace/${inf.id}`, "_blank")}
+                                asChild
                               >
-                                <Eye className="h-3.5 w-3.5 mr-1" />{t("new_campaign_plus.view_profile")}
+                                <a href={`/brand/influencers/${inf.id}#media-kit`} target="_blank" rel="noopener noreferrer">{t("new_campaign_plus.view_media_kit")}</a>
                               </Button>
                               <Button
                                 type="button"
@@ -407,7 +445,7 @@ export default function NewCampaign() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <CardHeader className="p-0 pb-4"><CardTitle className="text-base">{t("new_campaign.budget_launch")}</CardTitle></CardHeader>
                 <div>
-                  <Label>{t("new_campaign_plus.price_per_influencer")} (€) *</Label>
+                  <Label>{t("new_campaign_plus.price_per_influencer")} *</Label>
                   <Input className="mt-1" type="number" placeholder="2000" value={form.budget} onChange={(e) => update("budget", e.target.value)} required />
                   <p className="text-xs text-gray-400 mt-1">
                     {t("new_campaign_plus.total_budget")}: €{((parseFloat(form.budget) || 0) * form.max_influencers).toFixed(2)}

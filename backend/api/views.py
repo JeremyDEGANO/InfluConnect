@@ -1,5 +1,7 @@
 from decimal import Decimal
+import secrets
 from django.conf import settings as django_settings
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from datetime import timedelta
@@ -25,6 +27,27 @@ from .serializers import (
 )
 from .services import email_service, stripe_service
 from .services.pdf_service import generate_contract_pdf
+from .constants import CONTENT_THEMES
+
+
+_THEME_ALIAS_TO_CODE = {}
+for _theme in CONTENT_THEMES:
+    _code = str(_theme.get("code", "")).strip()
+    _label = str(_theme.get("label", "")).strip()
+    if _code:
+        _THEME_ALIAS_TO_CODE[_code.casefold()] = _code
+    if _label:
+        _THEME_ALIAS_TO_CODE[_label.casefold()] = _code
+
+
+def _theme_candidates(value):
+    """Return compatible theme values for legacy/code/label matching."""
+    raw = str(value or "").strip()
+    if not raw:
+        return []
+    code = _THEME_ALIAS_TO_CODE.get(raw.casefold(), raw.casefold())
+    candidates = {code, raw, raw.casefold(), raw.lower()}
+    return [c for c in candidates if c]
 
 
 def _client_ip(request):
@@ -50,6 +73,130 @@ def create_notification(user, notification_type, title, message, proposal=None):
         message=message,
         related_proposal=proposal,
     )
+
+
+SIGN_SESSION_TTL_SECONDS = 15 * 60
+
+
+def _sign_session_cache_key(token: str) -> str:
+    return f"proposal-sign-session:{token}"
+
+
+def _extract_signature_payload(request_data, signer_user, proposal):
+    mode = str(request_data.get("signature_mode") or "").strip()
+    value = str(request_data.get("signature_value") or "").strip()
+    data = request_data.get("signature_data") or ""
+
+    if signer_user.user_type == "brand" and hasattr(signer_user, "brand_profile"):
+        default_value = signer_user.brand_profile.company_name
+    else:
+        default_value = proposal.influencer.display_name or signer_user.get_full_name() or signer_user.username
+
+    if mode == "brand_name" and not value:
+        value = default_value
+    elif mode == "person_name" and not value:
+        value = signer_user.get_full_name().strip() or getattr(proposal.influencer, "display_name", "") or signer_user.username
+
+    return {
+        "mode": mode,
+        "value": value,
+        "data": str(data or ""),
+    }
+
+
+def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
+    """Apply signature business rules for either brand or influencer signer."""
+    is_brand = (
+        signer_user.user_type == "brand"
+        and hasattr(signer_user, "brand_profile")
+        and proposal.campaign.brand == signer_user.brand_profile
+    )
+    is_influencer = (
+        signer_user.user_type == "influencer"
+        and hasattr(signer_user, "influencer_profile")
+        and proposal.influencer == signer_user.influencer_profile
+    )
+
+    if not is_brand and not is_influencer:
+        return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+    brand_just_signed = False
+
+    if is_brand:
+        if proposal.brand_signed_at:
+            return Response({"detail": "Brand has already signed."}, status=status.HTTP_400_BAD_REQUEST)
+        proposal.contract_signed_brand = True
+        brand_just_signed = True
+
+    if is_influencer:
+        if not proposal.brand_signed_at:
+            return Response({"detail": "Brand must sign first."}, status=status.HTTP_400_BAD_REQUEST)
+        if proposal.influencer_signed_at:
+            return Response({"detail": "Influencer has already signed."}, status=status.HTTP_400_BAD_REQUEST)
+        proposal.contract_signed_influencer = True
+
+    now = timezone.now()
+    if is_brand and not proposal.brand_signed_at:
+        proposal.brand_signed_at = now
+        proposal.brand_signature_ip = ip
+        proposal.brand_signature_mode = (signature_payload or {}).get("mode", "")
+        proposal.brand_signature_value = (signature_payload or {}).get("value", "")
+        proposal.brand_signature_data = (signature_payload or {}).get("data", "")
+    if is_influencer and not proposal.influencer_signed_at:
+        proposal.influencer_signed_at = now
+        proposal.influencer_signature_ip = ip
+        proposal.influencer_signature_mode = (signature_payload or {}).get("mode", "")
+        proposal.influencer_signature_value = (signature_payload or {}).get("value", "")
+        proposal.influencer_signature_data = (signature_payload or {}).get("data", "")
+
+    # Refresh the visible contract file after each signature so the PDF always
+    # reflects the latest signing state seen by the other party.
+    if proposal.contract_pdf:
+        try:
+            pdf_bytes = generate_contract_pdf(proposal=proposal)
+            proposal.contract_pdf.save(
+                f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
+                ContentFile(pdf_bytes), save=False,
+            )
+        except Exception:
+            pass
+
+    if proposal.contract_signed_brand and proposal.contract_signed_influencer:
+        proposal.status = "contract_signed"
+        proposal.contract_signed_at = now
+        if not proposal.contract_pdf:
+            try:
+                pdf_bytes = generate_contract_pdf(proposal=proposal)
+                proposal.contract_pdf.save(
+                    f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
+                    ContentFile(pdf_bytes), save=False,
+                )
+            except Exception:
+                pass
+        _audit(signer_user, "contract_signed", "CampaignProposal", proposal.id, ip=ip)
+        for recipient in (proposal.influencer.user, proposal.campaign.brand.user):
+            create_notification(
+                user=recipient,
+                notification_type="contract_signed",
+                title="Contract fully signed",
+                message=f'The contract for "{proposal.campaign.title}" has been signed by both parties.',
+                proposal=proposal,
+            )
+    elif brand_just_signed:
+        _audit(signer_user, "contract_signed_brand", "CampaignProposal", proposal.id, ip=ip)
+        create_notification(
+            user=proposal.influencer.user,
+            notification_type="contract_ready",
+            title="Contrat signé par la marque",
+            message=(
+                f'La marque a signé le contrat pour « {proposal.campaign.title} ». '
+                "Veuillez le relire et le signer à votre tour."
+            ),
+            proposal=proposal,
+        )
+
+    proposal.save()
+    return None
 
 
 def get_tokens_for_user(user):
@@ -94,7 +241,7 @@ class RegisterView(APIView):
                         admin_emails, profile.company_name, profile.id,
                     )
             return Response(
-                {"user": UserSerializer(user).data, **tokens},
+                {"user": UserSerializer(user, context={"request": request}).data, **tokens},
                 status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -122,7 +269,7 @@ class LoginView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             tokens = get_tokens_for_user(user)
-            return Response({"user": UserSerializer(user).data, **tokens})
+            return Response({"user": UserSerializer(user, context={"request": request}).data, **tokens})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -130,7 +277,7 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(UserSerializer(request.user, context={"request": request}).data)
 
     def put(self, request):
         return self._update(request, partial=False)
@@ -164,7 +311,7 @@ class MeView(APIView):
                     return Response(ps.errors, status=status.HTTP_400_BAD_REQUEST)
                 ps.save()
 
-        return Response(UserSerializer(user).data)
+        return Response(UserSerializer(user, context={"request": request}).data)
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +325,7 @@ class InfluencerListView(generics.ListAPIView):
     def get_queryset(self):
         qs = InfluencerProfile.objects.select_related("user").prefetch_related("social_networks")
         if self.request.user.user_type == "brand":
-            qs = qs.filter(is_verified=True)
+            qs = qs.filter(onboarding_completed=True)
 
         platform = self.request.query_params.get("platform")
         if platform:
@@ -194,7 +341,9 @@ class InfluencerListView(generics.ListAPIView):
         content_themes = self.request.query_params.get("content_themes")
         if content_themes:
             for theme in content_themes.split(","):
-                qs = qs.filter(content_themes__contains=theme.strip())
+                cleaned = theme.strip()
+                if cleaned:
+                    qs = qs.filter(content_themes__contains=[cleaned])
 
         min_rating = self.request.query_params.get("min_rating")
         if min_rating:
@@ -214,7 +363,6 @@ class InfluencerDetailView(generics.RetrieveAPIView):
     queryset = InfluencerProfile.objects.select_related("user").prefetch_related("social_networks")
     serializer_class = InfluencerProfileSerializer
     permission_classes = [IsAuthenticated]
-
 
 class InfluencerProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -481,21 +629,28 @@ class CampaignTargetView(APIView):
         filters = {**(campaign.target_filters or {}), **(extra_filters or {})}
         qs = InfluencerProfile.objects.prefetch_related("social_networks")
 
+        # Support both a single "platform" key in target_filters and the campaign's target_networks list
+        platforms = []
         platform = filters.get("platform")
         if platform:
-            qs = qs.filter(social_networks__platform=platform)
+            platforms = [platform]
+        elif campaign.target_networks:
+            platforms = list(campaign.target_networks)
+        if platforms:
+            norm = ["twitter" if str(p).strip().lower() == "x" else str(p).strip().lower() for p in platforms]
+            qs = qs.filter(social_networks__platform__in=norm)
 
         min_followers = filters.get("min_followers")
         if min_followers:
             qs = qs.filter(social_networks__followers_count__gte=int(min_followers))
 
-        # Use campaign's target_networks as theme filter if no explicit themes
-        content_themes = filters.get("content_themes") or campaign.target_networks
+        content_themes = filters.get("content_themes") or filters.get("themes")
         if content_themes:
             from django.db.models import Q
             theme_q = Q()
             for theme in content_themes:
-                theme_q |= Q(content_themes__icontains=theme)
+                for candidate in _theme_candidates(theme):
+                    theme_q |= Q(content_themes__contains=[candidate])
             qs = qs.filter(theme_q)
 
         min_rating = filters.get("min_rating")
@@ -554,7 +709,14 @@ class CampaignSendProposalsView(APIView):
                 skipped.append(inf_id)
                 continue
 
-            if CampaignProposal.objects.filter(campaign=campaign, influencer=influencer).exists():
+            # Check if a proposal already exists for this campaign & influencer
+            existing = CampaignProposal.objects.filter(campaign=campaign, influencer=influencer).first()
+            if existing:
+                # If it exists and is accepted or signed, skip
+                if existing.status in ["accepted", "contract_signed"]:
+                    skipped.append(inf_id)
+                    continue
+                # If it's in pending/declined state, skip to avoid duplicates
                 skipped.append(inf_id)
                 continue
 
@@ -797,60 +959,131 @@ class ProposalSignContractView(APIView):
         except CampaignProposal.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        user = request.user
-        is_brand = (
-            user.user_type == "brand"
-            and hasattr(user, "brand_profile")
-            and proposal.campaign.brand == user.brand_profile
-        )
-        is_influencer = (
-            user.user_type == "influencer"
-            and hasattr(user, "influencer_profile")
-            and proposal.influencer == user.influencer_profile
-        )
+        if not proposal.contract_pdf:
+            return Response({"detail": "Contract must be generated first."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        # Consent flag is required by UI for legal acknowledgement.
+        if request.data.get("consent") is not True:
+            return Response({"detail": "Consent is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        err = _sign_proposal(
+            proposal,
+            request.user,
+            ip=_client_ip(request),
+            signature_payload=_extract_signature_payload(request.data, request.user, proposal),
+        )
+        if err:
+            return err
+        return Response(CampaignProposalSerializer(proposal).data)
+
+
+class ProposalSignSessionCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            proposal = CampaignProposal.objects.select_related(
+                "campaign__brand__user", "influencer__user"
+            ).get(pk=pk)
+        except CampaignProposal.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not proposal.contract_pdf:
+            return Response({"detail": "Contract must be generated first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        is_brand = user.user_type == "brand" and proposal.campaign.brand.user_id == user.id
+        is_influencer = user.user_type == "influencer" and proposal.influencer.user_id == user.id
         if not is_brand and not is_influencer:
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
-        if is_brand:
-            proposal.contract_signed_brand = True
-        if is_influencer:
-            proposal.contract_signed_influencer = True
+        if is_brand and proposal.brand_signed_at:
+            return Response({"detail": "Brand has already signed."}, status=status.HTTP_400_BAD_REQUEST)
+        if is_influencer and not proposal.brand_signed_at:
+            return Response({"detail": "Brand must sign first."}, status=status.HTTP_400_BAD_REQUEST)
+        if is_influencer and proposal.influencer_signed_at:
+            return Response({"detail": "Influencer has already signed."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Track who signed when (CDC §6.4 — IP + timestamp audit trail)
-        ip = _client_ip(request)
-        now = timezone.now()
-        if is_brand and not proposal.brand_signed_at:
-            proposal.brand_signed_at = now
-            proposal.brand_signature_ip = ip
-        if is_influencer and not proposal.influencer_signed_at:
-            proposal.influencer_signed_at = now
-            proposal.influencer_signature_ip = ip
+        token = secrets.token_urlsafe(24)
+        expires_at = timezone.now() + timedelta(seconds=SIGN_SESSION_TTL_SECONDS)
+        payload = {
+            "token": token,
+            "proposal_id": proposal.id,
+            "user_id": user.id,
+            "used": False,
+            "created_at": timezone.now().isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "completed_at": None,
+        }
+        cache.set(_sign_session_cache_key(token), payload, timeout=SIGN_SESSION_TTL_SECONDS)
+        sign_url = f"{django_settings.FRONTEND_URL.rstrip('/')}/sign/mobile/{token}"
+        return Response({
+            "token": token,
+            "sign_url": sign_url,
+            "expires_at": payload["expires_at"],
+        })
 
-        if proposal.contract_signed_brand and proposal.contract_signed_influencer:
-            proposal.status = "contract_signed"
-            proposal.contract_signed_at = now
-            # Auto-generate (or refresh) the contract PDF on full signature
-            if not proposal.contract_pdf:
-                try:
-                    pdf_bytes = generate_contract_pdf(proposal=proposal)
-                    proposal.contract_pdf.save(
-                        f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
-                        ContentFile(pdf_bytes), save=False,
-                    )
-                except Exception:
-                    pass
-            _audit(user, "contract_signed", "CampaignProposal", proposal.id, ip=ip)
-            for recipient in (proposal.influencer.user, proposal.campaign.brand.user):
-                create_notification(
-                    user=recipient,
-                    notification_type="contract_signed",
-                    title="Contract fully signed",
-                    message=f'The contract for "{proposal.campaign.title}" has been signed by both parties.',
-                    proposal=proposal,
-                )
-        proposal.save()
-        return Response(CampaignProposalSerializer(proposal).data)
+
+class ProposalSignSessionDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        session = cache.get(_sign_session_cache_key(token))
+        if not session:
+            return Response({"detail": "Session not found or expired."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            "token": token,
+            "proposal_id": session.get("proposal_id"),
+            "used": bool(session.get("used")),
+            "expires_at": session.get("expires_at"),
+            "completed_at": session.get("completed_at"),
+        })
+
+
+class ProposalSignSessionCompleteView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, token):
+        session = cache.get(_sign_session_cache_key(token))
+        if not session:
+            return Response({"detail": "Session not found or expired."}, status=status.HTTP_404_NOT_FOUND)
+        if session.get("used"):
+            return Response({"detail": "This signing link has already been used."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.data.get("consent") is not True:
+            return Response({"detail": "Consent is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            proposal = CampaignProposal.objects.select_related(
+                "campaign__brand__user", "influencer__user"
+            ).get(pk=session.get("proposal_id"))
+            signer = User.objects.get(pk=session.get("user_id"))
+        except (CampaignProposal.DoesNotExist, User.DoesNotExist):
+            return Response({"detail": "Invalid signing session."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if signer.user_type == "brand" and proposal.campaign.brand.user_id != signer.id:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        if signer.user_type == "influencer" and proposal.influencer.user_id != signer.id:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        err = _sign_proposal(
+            proposal,
+            signer,
+            ip=_client_ip(request),
+            signature_payload=_extract_signature_payload(request.data, signer, proposal),
+        )
+        if err:
+            return err
+
+        session["used"] = True
+        session["completed_at"] = timezone.now().isoformat()
+        cache.set(_sign_session_cache_key(token), session, timeout=5 * 60)
+
+        return Response({
+            "ok": True,
+            "proposal_id": proposal.id,
+            "completed_at": session["completed_at"],
+        })
 
 
 class ProposalFundEscrowView(APIView):
@@ -921,6 +1154,19 @@ class ProposalSubmitContentView(APIView):
             )
 
         data = request.data.copy()
+        submission_type = data.get("submission_type")
+        publication_url = data.get("publication_url")
+        uploaded_file = request.FILES.get("uploaded_file")
+
+        if submission_type == "link" and not publication_url:
+            return Response({"detail": "publication_url is required for link submissions."}, status=status.HTTP_400_BAD_REQUEST)
+        if submission_type == "upload" and not uploaded_file:
+            return Response({"detail": "uploaded_file is required for upload submissions."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # For pre-publication review, a file-only submission is valid.
+        if submission_type == "upload" and not publication_url:
+            data["publication_url"] = ""
+
         data["proposal"] = proposal.pk
         serializer = ContentSubmissionSerializer(data=data)
         if not serializer.is_valid():
@@ -943,6 +1189,21 @@ class ProposalSubmitContentView(APIView):
             proposal=proposal,
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ProposalLatestSubmissionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        proposal, err = _get_proposal_for_brand(request, pk)
+        if err:
+            return err
+
+        submission = proposal.submissions.order_by("-created_at").first()
+        if not submission:
+            return Response({"detail": "No submission found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(ContentSubmissionSerializer(submission).data)
 
 
 class ProposalValidateContentView(APIView):
@@ -1029,6 +1290,7 @@ class ProposalRejectContentView(APIView):
         submission.brand_validation_date = timezone.now()
         submission.rejection_reason = rejection_reason
         submission.rejection_comment = request.data.get("rejection_comment", "")
+        submission.correction_requested = True
         submission.save()
         proposal.status = "in_progress"
         proposal.save()
@@ -1075,6 +1337,11 @@ class ProposalReleasePaymentView(APIView):
 class MessageListView(generics.ListAPIView):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["request"] = self.request
+        return ctx
 
     def get_queryset(self):
         pk = self.kwargs["pk"]
@@ -1140,7 +1407,7 @@ class MessageCreateView(APIView):
             message=f'You have a new message from {user.username} about "{proposal.campaign.title}".',
             proposal=proposal,
         )
-        return Response(MessageSerializer(msg).data, status=status.HTTP_201_CREATED)
+        return Response(MessageSerializer(msg, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 # ---------------------------------------------------------------------------

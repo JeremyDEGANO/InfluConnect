@@ -111,7 +111,7 @@ export default function Terms() {
       <h2>12. Contact</h2>
       <p>
         Pour toute question relative aux présentes CGU :{" "}
-        <a href="mailto:contact@influconnect.fr">contact@influconnect.fr</a>
+        <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
       </p>
     </div>
   )

@@ -27,6 +27,10 @@ def compute_influencer_completion(profile) -> int:
         score += INFLUENCER_COMPLETION_WEIGHTS["pricing"]
     if profile.social_networks.exists():
         score += INFLUENCER_COMPLETION_WEIGHTS["social_networks"]
+    if profile.media_kit_images.exists():
+        score += INFLUENCER_COMPLETION_WEIGHTS["media_kit_images"]
+    if getattr(profile, "collaboration_pitch", None) and len(profile.collaboration_pitch.strip()) >= 20:
+        score += INFLUENCER_COMPLETION_WEIGHTS["collaboration_pitch"]
     if profile.payment_method and profile.payment_details:
         score += INFLUENCER_COMPLETION_WEIGHTS["payment_method"]
 

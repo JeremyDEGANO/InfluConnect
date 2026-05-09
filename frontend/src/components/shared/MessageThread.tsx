@@ -2,15 +2,16 @@ import { useState } from "react"
 import { Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { cn, resolveMediaUrl } from "@/lib/utils"
 
 interface Message {
   id: number
-  sender_name: string
-  content: string
-  created_at: string
-  is_mine: boolean
+  sender_name?: string
+  sender_avatar?: string | null
+  content?: string
+  created_at?: string
+  is_mine?: boolean
 }
 
 interface MessageThreadProps {
@@ -20,6 +21,11 @@ interface MessageThreadProps {
 
 export function MessageThread({ messages, onSend }: MessageThreadProps) {
   const [text, setText] = useState("")
+
+  const getInitials = (name?: string) => {
+    const safe = (name || "User").trim()
+    return safe.slice(0, 2).toUpperCase()
+  }
 
   const handleSend = () => {
     if (!text.trim()) return
@@ -33,14 +39,15 @@ export function MessageThread({ messages, onSend }: MessageThreadProps) {
         {messages.map((msg) => (
           <div key={msg.id} className={cn("flex gap-2", msg.is_mine && "flex-row-reverse")}>
             <Avatar className="h-8 w-8 shrink-0">
+              <AvatarImage src={resolveMediaUrl(msg.sender_avatar)} alt={msg.sender_name || "User"} />
               <AvatarFallback className={cn("text-xs text-white font-semibold", msg.is_mine ? "bg-gradient-to-br from-indigo-500 to-violet-600" : "bg-gray-400")}>
-                {msg.sender_name.slice(0, 2).toUpperCase()}
+                {getInitials(msg.sender_name)}
               </AvatarFallback>
             </Avatar>
             <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", msg.is_mine ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-tr-sm" : "bg-gray-100 text-gray-900 rounded-tl-sm")}>
-              <p className="text-sm">{msg.content}</p>
+              <p className="text-sm">{msg.content || ""}</p>
               <p className={cn("text-xs mt-1", msg.is_mine ? "text-indigo-200" : "text-gray-400")}>
-                {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--"}
               </p>
             </div>
           </div>

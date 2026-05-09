@@ -153,19 +153,70 @@ LANGUAGES = [
 ]
 
 # ---------------------------------------------------------------------------
-# Cities (top FR + main EU)
+# Countries + cities by country (for profile forms)
 # ---------------------------------------------------------------------------
-CITIES_FR = [
-    "Paris", "Marseille", "Lyon", "Toulouse", "Nice", "Nantes", "Montpellier",
-    "Strasbourg", "Bordeaux", "Lille", "Rennes", "Reims", "Le Havre",
-    "Saint-Étienne", "Toulon", "Grenoble", "Dijon", "Angers", "Nîmes",
-    "Villeurbanne", "Saint-Denis (974)", "Aix-en-Provence", "Brest", "Le Mans",
-    "Amiens", "Tours", "Limoges", "Clermont-Ferrand", "Besançon", "Metz",
-    "Perpignan", "Orléans", "Rouen", "Mulhouse", "Caen", "Nancy", "Avignon",
-    "Saint-Denis (93)", "Argenteuil", "Montreuil", "Bruxelles", "Genève",
-    "Lausanne", "Luxembourg", "Monaco", "Casablanca", "Rabat", "Dakar",
-    "Abidjan", "Tunis", "Alger", "Montréal", "Québec",
+COUNTRIES = [
+    {"code": "FR", "label": "France", "dial_code": "+33"},
+    {"code": "BE", "label": "Belgique", "dial_code": "+32"},
+    {"code": "CH", "label": "Suisse", "dial_code": "+41"},
+    {"code": "LU", "label": "Luxembourg", "dial_code": "+352"},
+    {"code": "MC", "label": "Monaco", "dial_code": "+377"},
+    {"code": "AD", "label": "Andorre", "dial_code": "+376"},
+    {"code": "ES", "label": "Espagne", "dial_code": "+34"},
+    {"code": "IT", "label": "Italie", "dial_code": "+39"},
+    {"code": "DE", "label": "Allemagne", "dial_code": "+49"},
+    {"code": "NL", "label": "Pays-Bas", "dial_code": "+31"},
+    {"code": "PT", "label": "Portugal", "dial_code": "+351"},
+    {"code": "GB", "label": "Royaume-Uni", "dial_code": "+44"},
+    {"code": "IE", "label": "Irlande", "dial_code": "+353"},
+    {"code": "US", "label": "Etats-Unis", "dial_code": "+1"},
+    {"code": "CN", "label": "Chine", "dial_code": "+86"},
+    {"code": "MA", "label": "Maroc", "dial_code": "+212"},
+    {"code": "TN", "label": "Tunisie", "dial_code": "+216"},
+    {"code": "DZ", "label": "Algérie", "dial_code": "+213"},
+    {"code": "SN", "label": "Sénégal", "dial_code": "+221"},
+    {"code": "CI", "label": "Côte d'Ivoire", "dial_code": "+225"},
+    {"code": "CM", "label": "Cameroun", "dial_code": "+237"},
+    {"code": "CD", "label": "RDC", "dial_code": "+243"},
+    {"code": "CA", "label": "Canada", "dial_code": "+1"},
 ]
+
+CITIES_BY_COUNTRY = {
+    "FR": [
+        "Paris", "Marseille", "Lyon", "Toulouse", "Nice", "Nantes", "Montpellier",
+        "Strasbourg", "Bordeaux", "Lille", "Rennes", "Reims", "Le Havre",
+        "Saint-Étienne", "Toulon", "Grenoble", "Dijon", "Angers", "Nîmes",
+        "Villeurbanne", "Saint-Denis (974)", "Aix-en-Provence", "Brest", "Le Mans",
+        "Amiens", "Tours", "Limoges", "Clermont-Ferrand", "Besançon", "Metz",
+        "Perpignan", "Orléans", "Rouen", "Mulhouse", "Caen", "Nancy", "Avignon",
+        "Saint-Denis (93)", "Argenteuil", "Montreuil",
+    ],
+    "BE": ["Bruxelles", "Anvers", "Liège", "Gand", "Charleroi"],
+    "CH": ["Genève", "Lausanne", "Zurich", "Bâle", "Berne"],
+    "LU": ["Luxembourg", "Esch-sur-Alzette", "Differdange"],
+    "MC": ["Monaco"],
+    "AD": ["Andorre-la-Vieille", "Escaldes-Engordany", "Encamp"],
+    "ES": ["Madrid", "Barcelone", "Valence", "Séville", "Bilbao", "Malaga"],
+    "IT": ["Rome", "Milan", "Turin", "Naples", "Bologne", "Florence"],
+    "DE": ["Berlin", "Hambourg", "Munich", "Cologne", "Francfort", "Düsseldorf"],
+    "NL": ["Amsterdam", "Rotterdam", "La Haye", "Utrecht", "Eindhoven"],
+    "PT": ["Lisbonne", "Porto", "Braga", "Coimbra", "Faro"],
+    "GB": ["Londres", "Manchester", "Birmingham", "Liverpool", "Leeds", "Glasgow"],
+    "IE": ["Dublin", "Cork", "Galway", "Limerick", "Waterford"],
+    "US": ["New York", "Los Angeles", "Miami", "Chicago", "Austin", "San Francisco"],
+    "CN": ["Pékin", "Shanghai", "Shenzhen", "Guangzhou", "Chengdu", "Hangzhou"],
+    "MA": ["Casablanca", "Rabat", "Marrakech", "Tanger"],
+    "TN": ["Tunis", "Sfax", "Sousse"],
+    "DZ": ["Alger", "Oran", "Constantine"],
+    "SN": ["Dakar", "Thiès", "Saint-Louis", "Mbour"],
+    "CI": ["Abidjan", "Yamoussoukro", "Bouaké", "San-Pédro"],
+    "CM": ["Douala", "Yaoundé", "Bafoussam", "Garoua"],
+    "CD": ["Kinshasa", "Lubumbashi", "Goma", "Bukavu"],
+    "CA": ["Montréal", "Québec", "Toronto", "Vancouver"],
+}
+
+# Backward compatibility for older frontend clients expecting a flat FR city list.
+CITIES_FR = CITIES_BY_COUNTRY["FR"]
 
 # ---------------------------------------------------------------------------
 # Profile completion field labels (FR) for human-friendly missing fields display
@@ -180,6 +231,8 @@ COMPLETION_LABELS_FR = {
     "content_types_offered": "Types de contenu",
     "pricing": "Grille tarifaire",
     "social_networks": "Réseaux sociaux",
+    "media_kit_images": "Images du kit média",
+    "collaboration_pitch": "Pourquoi collaborer avec vous",
     "payment_method": "Coordonnées de paiement",
 }
 
@@ -187,16 +240,18 @@ COMPLETION_LABELS_FR = {
 # Profile completion weights (must sum to 100)
 # ---------------------------------------------------------------------------
 INFLUENCER_COMPLETION_WEIGHTS = {
-    "avatar": 10,
+    "avatar": 8,
     "bio": 10,
     "display_name": 5,
     "location": 5,
     "languages": 5,
     "content_themes": 10,
-    "content_types_offered": 10,
-    "pricing": 10,
-    "social_networks": 20,
-    "payment_method": 15,
+    "content_types_offered": 8,
+    "pricing": 8,
+    "social_networks": 18,
+    "media_kit_images": 5,
+    "collaboration_pitch": 5,
+    "payment_method": 13,
 }
 
 # ---------------------------------------------------------------------------

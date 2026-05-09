@@ -10,12 +10,17 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog"
 import { Loader2, Megaphone, Calendar, DollarSign, Send } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { resolveMediaUrl } from "@/lib/utils"
+import { BrandHoverCard } from "@/components/shared/BrandHoverCard"
 
 interface Casting {
   id: number
+  brand: number
   title: string
   description: string
   brand_name: string
+  brand_logo?: string | null
   price_per_influencer: number | null
   deadline: string | null
   target_networks: string[]
@@ -78,7 +83,19 @@ export default function Castings() {
                     <CardTitle className="text-base">{c.title}</CardTitle>
                     <Badge variant="info">Casting</Badge>
                   </div>
-                  <p className="text-xs text-gray-500">{c.brand_name}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <BrandHoverCard brandId={c.brand} brandName={c.brand_name || ""} brandLogo={c.brand_logo}>
+                      <a href={`/influencer/brands/${c.brand}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 min-w-0 group cursor-pointer">
+                        <Avatar className="h-6 w-6">
+                          <AvatarImage src={resolveMediaUrl(c.brand_logo)} alt={c.brand_name} />
+                          <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-[10px] font-semibold">
+                            {(c.brand_name || "??").slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <p className="text-xs text-gray-500 truncate group-hover:text-indigo-600 transition-colors">{c.brand_name}</p>
+                      </a>
+                    </BrandHoverCard>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-gray-600 line-clamp-3">{c.description}</p>

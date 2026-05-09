@@ -5,8 +5,10 @@ import { fetchCastingApplications, decideCastingApplication } from "@/lib/apiExt
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
+import { resolveMediaUrl } from "@/lib/utils"
+import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
 import { CheckCircle2, XCircle, Loader2, Megaphone, Inbox } from "lucide-react"
 
 interface Campaign {
@@ -21,6 +23,7 @@ interface Application {
   id: number
   influencer: number
   influencer_display_name: string
+  influencer_avatar?: string | null
   motivation: string
   examples: any[]
   status: "pending" | "selected" | "rejected"
@@ -128,17 +131,24 @@ export default function BrandCastings() {
                 {apps.map((a) => (
                   <div key={a.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <Avatar className="h-10 w-10 shrink-0">
-                          <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
-                            {(a.influencer_display_name || "?")[0].toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{a.influencer_display_name}</p>
-                          <p className="text-xs text-gray-400">{t("castings_brand.applied_on")} {new Date(a.created_at).toLocaleDateString(i18n.language)}</p>
-                        </div>
-                      </div>
+                        <InfluencerHoverCard
+                          influencerId={a.influencer}
+                          displayName={a.influencer_display_name || "?"}
+                          avatar={a.influencer_avatar}
+                        >
+                          <a href={`/brand/influencers/${a.influencer}`} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 min-w-0 group cursor-pointer">
+                            <Avatar className="h-10 w-10 shrink-0">
+                              <AvatarImage src={resolveMediaUrl(a.influencer_avatar)} alt={a.influencer_display_name} />
+                              <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
+                                {(a.influencer_display_name || "?")[0].toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{a.influencer_display_name}</p>
+                              <p className="text-xs text-gray-400">{t("castings_brand.applied_on")} {new Date(a.created_at).toLocaleDateString(i18n.language)}</p>
+                            </div>
+                          </a>
+                        </InfluencerHoverCard>
                       <Badge variant={a.status === "selected" ? "success" : a.status === "rejected" ? "destructive" : "info"}>
                         {a.status === "pending" ? t("castings_brand.status_pending") : a.status === "selected" ? t("castings_brand.status_selected") : t("castings_brand.status_rejected")}
                       </Badge>
@@ -148,16 +158,21 @@ export default function BrandCastings() {
                       <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 italic">« {a.motivation} »</p>
                     )}
 
-                    {a.status === "pending" && (
-                      <div className="flex gap-2 pt-1">
+                    <div className="flex gap-2 pt-1 flex-wrap">
+                      <Button asChild size="sm" variant="outline">
+                        <a href={`/brand/influencers/${a.influencer}#media-kit`} target="_blank" rel="noopener noreferrer">{t("castings_brand.view_media_kit")}</a>
+                      </Button>
+                      {a.status === "pending" && (
                         <Button size="sm" variant="gradient" disabled={acting === a.id} onClick={() => decide(a.id, "selected")}>
                           <CheckCircle2 className="h-4 w-4 mr-1.5" />{t("castings_brand.select")}
                         </Button>
+                      )}
+                      {a.status === "pending" && (
                         <Button size="sm" variant="outline" disabled={acting === a.id} onClick={() => decide(a.id, "rejected")}>
                           <XCircle className="h-4 w-4 mr-1.5" />{t("castings_brand.reject")}
                         </Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

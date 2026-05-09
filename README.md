@@ -1,4 +1,4 @@
-# InfluConnect
+# CollabSphere
 
 A two-sided marketplace connecting brands with influencers.
 
@@ -18,8 +18,8 @@ A two-sided marketplace connecting brands with influencers.
 
 ```bash
 # Clone the repository
-git clone https://github.com/JeremyDEGANO/InfluConnect.git
-cd InfluConnect
+git clone https://github.com/JeremyDEGANO/CollabSphere.git
+cd CollabSphere
 
 # Start all services
 docker-compose up --build

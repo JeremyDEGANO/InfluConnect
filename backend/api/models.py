@@ -37,6 +37,7 @@ class InfluencerProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='influencer_profile')
     bio = models.TextField(blank=True)
     display_name = models.CharField(max_length=100, blank=True)
+    collaboration_pitch = models.TextField(blank=True)
     languages = models.JSONField(default=list, blank=True)  # CDC §4.1
     content_themes = models.JSONField(default=list)
     content_types_offered = models.JSONField(default=list)
@@ -242,6 +243,7 @@ class CampaignProposal(models.Model):
     decline_reason = models.TextField(blank=True)
 
     # Contract & Signature (CDC §6 — eIDAS-grade audit trail)
+    contract_template = models.ForeignKey(ContractTemplate, null=True, blank=True, on_delete=models.SET_NULL, related_name='proposals')
     contract_pdf = models.FileField(upload_to='contracts/', null=True, blank=True)
     contract_version = models.IntegerField(default=1)
     contract_signed_brand = models.BooleanField(default=False)
@@ -249,6 +251,12 @@ class CampaignProposal(models.Model):
     contract_signed_at = models.DateTimeField(null=True, blank=True)
     brand_signed_at = models.DateTimeField(null=True, blank=True)
     influencer_signed_at = models.DateTimeField(null=True, blank=True)
+    brand_signature_mode = models.CharField(max_length=32, blank=True)
+    brand_signature_value = models.TextField(blank=True)
+    brand_signature_data = models.TextField(blank=True)
+    influencer_signature_mode = models.CharField(max_length=32, blank=True)
+    influencer_signature_value = models.TextField(blank=True)
+    influencer_signature_data = models.TextField(blank=True)
     brand_signature_ip = models.GenericIPAddressField(null=True, blank=True)
     influencer_signature_ip = models.GenericIPAddressField(null=True, blank=True)
 

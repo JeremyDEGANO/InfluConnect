@@ -142,7 +142,7 @@ class PasswordResetRequestView(APIView):
                 user = None
             if user is not None and user.is_active:
                 token = _signer().sign(str(user.pk))
-                frontend = getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
+                frontend = getattr(settings, "FRONTEND_URL", "https://influconnect.fr").rstrip("/")
                 link = f"{frontend}/reset-password/confirm?token={token}"
                 email_service.send(
                     to=user.email,

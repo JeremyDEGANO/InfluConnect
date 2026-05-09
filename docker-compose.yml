@@ -5,7 +5,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: influconnect
+      POSTGRES_DB: InfluConnect
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -26,7 +26,7 @@ services:
     environment:
       - SECRET_KEY=django-insecure-dev-secret-key-change-in-production
       - DEBUG=True
-      - DB_NAME=influconnect
+      - DB_NAME=InfluConnect
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - DB_HOST=db
@@ -40,7 +40,7 @@ services:
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
       - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
       - EMAIL_USE_SSL=${EMAIL_USE_SSL:-False}
-      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-InfluConnect <noreply@influconnect.local>}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-InfluConnect <noreply@influconnect.fr>}
       - ADMIN_NOTIFICATION_EMAILS=${ADMIN_NOTIFICATION_EMAILS:-}
       # ---- Stripe (leave empty for stub mode) ----
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
@@ -48,7 +48,7 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - PLATFORM_COMMISSION_RATE=${PLATFORM_COMMISSION_RATE:-15}
       # ---- Frontend URL (for email links / QR codes) ----
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - FRONTEND_URL=${FRONTEND_URL:-https://influconnect.fr}
     volumes:
       - ./backend:/app
       - media_files:/app/media

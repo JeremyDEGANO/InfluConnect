@@ -16,7 +16,7 @@ export default function Privacy() {
       <p>
         InfluConnect SAS — France.<br />
         Délégué à la protection des données :{" "}
-        <a href="mailto:dpo@influconnect.fr">dpo@influconnect.fr</a>
+        <a href="mailto:dpo@InfluConnect.fr">dpo@InfluConnect.fr</a>
       </p>
 
       <h2>2. Données collectées et finalités</h2>
@@ -139,7 +139,7 @@ export default function Privacy() {
       </ul>
       <p>
         Pour exercer ces droits, contactez{" "}
-        <a href="mailto:dpo@influconnect.fr">dpo@influconnect.fr</a>. Une réponse vous sera
+        <a href="mailto:dpo@InfluConnect.fr">dpo@InfluConnect.fr</a>. Une réponse vous sera
         apportée dans un délai maximal d'un mois.
       </p>
 
@@ -175,10 +175,10 @@ export default function Privacy() {
       <h2>10. Contact</h2>
       <p>
         Délégué à la protection des données :{" "}
-        <a href="mailto:dpo@influconnect.fr">dpo@influconnect.fr</a>
+        <a href="mailto:dpo@InfluConnect.fr">dpo@InfluConnect.fr</a>
         <br />
         Support général :{" "}
-        <a href="mailto:contact@influconnect.fr">contact@influconnect.fr</a>
+        <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
       </p>
     </div>
   )

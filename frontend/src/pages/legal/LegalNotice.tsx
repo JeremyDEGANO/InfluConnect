@@ -28,7 +28,7 @@ export default function LegalNotice() {
         Téléphone : [numéro]
         <br />
         E-mail :{" "}
-        <a href="mailto:contact@influconnect.fr">contact@influconnect.fr</a>
+        <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
       </p>
 
       <h2>2. Directeur de la publication</h2>
@@ -80,7 +80,7 @@ export default function LegalNotice() {
       </p>
       <p>
         Délégué à la protection des données :{" "}
-        <a href="mailto:dpo@influconnect.fr">dpo@influconnect.fr</a>
+        <a href="mailto:dpo@InfluConnect.fr">dpo@InfluConnect.fr</a>
       </p>
 
       <h2>6. Conditions d'utilisation</h2>
@@ -124,7 +124,7 @@ export default function LegalNotice() {
       <h2>10. Contact</h2>
       <p>
         Pour toute question relative au site ou à ses contenus :{" "}
-        <a href="mailto:contact@influconnect.fr">contact@influconnect.fr</a>
+        <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
       </p>
     </div>
   )

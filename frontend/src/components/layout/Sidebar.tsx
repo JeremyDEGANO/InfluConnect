@@ -1,7 +1,8 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/lib/auth"
+import { fetchOnboarding } from "@/lib/apiExtra"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard, FileText, DollarSign, User, Briefcase, PlusCircle,
@@ -14,6 +15,7 @@ interface NavItem { label: string; href: string; icon: React.ElementType }
 const INFLUENCER_NAV: NavItem[] = [
   { label: "nav.dashboard", href: "/influencer/dashboard", icon: LayoutDashboard },
   { label: "nav.onboarding", href: "/influencer/onboarding", icon: Sparkles },
+  { label: "nav.media_kit", href: "/influencer/media-kit", icon: FileText },
   { label: "nav.proposals", href: "/influencer/proposals", icon: FileText },
   { label: "nav.castings", href: "/influencer/castings", icon: Megaphone },
   { label: "nav.contracts", href: "/influencer/contracts", icon: FileText },
@@ -44,11 +46,26 @@ const ADMIN_NAV: NavItem[] = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null)
   const { user } = useAuth()
   const { t } = useTranslation()
   const location = useLocation()
 
-  const items = user?.user_type === "brand" ? BRAND_NAV : user?.user_type === "admin" ? ADMIN_NAV : INFLUENCER_NAV
+  useEffect(() => {
+    if (user?.user_type !== "influencer") {
+      setOnboardingCompleted(null)
+      return
+    }
+    fetchOnboarding()
+      .then((s) => setOnboardingCompleted(Boolean(s.onboarding_completed)))
+      .catch(() => setOnboardingCompleted(null))
+  }, [user?.user_type])
+
+  const items = user?.user_type === "brand"
+    ? BRAND_NAV
+    : user?.user_type === "admin"
+      ? ADMIN_NAV
+      : INFLUENCER_NAV.filter((item) => item.href !== "/influencer/onboarding" || onboardingCompleted !== true)
 
   return (
     <aside className={cn("relative bg-white border-r border-gray-100 flex flex-col transition-all duration-300 shrink-0", collapsed ? "w-16" : "w-56")}>

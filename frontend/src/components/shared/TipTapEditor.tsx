@@ -53,7 +53,7 @@ export default function TipTapEditor({ value, onChange, placeholder, minHeight =
     if (!editor) return
     const current = editor.getHTML()
     if (value !== current) {
-      editor.commands.setContent(value || "", false)
+      editor.commands.setContent(value || "", { emitUpdate: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, editor])
@@ -89,7 +89,9 @@ export default function TipTapEditor({ value, onChange, placeholder, minHeight =
         <ToolbarBtn editor={editor} active={false} onClick={() => editor.chain().focus().undo().run()} title="Undo"><Undo2 className="h-4 w-4" /></ToolbarBtn>
         <ToolbarBtn editor={editor} active={false} onClick={() => editor.chain().focus().redo().run()} title="Redo"><Redo2 className="h-4 w-4" /></ToolbarBtn>
       </div>
-      <EditorContent editor={editor} />
+      <div className="max-h-[50vh] overflow-y-auto">
+        <EditorContent editor={editor} />
+      </div>
     </div>
   )
 }

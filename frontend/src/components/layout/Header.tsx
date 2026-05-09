@@ -2,10 +2,11 @@ import { Link, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { LanguageSelector } from "@/components/shared/LanguageSelector"
 import { NotificationBell } from "@/components/shared/NotificationBell"
+import { resolveMediaUrl } from "@/lib/utils"
 import { User, Settings, LogOut, LayoutDashboard, Shield } from "lucide-react"
 
 export function Header() {
@@ -65,6 +66,7 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2">
                     <Avatar className="h-9 w-9">
+                      <AvatarImage src={resolveMediaUrl(user?.avatar)} alt={user?.first_name || "Avatar"} />
                       <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-semibold">
                         {(user?.first_name?.[0] ?? "") + (user?.last_name?.[0] ?? "")}
                       </AvatarFallback>

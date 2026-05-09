@@ -22,7 +22,7 @@ export default function Contracts() {
   }, [])
 
   const isBrand = user?.user_type === "brand"
-  const detailBase = isBrand ? "/brand/campaigns" : "/influencer/proposals"
+  const detailBase = isBrand ? "/brand/proposals" : "/influencer/proposals"
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -81,7 +81,7 @@ export default function Contracts() {
                         </Button>
                       </a>
                     )}
-                    <Link to={`${detailBase}/${isBrand ? c.campaign : c.id}`} className="flex-1">
+                    <Link to={`${detailBase}/${c.id}`} className="flex-1">
                       <Button size="sm" variant="gradient" className="w-full">{t("contracts_list.view")}</Button>
                     </Link>
                   </div>

@@ -49,10 +49,30 @@ def decrypt_value(value: str) -> str:
         return value
 
 
+def _abs_media_url(request, file_field):
+    if not file_field:
+        return None
+    try:
+        url = file_field.url
+    except Exception:
+        return None
+    return request.build_absolute_uri(url) if request else url
+
+
 # ---------------------------------------------------------------------------
 # Influencer
 # ---------------------------------------------------------------------------
 class SocialNetworkSerializer(serializers.ModelSerializer):
+    def validate_engagement_rate(self, value):
+        # Engagement is a percentage and must stay within [0, 100].
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            raise serializers.ValidationError("Engagement rate must be a number.")
+        if v < 0 or v > 100:
+            raise serializers.ValidationError("Engagement rate must be between 0 and 100.")
+        return value
+
     class Meta:
         model = SocialNetwork
         fields = [
@@ -65,11 +85,14 @@ class SocialNetworkSerializer(serializers.ModelSerializer):
 class InfluencerProfileSerializer(serializers.ModelSerializer):
     social_networks = SocialNetworkSerializer(many=True, read_only=True)
     media_kit_images = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+    city = serializers.CharField(source='user.location', read_only=True)
+    media_kit_pdf = serializers.SerializerMethodField()
 
     class Meta:
         model = InfluencerProfile
         fields = [
-            'id', 'bio', 'display_name', 'languages', 'content_themes',
+            'id', 'bio', 'display_name', 'collaboration_pitch', 'avatar', 'city', 'languages', 'content_themes',
             'content_types_offered', 'pricing', 'payment_method',
             'is_verified', 'average_rating', 'social_networks',
             'onboarding_completed', 'profile_completion_percent',
@@ -91,6 +114,14 @@ class InfluencerProfileSerializer(serializers.ModelSerializer):
                 url = request.build_absolute_uri(url)
             result.append({"id": img.id, "image": url, "caption": img.caption, "order": img.order})
         return result
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj.user, 'avatar', None))
+
+    def get_media_kit_pdf(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj, 'media_kit_pdf', None))
 
 
 class MediaKitImageSerializer(serializers.ModelSerializer):
@@ -120,6 +151,8 @@ class InfluencerProfileWithPaymentSerializer(InfluencerProfileSerializer):
 # Brand
 # ---------------------------------------------------------------------------
 class BrandProfileSerializer(serializers.ModelSerializer):
+    logo = serializers.SerializerMethodField()
+
     class Meta:
         model = BrandProfile
         fields = [
@@ -134,6 +167,10 @@ class BrandProfileSerializer(serializers.ModelSerializer):
             'validation_status', 'validation_notes', 'validated_at',
             'average_rating',
         ]
+
+    def get_logo(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj, 'logo', None))
 
 
 class BrandAdminSerializer(serializers.ModelSerializer):
@@ -158,6 +195,7 @@ class BrandAdminSerializer(serializers.ModelSerializer):
 # User
 # ---------------------------------------------------------------------------
 class UserSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
     influencer_profile = InfluencerProfileSerializer(read_only=True)
     brand_profile = BrandProfileSerializer(read_only=True)
 
@@ -170,6 +208,10 @@ class UserSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'influencer_profile', 'brand_profile',
         ]
         read_only_fields = ['user_type', 'created_at', 'updated_at', 'totp_enabled']
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj, 'avatar', None))
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -268,11 +310,12 @@ class LoginSerializer(serializers.Serializer):
 # ---------------------------------------------------------------------------
 class CampaignSerializer(serializers.ModelSerializer):
     brand_name = serializers.CharField(source='brand.company_name', read_only=True)
+    brand_logo = serializers.SerializerMethodField()
 
     class Meta:
         model = Campaign
         fields = [
-            'id', 'brand', 'brand_name', 'title', 'description', 'campaign_type',
+            'id', 'brand', 'brand_name', 'brand_logo', 'title', 'description', 'campaign_type',
             'status', 'products', 'shipping_info', 'deliverables_requested',
             'brief_text', 'brief_files', 'target_networks', 'content_format', 'content_formats',
             'price_per_influencer', 'deadline', 'target_filters',
@@ -280,6 +323,10 @@ class CampaignSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['brand', 'created_at', 'updated_at']
+
+    def get_brand_logo(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj.brand, 'logo', None))
 
 
 class ContractTemplateSerializer(serializers.ModelSerializer):
@@ -304,22 +351,39 @@ class ContractTemplateSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 class CampaignProposalSerializer(serializers.ModelSerializer):
     campaign_title = serializers.CharField(source='campaign.title', read_only=True)
+    campaign_description = serializers.CharField(source='campaign.description', read_only=True)
+    campaign_target_networks = serializers.ListField(source='campaign.target_networks', read_only=True)
+    campaign_target_filters = serializers.DictField(source='campaign.target_filters', read_only=True)
+    campaign_content_formats = serializers.ListField(source='campaign.content_formats', read_only=True)
+    campaign_status = serializers.CharField(source='campaign.status', read_only=True)
+    campaign_deadline = serializers.DateField(source='campaign.deadline', read_only=True)
     influencer_display_name = serializers.CharField(source='influencer.display_name', read_only=True)
+    influencer_avatar = serializers.SerializerMethodField()
     brand_company_name = serializers.CharField(source='campaign.brand.company_name', read_only=True)
     brand_id = serializers.IntegerField(source='campaign.brand.id', read_only=True)
+    latest_submission_kind = serializers.SerializerMethodField()
+    latest_submission_pre_publish = serializers.SerializerMethodField()
+    latest_submission_rejection_reason = serializers.SerializerMethodField()
+    latest_submission_rejection_comment = serializers.SerializerMethodField()
 
     class Meta:
         model = CampaignProposal
         fields = [
-            'id', 'campaign', 'campaign_title', 'influencer', 'influencer_display_name',
+            'id', 'campaign', 'campaign_title', 'campaign_description',
+            'campaign_target_networks', 'campaign_target_filters', 'campaign_content_formats',
+            'campaign_status', 'campaign_deadline',
+            'influencer', 'influencer_display_name', 'influencer_avatar',
             'brand_company_name', 'brand_id', 'status', 'proposed_price', 'counter_price',
             'counter_message', 'decline_reason',
+            'contract_template',
             'contract_pdf', 'contract_version',
             'contract_signed_brand', 'contract_signed_influencer', 'contract_signed_at',
             'brand_signed_at', 'influencer_signed_at',
             'escrow_amount', 'escrow_funded', 'escrow_released',
             'escrow_funded_at', 'escrow_released_at',
             'submission_deadline', 'validation_deadline',
+            'latest_submission_kind', 'latest_submission_pre_publish',
+            'latest_submission_rejection_reason', 'latest_submission_rejection_comment',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -330,6 +394,45 @@ class CampaignProposalSerializer(serializers.ModelSerializer):
             'submission_deadline', 'validation_deadline',
             'created_at', 'updated_at',
         ]
+
+    def get_influencer_avatar(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj.influencer.user, 'avatar', None))
+
+    def _latest_submission(self, obj):
+        return obj.submissions.order_by('-created_at').first()
+
+    def get_latest_submission_kind(self, obj):
+        submission = self._latest_submission(obj)
+        if not submission:
+            return None
+        if submission.submission_type == 'link':
+            return 'link'
+
+        file_name = (getattr(submission.uploaded_file, 'name', '') or '').lower()
+        if any(file_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+            return 'photo'
+        if any(file_name.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
+            return 'video'
+        return 'upload'
+
+    def get_latest_submission_pre_publish(self, obj):
+        submission = self._latest_submission(obj)
+        if not submission:
+            return None
+        return not bool(submission.publication_url)
+
+    def get_latest_submission_rejection_reason(self, obj):
+        submission = self._latest_submission(obj)
+        if not submission:
+            return None
+        return submission.rejection_reason or None
+
+    def get_latest_submission_rejection_comment(self, obj):
+        submission = self._latest_submission(obj)
+        if not submission:
+            return None
+        return submission.rejection_comment or None
 
 
 class ContentSubmissionSerializer(serializers.ModelSerializer):
@@ -354,12 +457,17 @@ class ContentSubmissionSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source='sender.username', read_only=True)
+    sender_avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ['id', 'proposal', 'sender', 'sender_username', 'content',
+        fields = ['id', 'proposal', 'sender', 'sender_username', 'sender_avatar', 'content',
                   'attachments', 'read', 'created_at']
         read_only_fields = ['sender', 'read', 'created_at']
+
+    def get_sender_avatar(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj.sender, 'avatar', None))
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -392,15 +500,21 @@ class NotificationSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 class CastingApplicationSerializer(serializers.ModelSerializer):
     influencer_display_name = serializers.CharField(source='influencer.display_name', read_only=True)
+    influencer_avatar = serializers.SerializerMethodField()
     campaign_title = serializers.CharField(source='campaign.title', read_only=True)
 
     class Meta:
         model = CastingApplication
         fields = [
             'id', 'campaign', 'campaign_title', 'influencer', 'influencer_display_name',
+            'influencer_avatar',
             'motivation', 'examples', 'status', 'created_at', 'decided_at',
         ]
         read_only_fields = ['status', 'created_at', 'decided_at']
+
+    def get_influencer_avatar(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj.influencer.user, 'avatar', None))
 
 
 class AmbassadorProgramSerializer(serializers.ModelSerializer):

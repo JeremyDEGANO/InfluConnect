@@ -1,9 +1,13 @@
 import { Badge } from "@/components/ui/badge"
 import { useTranslation } from "react-i18next"
 
-type Status = "pending" | "active" | "completed" | "cancelled" | "accepted" | "declined" | "draft" | "published"
+const toLabelFallback = (status: string) =>
+  status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 
-const STATUS_VARIANT: Record<Status, "warning" | "success" | "secondary" | "destructive" | "info" | "outline" | "purple" | "default"> = {
+const STATUS_VARIANT: Record<string, "warning" | "success" | "secondary" | "destructive" | "info" | "outline" | "purple" | "default"> = {
   pending: "warning",
   active: "success",
   completed: "info",
@@ -12,9 +16,20 @@ const STATUS_VARIANT: Record<Status, "warning" | "success" | "secondary" | "dest
   declined: "destructive",
   draft: "secondary",
   published: "info",
+  counter_offer: "warning",
+  contract_signed: "info",
+  in_progress: "info",
+  content_submitted: "purple",
+  validated: "success",
+  paid: "success",
+  disputed: "destructive",
 }
 
-export function StatusBadge({ status }: { status: Status }) {
+export function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation()
-  return <Badge variant={STATUS_VARIANT[status]}>{t(`status.${status}`)}</Badge>
+  return (
+    <Badge variant={STATUS_VARIANT[status] ?? "default"}>
+      {t(`status.${status}`, { defaultValue: toLabelFallback(status) })}
+    </Badge>
+  )
 }

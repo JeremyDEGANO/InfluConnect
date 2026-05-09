@@ -36,7 +36,7 @@ def send(
         send_mail(
             subject=subject,
             message=body_text,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@influconnect.local"),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@influconnect.fr"),
             recipient_list=recipients,
             html_message=body_html,
             fail_silently=fail_silently,

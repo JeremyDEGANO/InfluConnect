@@ -41,10 +41,56 @@ const FALLBACK_LANGUAGES = [
   { code: "it", label: "Italien" }, { code: "pt", label: "Portugais" },
   { code: "ar", label: "Arabe" }, { code: "zh", label: "Chinois" },
 ]
-const FALLBACK_CITIES = [
-  "Paris", "Marseille", "Lyon", "Toulouse", "Nice", "Nantes", "Montpellier",
-  "Strasbourg", "Bordeaux", "Lille", "Rennes",
+const FALLBACK_COUNTRIES = [
+  { code: "FR", label: "France", dial_code: "+33" },
+  { code: "BE", label: "Belgique", dial_code: "+32" },
+  { code: "CH", label: "Suisse", dial_code: "+41" },
+  { code: "LU", label: "Luxembourg", dial_code: "+352" },
+  { code: "MC", label: "Monaco", dial_code: "+377" },
+  { code: "AD", label: "Andorre", dial_code: "+376" },
+  { code: "ES", label: "Espagne", dial_code: "+34" },
+  { code: "IT", label: "Italie", dial_code: "+39" },
+  { code: "DE", label: "Allemagne", dial_code: "+49" },
+  { code: "NL", label: "Pays-Bas", dial_code: "+31" },
+  { code: "PT", label: "Portugal", dial_code: "+351" },
+  { code: "GB", label: "Royaume-Uni", dial_code: "+44" },
+  { code: "IE", label: "Irlande", dial_code: "+353" },
+  { code: "US", label: "Etats-Unis", dial_code: "+1" },
+  { code: "CN", label: "Chine", dial_code: "+86" },
+  { code: "MA", label: "Maroc", dial_code: "+212" },
+  { code: "TN", label: "Tunisie", dial_code: "+216" },
+  { code: "DZ", label: "Algérie", dial_code: "+213" },
+  { code: "SN", label: "Sénégal", dial_code: "+221" },
+  { code: "CI", label: "Côte d'Ivoire", dial_code: "+225" },
+  { code: "CM", label: "Cameroun", dial_code: "+237" },
+  { code: "CD", label: "RDC", dial_code: "+243" },
+  { code: "CA", label: "Canada", dial_code: "+1" },
 ]
+const FALLBACK_CITIES_BY_COUNTRY: Record<string, string[]> = {
+  FR: ["Paris", "Marseille", "Lyon", "Toulouse", "Nice", "Nantes", "Montpellier", "Strasbourg", "Bordeaux", "Lille", "Rennes"],
+  BE: ["Bruxelles", "Anvers", "Liège", "Gand", "Charleroi"],
+  CH: ["Genève", "Lausanne", "Zurich", "Bâle", "Berne"],
+  LU: ["Luxembourg", "Esch-sur-Alzette", "Differdange"],
+  MC: ["Monaco"],
+  AD: ["Andorre-la-Vieille", "Escaldes-Engordany", "Encamp"],
+  ES: ["Madrid", "Barcelone", "Valence", "Séville", "Bilbao", "Malaga"],
+  IT: ["Rome", "Milan", "Turin", "Naples", "Bologne", "Florence"],
+  DE: ["Berlin", "Hambourg", "Munich", "Cologne", "Francfort", "Düsseldorf"],
+  NL: ["Amsterdam", "Rotterdam", "La Haye", "Utrecht", "Eindhoven"],
+  PT: ["Lisbonne", "Porto", "Braga", "Coimbra", "Faro"],
+  GB: ["Londres", "Manchester", "Birmingham", "Liverpool", "Leeds", "Glasgow"],
+  IE: ["Dublin", "Cork", "Galway", "Limerick", "Waterford"],
+  US: ["New York", "Los Angeles", "Miami", "Chicago", "Austin", "San Francisco"],
+  CN: ["Pékin", "Shanghai", "Shenzhen", "Guangzhou", "Chengdu", "Hangzhou"],
+  MA: ["Casablanca", "Rabat", "Marrakech", "Tanger"],
+  TN: ["Tunis", "Sfax", "Sousse"],
+  DZ: ["Alger", "Oran", "Constantine"],
+  SN: ["Dakar", "Thiès", "Saint-Louis", "Mbour"],
+  CI: ["Abidjan", "Yamoussoukro", "Bouaké", "San-Pédro"],
+  CM: ["Douala", "Yaoundé", "Bafoussam", "Garoua"],
+  CD: ["Kinshasa", "Lubumbashi", "Goma", "Bukavu"],
+  CA: ["Montréal", "Québec", "Toronto", "Vancouver"],
+}
 const FALLBACK_COMPLETION_LABELS: Record<string, string> = {
   avatar: "Photo de profil",
   bio: "Biographie",
@@ -55,6 +101,8 @@ const FALLBACK_COMPLETION_LABELS: Record<string, string> = {
   content_types_offered: "Types de contenu",
   pricing: "Grille tarifaire",
   social_networks: "Réseaux sociaux",
+  media_kit_images: "Images du kit média",
+  collaboration_pitch: "Pourquoi collaborer avec vous",
   payment_method: "Coordonnées de paiement",
 }
 
@@ -69,17 +117,46 @@ interface SocialNet {
   last_synced_at?: string | null
 }
 
-// Format French phone progressively as user types
-const formatPhoneFR = (raw: string): string => {
-  const digits = raw.replace(/\D/g, "")
-  if (digits.startsWith("33")) {
-    const rest = digits.slice(2, 11)
-    const groups = rest.match(/.{1,2}/g) ?? []
-    return "+33 " + groups.join(" ")
+const sanitizeLocalPhone = (raw: string): string => raw.replace(/[^\d\s()-]/g, "")
+
+const toE164Phone = (localRaw: string, dialCode: string): string => {
+  const prefixDigits = dialCode.replace(/\D/g, "")
+  const localDigits = localRaw.replace(/\D/g, "").replace(/^0+/, "")
+  if (!localDigits) return ""
+  return `+${prefixDigits}${localDigits}`
+}
+
+const inferCountryCodeFromPhone = (
+  rawPhone: string,
+  countries: Array<{ code: string; label: string; dial_code: string }>,
+): string | null => {
+  const digits = rawPhone.replace(/\D/g, "")
+  if (!digits) return null
+  const sorted = [...countries].sort(
+    (a, b) => b.dial_code.replace(/\D/g, "").length - a.dial_code.replace(/\D/g, "").length,
+  )
+  for (const c of sorted) {
+    const dd = c.dial_code.replace(/\D/g, "")
+    if (digits.startsWith(dd)) return c.code
   }
-  const limited = digits.slice(0, 10)
-  const groups = limited.match(/.{1,2}/g) ?? []
-  return groups.join(" ")
+  return null
+}
+
+const stripDialCodeFromPhone = (rawPhone: string, dialCode: string): string => {
+  const dd = dialCode.replace(/\D/g, "")
+  const digits = rawPhone.replace(/\D/g, "")
+  if (!digits) return ""
+  if (digits.startsWith(dd)) return digits.slice(dd.length)
+  return digits
+}
+
+const inferCountryCodeFromCity = (city: string, citiesByCountry: Record<string, string[]>): string => {
+  if (!city) return "FR"
+  const target = city.toLowerCase()
+  for (const [code, cities] of Object.entries(citiesByCountry)) {
+    if ((cities ?? []).some((c) => c.toLowerCase() === target)) return code
+  }
+  return "FR"
 }
 
 export default function InfluencerEditProfile() {
@@ -90,12 +167,14 @@ export default function InfluencerEditProfile() {
   const [reference, setReference] = useState<ReferenceData | null>(null)
   const [status, setStatus] = useState<OnboardingStatus | null>(null)
   const [syncingId, setSyncingId] = useState<number | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState("FR")
+  const [phoneCountry, setPhoneCountry] = useState("FR")
 
   const [user_form, setUserForm] = useState({
     first_name: "", last_name: "", phone: "", location: "",
   })
   const [profile_form, setProfileForm] = useState({
-    bio: "", display_name: "", payment_method: "", payment_details: "",
+    bio: "", display_name: "", collaboration_pitch: "", payment_method: "", payment_details: "",
   })
   const [themes, setThemes] = useState<string[]>([])
   const [contentTypes, setContentTypes] = useState<string[]>([])
@@ -158,12 +237,22 @@ export default function InfluencerEditProfile() {
     api.get("/auth/me/").then((res) => {
       const u = res.data
       const ip = u.influencer_profile ?? {}
+      const countries = FALLBACK_COUNTRIES
+      const cityMap = FALLBACK_CITIES_BY_COUNTRY
+      const inferredByPhone = inferCountryCodeFromPhone(u.phone ?? "", countries)
+      const inferredCountry = inferredByPhone ?? inferCountryCodeFromCity(u.location ?? "", cityMap)
+      const selected = countries.some((c) => c.code === inferredCountry) ? inferredCountry : "FR"
+      setSelectedCountry(selected)
+      setPhoneCountry(selected)
+      const selectedDial = (countries.find((c) => c.code === selected)?.dial_code ?? "+33")
       setUserForm({
         first_name: u.first_name ?? "", last_name: u.last_name ?? "",
-        phone: u.phone ? formatPhoneFR(u.phone) : "", location: u.location ?? "",
+        phone: u.phone ? stripDialCodeFromPhone(u.phone, selectedDial) : "",
+        location: u.location ?? "",
       })
       setProfileForm({
         bio: ip.bio ?? "", display_name: ip.display_name ?? "",
+        collaboration_pitch: ip.collaboration_pitch ?? "",
         payment_method: ip.payment_method ?? "", payment_details: "",
       })
       setThemes(ip.content_themes ?? [])
@@ -186,14 +275,24 @@ export default function InfluencerEditProfile() {
   const contentTypeOptions = reference?.content_types ?? FALLBACK_CONTENT_TYPES
   const platformOptions = reference?.social_platforms ?? FALLBACK_PLATFORMS
   const languageOptions = reference?.languages ?? FALLBACK_LANGUAGES
-  const cityOptions = reference?.cities ?? FALLBACK_CITIES
+  const countryOptions = reference?.countries ?? FALLBACK_COUNTRIES
+  const citiesByCountry = reference?.cities_by_country ?? FALLBACK_CITIES_BY_COUNTRY
+  const cityOptions = citiesByCountry[selectedCountry] ?? []
+  const selectedDialCode = countryOptions.find((c) => c.code === phoneCountry)?.dial_code ?? "+33"
   const completionLabels = reference?.completion_labels ?? FALLBACK_COMPLETION_LABELS
+
+  useEffect(() => {
+    if (user_form.location && !cityOptions.includes(user_form.location)) {
+      setUserForm((prev) => ({ ...prev, location: "" }))
+    }
+  }, [selectedCountry])
 
   const ctLabel = useMemo(() => {
     const m: Record<string, string> = {}
     contentTypeOptions.forEach((c) => { m[c.code] = c.label })
     return m
   }, [contentTypeOptions])
+  const collaborationPitchLength = profile_form.collaboration_pitch.trim().length
 
   const toggleArr = (setter: (v: any) => void, arr: string[], v: string) =>
     setter(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v])
@@ -233,9 +332,9 @@ export default function InfluencerEditProfile() {
       const d = r.data
       const url = /^https?:/i.test(d.image) ? d.image : apiOrigin + d.image
       setGallery((g) => [...g, { id: d.id, image: url, caption: d.caption, order: d.order }])
-      toast({ title: "Image ajoutée" })
+      toast({ title: t("common.success") })
     } catch (e: any) {
-      toast({ title: "Erreur", description: e?.response?.data?.detail ?? "Échec de l'envoi", variant: "destructive" })
+      toast({ title: t("common.error"), description: e?.response?.data?.detail ?? t("influencer_profile.gallery_upload_error"), variant: "destructive" })
     } finally {
       setGalleryUploading(false)
     }
@@ -245,7 +344,7 @@ export default function InfluencerEditProfile() {
       await api.delete(`/influencers/media-kit-images/${id}/`)
       setGallery((g) => g.filter((x) => x.id !== id))
     } catch {
-      toast({ title: "Erreur", description: "Suppression impossible", variant: "destructive" })
+      toast({ title: t("common.error"), description: t("influencer_profile.gallery_delete_error"), variant: "destructive" })
     }
   }
   const updateGalleryCaption = async (id: number, caption: string) => {
@@ -261,11 +360,11 @@ export default function InfluencerEditProfile() {
       const r = await api.post(`/influencers/social-networks/${id}/sync/`)
       if (r.data?.synced === false) {
         toast({
-          title: "Synchronisation indisponible",
-          description: r.data?.message ?? "Connectez-vous d'abord à la plateforme via OAuth.",
+          title: t("influencer_profile.oauth_sync_title"),
+          description: r.data?.message ?? t("influencer_profile.oauth_sync_desc"),
         })
       } else {
-        toast({ title: "Statistiques mises à jour" })
+        toast({ title: t("influencer_profile.sync_updated") })
         const me = await api.get("/auth/me/")
         const ip = me.data?.influencer_profile ?? {}
         setSocials((ip.social_networks ?? []).map((s: any) => ({
@@ -275,7 +374,7 @@ export default function InfluencerEditProfile() {
         })))
       }
     } catch (e: any) {
-      toast({ title: "Erreur", description: e?.response?.data?.detail ?? "Échec sync", variant: "destructive" })
+      toast({ title: t("common.error"), description: e?.response?.data?.detail ?? t("influencer_profile.sync_error"), variant: "destructive" })
     } finally {
       setSyncingId(null)
     }
@@ -312,7 +411,7 @@ export default function InfluencerEditProfile() {
         await api.patch("/auth/me/", fd, { headers: { "Content-Type": "multipart/form-data" } })
         setAvatarFile(null)
       }
-      const cleanPhone = user_form.phone.replace(/\s/g, "")
+      const cleanPhone = toE164Phone(user_form.phone, selectedDialCode)
       await api.patch("/auth/me/", { ...user_form, phone: cleanPhone })
       const pricingObj: Record<string, number> = {}
       contentTypes.forEach((ct) => {
@@ -322,6 +421,7 @@ export default function InfluencerEditProfile() {
       const profilePayload: any = {
         bio: profile_form.bio,
         display_name: profile_form.display_name,
+        collaboration_pitch: profile_form.collaboration_pitch,
         languages,
         content_themes: themes,
         content_types_offered: contentTypes,
@@ -332,11 +432,12 @@ export default function InfluencerEditProfile() {
       await api.patch("/influencers/profile/", profilePayload)
       for (const s of socials) {
         if (!s.profile_url) continue
+        const engagementRate = Math.max(0, Math.min(100, Number(s.engagement_rate) || 0))
         const payload = {
           platform: s.platform, profile_url: s.profile_url,
           followers_count: Number(s.followers_count) || 0,
           avg_views: Number(s.avg_views) || 0,
-          engagement_rate: Number(s.engagement_rate) || 0,
+          engagement_rate: engagementRate,
         }
         if (s.id) {
           await api.patch(`/influencers/social-networks/${s.id}/`, payload)
@@ -404,14 +505,35 @@ export default function InfluencerEditProfile() {
             </div>
             <div>
               <Label>{t("influencer_profile.phone", "Téléphone")}</Label>
-              <Input
-                className="mt-1"
-                placeholder="06 12 34 56 78"
-                value={user_form.phone}
-                onChange={(e) => setUserForm({ ...user_form, phone: formatPhoneFR(e.target.value) })}
-                inputMode="tel"
-              />
-              <p className="text-[11px] text-gray-400 mt-1">Format : 06 12 34 56 78 ou +33 6 12 34 56 78</p>
+              <div className="mt-1 flex gap-2">
+                <select
+                  className="w-44 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={phoneCountry}
+                  onChange={(e) => setPhoneCountry(e.target.value)}
+                >
+                  {countryOptions.map((c) => (
+                    <option key={c.code} value={c.code}>{c.label} ({c.dial_code})</option>
+                  ))}
+                </select>
+                <Input
+                  className="flex-1"
+                  placeholder={t("influencer_profile.local_phone_placeholder")}
+                  value={user_form.phone}
+                  onChange={(e) => setUserForm({ ...user_form, phone: sanitizeLocalPhone(e.target.value) })}
+                  inputMode="tel"
+                />
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">{t("influencer_profile.phone_prefix_hint", { dial: selectedDialCode })}</p>
+            </div>
+            <div>
+              <Label>{t("influencer_profile.country", "Pays")}</Label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+              >
+                {countryOptions.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <Label>{t("influencer_profile.location", "Ville")}</Label>
@@ -420,7 +542,7 @@ export default function InfluencerEditProfile() {
                 value={user_form.location}
                 onChange={(e) => setUserForm({ ...user_form, location: e.target.value })}
               >
-                <option value="">— Sélectionner une ville —</option>
+                <option value="">{t("influencer_profile.city_placeholder")}</option>
                 {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -429,9 +551,9 @@ export default function InfluencerEditProfile() {
               <div className="mt-1 flex items-center gap-4">
                 <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-100 to-violet-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
                   {avatarPreview ? (
-                    <img src={avatarPreview} alt="Aperçu" className="h-full w-full object-cover" />
+                    <img src={avatarPreview} alt={t("influencer_profile.avatar_preview_alt")} className="h-full w-full object-cover" />
                   ) : user?.avatar ? (
-                    <img src={resolveMedia(user.avatar)} alt="Avatar actuel" className="h-full w-full object-cover" />
+                    <img src={resolveMedia(user.avatar)} alt={t("influencer_profile.avatar_current_alt")} className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-2xl font-semibold text-indigo-400">
                       {(user_form.first_name?.[0] ?? "").toUpperCase()}
@@ -462,7 +584,28 @@ export default function InfluencerEditProfile() {
                 placeholder={t("influencer_profile.bio_placeholder", "Présentez-vous en quelques mots (10 caractères minimum)")}
                 value={profile_form.bio} onChange={(e) => setProfileForm({ ...profile_form, bio: e.target.value })}
               />
-              <p className="text-[11px] text-gray-400 mt-1">{profile_form.bio.length} caractère{profile_form.bio.length > 1 ? "s" : ""}</p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                {profile_form.bio.length === 1
+                  ? t("influencer_profile.bio_char_count", { count: profile_form.bio.length })
+                  : t("influencer_profile.bio_char_count_plural", { count: profile_form.bio.length })}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <Label>{t("influencer_profile.collaboration_pitch", "Pourquoi collaborer avec vous ? (page 5 du kit média)")}</Label>
+              <textarea
+                className="mt-1 w-full min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder={t("influencer_profile.collaboration_pitch_placeholder", "Rédigez à la première personne pourquoi une marque devrait collaborer avec vous : votre univers, votre audience, votre manière de créer, vos points forts...")}
+                value={profile_form.collaboration_pitch}
+                onChange={(e) => setProfileForm({ ...profile_form, collaboration_pitch: e.target.value })}
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                {t("influencer_profile.collaboration_pitch_hint", "Cette case alimente directement la dernière page “Pourquoi collaborer avec vous ?”. Elle est requise pour un profil à 100%.")}
+              </p>
+              <p className={`text-[11px] mt-1 ${collaborationPitchLength < 20 ? "text-amber-600" : "text-emerald-600"}`}>
+                {collaborationPitchLength < 20
+                  ? t("influencer_profile.collaboration_pitch_too_short", { count: collaborationPitchLength })
+                  : t("influencer_profile.collaboration_pitch_counter", { count: collaborationPitchLength })}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -485,7 +628,7 @@ export default function InfluencerEditProfile() {
         <Card className="card-base">
           <CardHeader>
             <CardTitle className="text-base">{t("influencer_profile.themes", "Thématiques")}</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">Sélectionnez les sujets dont vous parlez à votre audience.</p>
+            <p className="text-xs text-gray-500 mt-1">{t("influencer_profile.themes_hint")}</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -502,7 +645,7 @@ export default function InfluencerEditProfile() {
         <Card className="card-base">
           <CardHeader>
             <CardTitle className="text-base">{t("influencer_profile.content_types", "Types de contenu proposés")}</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">Choisissez les formats que vous savez produire — chaque type sélectionné apparaîtra dans votre grille tarifaire.</p>
+            <p className="text-xs text-gray-500 mt-1">{t("influencer_profile.content_types_hint")}</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -519,11 +662,11 @@ export default function InfluencerEditProfile() {
         <Card className="card-base">
           <CardHeader>
             <CardTitle className="text-base">{t("influencer_profile.pricing", "Grille tarifaire")}</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">Indiquez votre tarif HT par type de contenu sélectionné ci-dessus.</p>
+            <p className="text-xs text-gray-500 mt-1">{t("influencer_profile.pricing_hint")}</p>
           </CardHeader>
           <CardContent className="space-y-2">
             {contentTypes.length === 0 && (
-              <p className="text-sm text-gray-400">Sélectionnez d'abord vos types de contenu pour définir vos tarifs.</p>
+              <p className="text-sm text-gray-400">{t("influencer_profile.pricing_empty")}</p>
             )}
             {contentTypes.map((ct) => (
               <div key={ct} className="flex items-center gap-3">
@@ -566,13 +709,13 @@ export default function InfluencerEditProfile() {
               <div key={i} className="border border-gray-100 rounded-xl p-3 space-y-2">
                 <div className="grid sm:grid-cols-5 gap-2 items-end">
                   <div>
-                    <Label className="text-xs">Plateforme</Label>
+                    <Label className="text-xs">{t("influencer_profile.platform")}</Label>
                     <select className="mt-1 w-full rounded-md border border-input px-2 py-1.5 text-sm" value={s.platform} onChange={(e) => updateSocial(i, "platform", e.target.value)}>
                       {platformOptions.map((p) => <option key={p.code} value={p.code}>{p.label}</option>)}
                     </select>
                   </div>
                   <div className="sm:col-span-2">
-                    <Label className="text-xs">URL du profil</Label>
+                    <Label className="text-xs">{t("influencer_profile.profile_url")}</Label>
                     <Input className="mt-1" placeholder="https://..." value={s.profile_url} onChange={(e) => updateSocial(i, "profile_url", e.target.value)} />
                   </div>
                   <div>
@@ -583,19 +726,27 @@ export default function InfluencerEditProfile() {
                 </div>
                 <div className="grid sm:grid-cols-3 gap-2">
                   <div>
-                    <Label className="text-xs">Vues moyennes</Label>
+                    <Label className="text-xs">{t("influencer_profile.avg_views")}</Label>
                     <Input className="mt-1" type="number" value={s.avg_views ?? 0} onChange={(e) => updateSocial(i, "avg_views", e.target.value)} />
                   </div>
                   <div>
                     <Label className="text-xs">Engagement (%)</Label>
-                    <Input className="mt-1" type="number" step="0.1" value={s.engagement_rate ?? 0} onChange={(e) => updateSocial(i, "engagement_rate", e.target.value)} />
+                    <Input
+                      className="mt-1"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      value={s.engagement_rate ?? 0}
+                      onChange={(e) => updateSocial(i, "engagement_rate", e.target.value)}
+                    />
                   </div>
                   {s.id && (
                     <div className="flex items-end gap-1">
                       <Button
                         type="button" variant="outline" size="sm"
                         onClick={() => connectOAuth(s.id!)}
-                        title="Connecter votre compte via OAuth officiel"
+                        title={t("influencer_profile.oauth_connect_title")}
                       >
                         🔗 OAuth
                       </Button>
@@ -603,12 +754,12 @@ export default function InfluencerEditProfile() {
                         type="button" variant="outline" size="sm"
                         disabled={syncingId === s.id}
                         onClick={() => syncSocial(s.id!)}
-                        title="Synchroniser depuis l'API officielle (OAuth requis)"
+                        title={t("influencer_profile.oauth_sync_title_attr")}
                       >
                         {syncingId === s.id
                           ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                           : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                        Synchroniser
+                        {t("influencer_profile.sync_button")}
                       </Button>
                     </div>
                   )}
@@ -621,30 +772,39 @@ export default function InfluencerEditProfile() {
         {/* Galerie portfolio (jusqu'à 3 photos affichées dans le kit média) */}
         <Card className="card-base">
           <CardHeader>
-            <CardTitle className="text-base">Galerie portfolio</CardTitle>
+            <CardTitle className="text-base">{t("influencer_profile.gallery_title")}</CardTitle>
             <p className="text-xs text-gray-500 mt-1">
-              Ajoutez jusqu'à 3 photos qui seront intégrées à votre kit média (formats : JPG, PNG).
+              {t("influencer_profile.gallery_hint")}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs text-indigo-900">
+              <div className="flex items-center gap-2 font-semibold">
+                <Info className="h-3.5 w-3.5" />
+                {t("influencer_profile.gallery_recommendations_title")}
+              </div>
+              <p className="mt-1 leading-relaxed text-indigo-800">
+                {t("influencer_profile.gallery_recommendations")}
+              </p>
+            </div>
             <div className="grid sm:grid-cols-3 gap-3">
               {gallery.map((g) => (
                 <div key={g.id} className="relative rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
                   <div className="aspect-[5/4] w-full overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={g.image} alt={g.caption ?? ""} className="w-full h-full object-cover" />
+                    <img src={resolveMedia(g.image)} alt={g.caption ?? ""} className="w-full h-full object-cover" />
                   </div>
                   <button
                     type="button"
                     onClick={() => deleteGalleryImage(g.id)}
                     className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-600 rounded-full p-1 shadow"
-                    aria-label="Supprimer"
+                    aria-label={t("influencer_profile.gallery_delete_aria")}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                   <Input
                     className="rounded-none border-0 border-t border-gray-200 text-xs"
-                    placeholder="Légende (optionnel)"
+                    placeholder={t("influencer_profile.gallery_caption_placeholder")}
                     defaultValue={g.caption ?? ""}
                     onBlur={(e) => {
                       const v = e.target.value
@@ -660,7 +820,7 @@ export default function InfluencerEditProfile() {
                   ) : (
                     <>
                       <Plus className="h-6 w-6 mb-1" />
-                      <span className="text-xs">Ajouter une photo</span>
+                      <span className="text-xs">{t("influencer_profile.gallery_add_photo")}</span>
                     </>
                   )}
                   <input
@@ -678,7 +838,9 @@ export default function InfluencerEditProfile() {
               )}
             </div>
             <p className="text-xs text-gray-400">
-              {gallery.length}/3 image{gallery.length > 1 ? "s" : ""} — les photos sont automatiquement ajoutées au PDF lors de la prochaine génération du kit média.
+              {gallery.length === 1
+                ? t("influencer_profile.gallery_count", { count: gallery.length })
+                : t("influencer_profile.gallery_count_plural", { count: gallery.length })} {" — "}{t("influencer_profile.gallery_note")}
             </p>
           </CardContent>
         </Card>
@@ -690,7 +852,7 @@ export default function InfluencerEditProfile() {
             <div>
               <Label>{t("influencer_profile.payment_method", "Méthode")}</Label>
               <select className="mt-1 w-full rounded-md border border-input px-3 py-2 text-sm" value={profile_form.payment_method} onChange={(e) => setProfileForm({ ...profile_form, payment_method: e.target.value })}>
-                <option value="">— Sélectionner —</option>
+                <option value="">{t("influencer_profile.select_placeholder")}</option>
                 {(reference?.payment_methods ?? [
                   { code: "iban", label: "Virement SEPA (IBAN)" },
                   { code: "paypal", label: "PayPal" },

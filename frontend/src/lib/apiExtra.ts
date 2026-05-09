@@ -25,6 +25,8 @@ export interface ReferenceData {
   payment_methods: CodeLabel[]
   languages: CodeLabel[]
   cities: string[]
+  countries?: Array<{ code: string; label: string; dial_code: string }>
+  cities_by_country?: Record<string, string[]>
   completion_labels: Record<string, string>
   // Optional / legacy
   image_right_supports?: CodeLabel[]
@@ -103,23 +105,47 @@ export const startStripeOnboarding = () =>
   api.post<{ url: string }>("/influencers/stripe-onboard/").then((r) => r.data)
 
 // ====== Proposal signature / escrow / contract ======
-export const generateContractPdf = (id: number) =>
-  api.post<{ contract_pdf: string }>(`/proposals/${id}/generate-contract/`).then((r) => r.data)
-export const signContract = (id: number) =>
-  api.post(`/proposals/${id}/sign-contract/`).then((r) => r.data)
+export const generateContractPdf = (id: number, templateId?: number) =>
+  api.post<{ contract_pdf: string }>(`/proposals/${id}/generate-contract/`, templateId ? { template_id: templateId } : {}).then((r) => r.data)
+export const signContract = (
+  id: number,
+  payload?: { signature_mode?: string; signature_value?: string; signature_data?: string | null; consent?: boolean },
+) => api.post(`/proposals/${id}/sign-contract/`, payload ?? {}).then((r) => r.data)
+export const createSignSession = (proposalId: number) =>
+  api.post<{ token: string; sign_url: string; expires_at: string }>(`/proposals/${proposalId}/sign-session/`).then((r) => r.data)
+export const getSignSession = (token: string) =>
+  api.get<{ token: string; proposal_id: number; expires_at: string; used: boolean; completed_at?: string | null }>(`/sign-sessions/${token}/`).then((r) => r.data)
+export const completeSignSession = (
+  token: string,
+  payload: { signature_mode?: string; signature_value?: string; signature_data?: string | null; consent?: boolean },
+) => api.post(`/sign-sessions/${token}/complete/`, payload).then((r) => r.data)
 export const fundEscrow = (id: number) =>
   api.post(`/proposals/${id}/fund-escrow/`).then((r) => r.data)
-export const submitContent = (id: number, payload: { content_url: string; screenshot?: File | null; notes?: string }) => {
+export const submitContent = (
+  id: number,
+  payload: {
+    submission_type: "link" | "upload"
+    publication_url?: string
+    uploaded_file?: File | null
+    screenshot?: File | null
+  },
+) => {
   const fd = new FormData()
-  fd.append("content_url", payload.content_url)
-  if (payload.notes) fd.append("notes", payload.notes)
+  fd.append("submission_type", payload.submission_type)
+  fd.append("publication_url", payload.publication_url ?? "")
+  fd.append("publication_date", new Date().toISOString())
+  if (payload.uploaded_file) fd.append("uploaded_file", payload.uploaded_file)
   if (payload.screenshot) fd.append("screenshot", payload.screenshot)
   return api.post(`/proposals/${id}/submit-content/`, fd, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data)
 }
+export const fetchLatestSubmission = (id: number) =>
+  api.get(`/proposals/${id}/latest-submission/`).then((r) => r.data)
 export const validateContent = (id: number) =>
   api.post(`/proposals/${id}/validate-content/`).then((r) => r.data)
-export const rejectContent = (id: number, notes: string) =>
-  api.post(`/proposals/${id}/reject-content/`, { notes }).then((r) => r.data)
+export const rejectContent = (
+  id: number,
+  payload: { rejection_reason: string; rejection_comment?: string },
+) => api.post(`/proposals/${id}/reject-content/`, payload).then((r) => r.data)
 
 // ====== Castings ======
 export const fetchCastings = () => api.get("/castings/").then((r) => r.data)
@@ -199,7 +225,11 @@ export const createAmbassadorProgram = (payload: Record<string, unknown>) =>
   api.post("/ambassador-programs/", payload).then((r) => r.data)
 
 // ====== Contract templates ======
-export const fetchContractTemplates = () => api.get("/contract-templates/").then((r) => r.data)
+export const fetchContractTemplates = () =>
+  api.get("/contract-templates/").then((r) => {
+    const d = r.data as any
+    return (d.results ?? d) as any[]
+  })
 export const createContractTemplate = (payload: Record<string, unknown>) =>
   api.post("/contract-templates/", payload).then((r) => r.data)
 

@@ -33,6 +33,7 @@ from rest_framework.views import APIView
 from .constants import (
     SUBSCRIPTION_PLANS, CONTENT_THEMES, CONTENT_TYPES, SOCIAL_PLATFORMS,
     PAYMENT_METHODS, LANGUAGES, CITIES_FR, COMPLETION_LABELS_FR,
+        COUNTRIES, CITIES_BY_COUNTRY,
 )
 from .models import (
     AmbassadorProgram, AuditLog, BrandProfile, Campaign, CampaignProposal,
@@ -146,6 +147,8 @@ class ReferenceDataView(APIView):
             "payment_methods": PAYMENT_METHODS,
             "languages": LANGUAGES,
             "cities": CITIES_FR,
+                "countries": COUNTRIES,
+                "cities_by_country": CITIES_BY_COUNTRY,
             "completion_labels": COMPLETION_LABELS_FR,
             # Legacy aliases (kept for backward-compat with older callers)
             "content_themes": CONTENT_THEMES,
@@ -339,6 +342,10 @@ def _missing_fields(profile) -> list[str]:
         missing.append("pricing")
     if not profile.social_networks.exists():
         missing.append("social_networks")
+    if not profile.media_kit_images.exists():
+        missing.append("media_kit_images")
+    if not profile.collaboration_pitch or len(profile.collaboration_pitch.strip()) < 20:
+        missing.append("collaboration_pitch")
     if not (profile.payment_method and profile.payment_details):
         missing.append("payment_method")
     return missing
@@ -355,6 +362,11 @@ class MediaKitGenerateView(APIView):
         if completion < 80:
             return Response(
                 {"detail": "Profile must be at least 80% complete.", "completion": completion},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not profile.collaboration_pitch or len(profile.collaboration_pitch.strip()) < 20:
+            return Response(
+                {"detail": "Remplissez la case 'Pourquoi collaborer avec vous ?' dans votre profil avant de générer le kit média."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
@@ -380,7 +392,7 @@ class ProposalGenerateContractView(APIView):
     def post(self, request, pk):
         try:
             proposal = CampaignProposal.objects.select_related(
-                "campaign__brand", "influencer__user"
+                "campaign__brand", "influencer__user", "contract_template"
             ).get(pk=pk)
         except CampaignProposal.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -391,6 +403,27 @@ class ProposalGenerateContractView(APIView):
         if proposal.status not in ("accepted", "counter_offer"):
             return Response({"detail": "Proposal must be accepted first."},
                             status=status.HTTP_400_BAD_REQUEST)
+        
+        # Optional: brand can specify which template to use
+        template_id = request.data.get("template_id")
+        if template_id:
+            try:
+                template = ContractTemplate.objects.get(pk=template_id, brand=proposal.campaign.brand)
+                proposal.contract_template = template
+            except ContractTemplate.DoesNotExist:
+                return Response({"detail": "Template not found or unauthorized."},
+                                status=status.HTTP_400_BAD_REQUEST)
+        # If no template specified but campaign has a default, use it
+        elif not proposal.contract_template:
+            try:
+                default_template = ContractTemplate.objects.filter(
+                    brand=proposal.campaign.brand, is_default=True
+                ).first()
+                if default_template:
+                    proposal.contract_template = default_template
+            except ContractTemplate.DoesNotExist:
+                pass
+        
         try:
             pdf = generate_contract_pdf(proposal=proposal)
         except Exception as exc:  # noqa: BLE001
@@ -399,10 +432,11 @@ class ProposalGenerateContractView(APIView):
         filename = f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf"
         proposal.contract_pdf.save(filename, ContentFile(pdf), save=False)
         proposal.save()
-        for u in (proposal.influencer.user, proposal.campaign.brand.user):
-            _notify(u, "contract_ready", "Contrat prêt à signer",
-                    f"Le contrat pour « {proposal.campaign.title} » est prêt.",
-                    proposal=proposal, send_email=True)
+        # Only notify influencer that contract is ready for signing
+        _notify(proposal.influencer.user, "contract_ready", "Contrat prêt à signer",
+                f"La marque a généré le contrat pour « {proposal.campaign.title} ». "
+                f"Veuillez le relire et le signer.",
+                proposal=proposal, send_email=True)
         return Response(CampaignProposalSerializer(proposal).data)
 
 
@@ -417,7 +451,7 @@ class CastingListView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         from .serializers import CampaignSerializer
         qs = Campaign.objects.filter(is_casting=True, status="active").order_by("-created_at")
-        return Response(CampaignSerializer(qs, many=True).data)
+        return Response(CampaignSerializer(qs, many=True, context={"request": request}).data)
 
 
 class CastingApplyView(APIView):
@@ -581,7 +615,10 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
             import mammoth
         except ImportError:
             return ""
-        result = mammoth.convert_to_html(file_obj)
+        try:
+            result = mammoth.convert_to_html(file_obj)
+        except Exception:
+            return ""
         return result.value or ""
 
     @staticmethod
@@ -626,6 +663,12 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
             kind = "pdf"
         else:
             raise ValidationError({"file": "Only .docx or .pdf files are supported."})
+
+        if not html.strip():
+            raise ValidationError({
+                "file": "Could not extract content from this file. Please verify the file is a valid .docx/.pdf document.",
+            })
+
         upload.seek(0)
         return Response({"body_html": html, "format": kind, "filename": upload.name})
 
@@ -720,7 +763,7 @@ class SocialOAuthStartView(APIView):
             return Response({
                 "platform": sn.platform,
                 "configured": False,
-                "oauth_url": f"https://oauth.influconnect.local/{sn.platform}/start?sn={sn.id}",
+                "oauth_url": f"https://oauth.influconnect.fr/{sn.platform}/start?sn={sn.id}",
                 "note": (
                     f"OAuth credentials not configured for {sn.platform}. "
                     "Set the corresponding env vars (e.g. YOUTUBE_CLIENT_ID/SECRET) "

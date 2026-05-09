@@ -7,14 +7,26 @@ import {
   sendProposalMessage,
   acceptCounterOffer,
   cancelProposal,
+  fundEscrow,
   generateContractPdf,
+  fetchContractTemplates,
 } from "@/lib/apiExtra"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
 import { MessageThread } from "@/components/shared/MessageThread"
+import { SignContractDialog } from "@/components/shared/SignContractDialog"
+import { ContractWorkflow } from "@/components/shared/ContractWorkflow"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, CheckCircle, XCircle, Loader2, FileText, MessageSquare, Download, ExternalLink } from "lucide-react"
+import { ArrowLeft, CheckCircle, XCircle, Loader2, FileText, MessageSquare, Download, ExternalLink, PenTool, DollarSign } from "lucide-react"
 
 interface ProposalData {
   id: number
@@ -30,6 +42,10 @@ interface ProposalData {
   contract_pdf: string | null
   brand_signed_at: string | null
   influencer_signed_at: string | null
+  escrow_funded_at?: string | null
+  escrow_released_at?: string | null
+  submission_deadline?: string | null
+  validation_deadline?: string | null
 }
 
 interface ChatMessage {
@@ -38,6 +54,12 @@ interface ChatMessage {
   content: string
   created_at: string
   is_mine: boolean
+}
+
+interface ContractTemplate {
+  id: number
+  name: string
+  description: string
 }
 
 export default function BrandProposalDetail() {
@@ -49,6 +71,10 @@ export default function BrandProposalDetail() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [templates, setTemplates] = useState<ContractTemplate[]>([])
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
+  const [showSignDialog, setShowSignDialog] = useState(false)
 
   const load = async () => {
     try {
@@ -65,7 +91,24 @@ export default function BrandProposalDetail() {
     }
   }
 
-  useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id])
+  const loadTemplates = async () => {
+    try {
+      const data = await fetchContractTemplates()
+      const list = Array.isArray(data) ? data : []
+      setTemplates(list)
+      // Auto-select default template if available
+      const defaultTemplate = list.find((t: any) => t.is_default)
+      if (defaultTemplate) setSelectedTemplate(defaultTemplate.id)
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    }
+  }
+
+  useEffect(() => { 
+    load()
+    loadTemplates()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   const handleSend = async (content: string) => {
     try {
@@ -102,14 +145,36 @@ export default function BrandProposalDetail() {
     }
   }
 
+  const handleGenerateContractClick = () => {
+    if (templates.length === 0) {
+      toast({ variant: "destructive", title: t("contracts.empty") })
+      return
+    }
+    setShowTemplateDialog(true)
+  }
+
   const handleGenerateContract = async () => {
     setActing(true)
     try {
-      await generateContractPdf(Number(id))
+      await generateContractPdf(Number(id), selectedTemplate || undefined)
       toast({ title: t("brand_proposal.contract_generated") })
+      setShowTemplateDialog(false)
       await load()
     } catch {
       toast({ variant: "destructive", title: t("common.error") })
+    } finally {
+      setActing(false)
+    }
+  }
+
+  const handleFundEscrow = async () => {
+    setActing(true)
+    try {
+      await fundEscrow(Number(id))
+      toast({ title: t("proposal_detail.escrow_funded", "Escrow approvisionné") })
+      await load()
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t("common.error"), description: err?.response?.data?.detail ?? "" })
     } finally {
       setActing(false)
     }
@@ -129,7 +194,7 @@ export default function BrandProposalDetail() {
           <ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}
         </Button>
         <h1 className="text-xl font-bold text-gray-900 flex-1">
-          {t("brand_proposal.title")} — {proposal.influencer_display_name}
+          {t("brand_proposal.title")} — <InfluencerHoverCard influencerId={proposal.influencer} displayName={proposal.influencer_display_name}><a href={`/brand/influencers/${proposal.influencer}`} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition-colors">{proposal.influencer_display_name}</a></InfluencerHoverCard>
         </h1>
         <StatusBadge status={proposal.status as any} />
       </div>
@@ -186,14 +251,27 @@ export default function BrandProposalDetail() {
           <Card className="card-base">
             <CardHeader><CardTitle className="text-base">{t("brand_proposal.actions")}</CardTitle></CardHeader>
             <CardContent className="space-y-2">
+              <Button className="w-full" variant="outline" asChild>
+                <a href={`/brand/influencers/${proposal.influencer}#media-kit`} target="_blank" rel="noopener noreferrer">{t("campaign_detail.view_media_kit")}</a>
+              </Button>
               {proposal.status === "counter_offer" && (
                 <Button className="w-full" variant="gradient" disabled={acting} onClick={handleAcceptCounter}>
                   {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4 mr-1" />{t("brand_proposal.accept_counter")}</>}
                 </Button>
               )}
               {proposal.status === "accepted" && !proposal.contract_pdf && (
-                <Button className="w-full" variant="gradient" disabled={acting} onClick={handleGenerateContract}>
+                <Button className="w-full" variant="gradient" disabled={acting} onClick={handleGenerateContractClick}>
                   <FileText className="h-4 w-4 mr-1" />{t("brand_proposal.generate_contract")}
+                </Button>
+              )}
+              {proposal.contract_pdf && !proposal.brand_signed_at && (
+                <Button className="w-full" variant="gradient" disabled={acting} onClick={() => setShowSignDialog(true)}>
+                  <PenTool className="h-4 w-4 mr-1" />Signer le contrat
+                </Button>
+              )}
+              {proposal.contract_pdf && proposal.brand_signed_at && proposal.influencer_signed_at && !proposal.escrow_funded_at && (
+                <Button className="w-full" variant="gradient" disabled={acting} onClick={handleFundEscrow}>
+                  <DollarSign className="h-4 w-4 mr-1" />Approvisionner escrow
                 </Button>
               )}
               {proposal.contract_pdf && (
@@ -216,21 +294,55 @@ export default function BrandProposalDetail() {
             </CardContent>
           </Card>
 
-          <Card className="card-base">
-            <CardHeader><CardTitle className="text-base">{t("brand_proposal.signatures")}</CardTitle></CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">{t("brand_proposal.brand_signed")}</span>
-                <span className="font-medium">{proposal.brand_signed_at ? new Date(proposal.brand_signed_at).toLocaleDateString() : "—"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">{t("brand_proposal.influencer_signed")}</span>
-                <span className="font-medium">{proposal.influencer_signed_at ? new Date(proposal.influencer_signed_at).toLocaleDateString() : "—"}</span>
-              </div>
-            </CardContent>
-          </Card>
+          {proposal.status !== "pending" && proposal.status !== "declined" && (
+            <ContractWorkflow proposal={proposal} />
+          )}
         </div>
       </div>
+
+      {/* Template Selection Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choisir un modèle de contrat</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {templates.map((template) => (
+              <div
+                key={template.id}
+                className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedTemplate === template.id 
+                    ? 'border-indigo-500 bg-indigo-50' 
+                    : 'border-gray-200 hover:border-indigo-300'
+                }`}
+                onClick={() => setSelectedTemplate(template.id)}
+              >
+                <div className="font-medium text-sm">{template.name}</div>
+                {template.description && (
+                  <div className="text-xs text-gray-500 mt-1">{template.description}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>{t("contracts.cancel")}</Button>
+            <Button 
+              variant="gradient" 
+              disabled={!selectedTemplate || acting} 
+              onClick={handleGenerateContract}
+            >
+              {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : t("brand_proposal.generate_contract")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <SignContractDialog
+        proposalId={Number(id)}
+        open={showSignDialog}
+        onClose={() => setShowSignDialog(false)}
+        onSuccess={load}
+      />
     </div>
   )
 }

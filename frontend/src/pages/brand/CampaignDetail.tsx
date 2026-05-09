@@ -2,20 +2,25 @@ import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
-import { fetchProposalMessages, sendProposalMessage, cancelProposal, deleteCampaign } from "@/lib/apiExtra"
+import { fetchProposalMessages, sendProposalMessage, cancelProposal, deleteCampaign, generateContractPdf, fetchContractTemplates, fundEscrow } from "@/lib/apiExtra"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { MessageThread } from "@/components/shared/MessageThread"
+import { SignContractDialog } from "@/components/shared/SignContractDialog"
+import { ContractWorkflow } from "@/components/shared/ContractWorkflow"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Eye, Calendar, DollarSign, Loader2, Send, Users, CheckCircle2, MessageSquare, Trash2, XCircle } from "lucide-react"
+import { resolveMediaUrl } from "@/lib/utils"
+import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
+import { ArrowLeft, Eye, Calendar, DollarSign, Loader2, Send, Users, CheckCircle2, MessageSquare, Trash2, XCircle, FileText } from "lucide-react"
 
 interface ChatMessage {
   id: number
   sender_name: string
+  sender_avatar?: string | null
   content: string
   created_at: string
   is_mine: boolean
@@ -35,9 +40,17 @@ interface Campaign {
 interface Proposal {
   id: number
   influencer_display_name: string
+  influencer_avatar?: string | null
   influencer: number
   proposed_price: number
   status: string
+  contract_pdf?: string | null
+  brand_signed_at?: string | null
+  influencer_signed_at?: string | null
+  escrow_funded_at?: string | null
+  escrow_released_at?: string | null
+  submission_deadline?: string | null
+  validation_deadline?: string | null
 }
 
 interface SocialNetwork {
@@ -55,6 +68,19 @@ interface MatchedInfluencer {
   average_rating: number | null
 }
 
+interface InfluencerProfilePreview {
+  id: number
+  display_name: string
+  avatar: string | null
+  bio: string
+  city: string
+  content_themes: string[]
+  content_types_offered: string[]
+  social_networks: SocialNetwork[]
+  average_rating: number | string | null
+  media_kit_pdf?: string | null
+}
+
 export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>()
   const { t } = useTranslation()
@@ -69,8 +95,19 @@ export default function CampaignDetail() {
   const [chatProposal, setChatProposal] = useState<Proposal | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatLoading, setChatLoading] = useState(false)
+  const [profilePreview, setProfilePreview] = useState<InfluencerProfilePreview | null>(null)
+  const [profilePreviewOpen, setProfilePreviewOpen] = useState(false)
+  const [profilePreviewLoading, setProfilePreviewLoading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [cancelling, setCancelling] = useState<number | null>(null)
+  const [templates, setTemplates] = useState<any[]>([])
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
+  const [generatingProposal, setGeneratingProposal] = useState<number | null>(null)
+  const [proposalForGeneration, setProposalForGeneration] = useState<number | null>(null)
+  const [fundingProposal, setFundingProposal] = useState<number | null>(null)
+  const [showSignDialog, setShowSignDialog] = useState(false)
+  const [proposalForSigning, setProposalForSigning] = useState<number | null>(null)
 
   const handleDeleteCampaign = async () => {
     if (!campaign) return
@@ -97,6 +134,18 @@ export default function CampaignDetail() {
     }
   }
 
+  const openSignDialog = (proposalId: number) => {
+    setProposalForSigning(proposalId)
+    setShowSignDialog(true)
+  }
+
+  const reloadProposals = async () => {
+    const propRes = await api.get("/proposals/")
+    const allProposals: Proposal[] = propRes.data.results ?? propRes.data
+    const campaignProposals = allProposals.filter((p: any) => p.campaign === Number(id))
+    setProposals(campaignProposals)
+  }
+
   const openChat = async (p: Proposal) => {
     setChatProposal(p)
     setChatLoading(true)
@@ -110,6 +159,35 @@ export default function CampaignDetail() {
     }
   }
 
+  const openProfilePreview = async (influencerId: number) => {
+    setProfilePreviewOpen(true)
+    setProfilePreviewLoading(true)
+    try {
+      const res = await api.get(`/influencers/${influencerId}/`)
+      setProfilePreview(res.data as InfluencerProfilePreview)
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+      setProfilePreviewOpen(false)
+    } finally {
+      setProfilePreviewLoading(false)
+    }
+  }
+
+  const openMediaKitForInfluencer = async (influencerId: number) => {
+    try {
+      const res = await api.get(`/influencers/${influencerId}/`)
+      const pdf = (res.data as InfluencerProfilePreview).media_kit_pdf
+      const url = resolveMediaUrl(pdf)
+      if (!url) {
+        toast({ title: t("influencer_public.media_kit_unavailable") })
+        return
+      }
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    }
+  }
+
   const handleSendMessage = async (content: string) => {
     if (!chatProposal) return
     try {
@@ -117,6 +195,61 @@ export default function CampaignDetail() {
       setChatMessages((prev) => [...prev, msg as ChatMessage])
     } catch {
       toast({ variant: "destructive", title: t("common.error") })
+    }
+  }
+
+  const loadTemplates = async () => {
+    try {
+      const data = await fetchContractTemplates()
+      const templatesList = Array.isArray(data) ? data : []
+      setTemplates(templatesList)
+      const defaultTemplate = templatesList.find((t: any) => t.is_default)
+      if (defaultTemplate) setSelectedTemplate(defaultTemplate.id)
+    } catch {
+      setTemplates([])
+      toast({ variant: "destructive", title: t("common.error") })
+    }
+  }
+
+  const handleGenerateContractClick = (proposalId: number) => {
+    if (!Array.isArray(templates) || templates.length === 0) {
+      toast({ variant: "destructive", title: t("contracts.empty") })
+      return
+    }
+    setProposalForGeneration(proposalId)
+    setShowTemplateDialog(true)
+  }
+
+  const handleGenerateContract = async () => {
+    if (!proposalForGeneration) return
+    setGeneratingProposal(proposalForGeneration)
+    try {
+      await generateContractPdf(proposalForGeneration, selectedTemplate || undefined)
+      toast({ title: t("brand_proposal.contract_generated") })
+      setShowTemplateDialog(false)
+      // Refresh proposals
+      await reloadProposals()
+    } catch (e: any) {
+      toast({ 
+        variant: "destructive", 
+        title: t("common.error"),
+        description: e?.response?.data?.detail || "Failed to generate contract"
+      })
+    } finally {
+      setGeneratingProposal(null)
+    }
+  }
+
+  const handleFundEscrow = async (proposalId: number) => {
+    setFundingProposal(proposalId)
+    try {
+      await fundEscrow(proposalId)
+      toast({ title: t("proposal_detail.escrow_funded", "Escrow approvisionné") })
+      await reloadProposals()
+    } catch (err: any) {
+      toast({ variant: "destructive", title: t("common.error"), description: err?.response?.data?.detail ?? "" })
+    } finally {
+      setFundingProposal(null)
     }
   }
 
@@ -144,6 +277,7 @@ export default function CampaignDetail() {
       }
     }
     load()
+    loadTemplates()
   }, [id])
 
   const sendProposal = async (influencerId: number) => {
@@ -166,7 +300,10 @@ export default function CampaignDetail() {
   }
 
   const sendToAll = async () => {
-    const toSend = matches.filter((m) => !sentIds.has(m.id)).map((m) => m.id)
+    const toSend = matches.filter((m) => {
+      const proposal = proposals.find((p) => p.influencer === m.id)
+      return !proposal || proposal.status === "pending" || proposal.status === "declined"
+    }).map((m) => m.id)
     if (toSend.length === 0) return
     setSending(new Set(toSend))
     try {
@@ -187,11 +324,53 @@ export default function CampaignDetail() {
   }
 
   const fmtFollowers = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
+  const formatAudience = (value: unknown) => {
+    if (value == null) return ""
+    const raw = String(value).trim()
+    if (!raw) return ""
+    if (/^\d+$/.test(raw)) {
+      const age = Number(raw)
+      if (age >= 10 && age <= 100) return `${age}+`
+    }
+    return raw
+  }
+
+  const formatThemeLabel = (theme: string) => {
+    const v = String(theme || "").trim().toLowerCase()
+    const labels: Record<string, string> = {
+      fashion: "Mode",
+      beauty: "Beaute",
+      hospitality: "Hotellerie",
+      restaurant: "Restaurant",
+      travel: "Voyage",
+      food: "Cuisine",
+      tech: "Tech",
+      sport: "Sport",
+      lifestyle: "Lifestyle",
+      gaming: "Gaming",
+      parenting: "Parentalite",
+      health_wellness: "Sante & Bien-etre",
+      finance: "Finance",
+      sustainability: "Developpement durable",
+      other: "Autre",
+    }
+    return labels[v] || theme
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
   if (!campaign) return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
 
-  const unsent = matches.filter((m) => !sentIds.has(m.id))
+  const unsent = matches.filter((m) => {
+    const proposal = proposals.find((p) => p.influencer === m.id)
+    return !proposal || proposal.status === "pending" || proposal.status === "declined"
+  })
+  const hasEnteredWorkflow = proposals.some((p) =>
+    !["pending", "declined", "counter_offer"].includes(p.status) ||
+    !!p.contract_pdf ||
+    !!p.brand_signed_at ||
+    !!p.influencer_signed_at ||
+    !!p.escrow_funded_at
+  )
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -235,99 +414,150 @@ export default function CampaignDetail() {
           </Card>
 
           {/* Influenceurs correspondants */}
-          <Card className="card-base">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-4 w-4 text-indigo-500" />
-                  Influenceurs correspondants ({matches.length})
-                </CardTitle>
-                {unsent.length > 0 && (
-                  <Button size="sm" variant="gradient" onClick={sendToAll} disabled={sending.size > 0}>
-                    <Send className="h-3.5 w-3.5 mr-1.5" />
-                    Proposer à tous ({unsent.length})
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {matches.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">Aucun influenceur ne correspond pour l'instant à vos critères.</p>
-              ) : (
-                <div className="space-y-3">
-                  {matches.map((m) => {
-                    const alreadySent = sentIds.has(m.id)
-                    const isSending = sending.has(m.id)
-                    const totalFollowers = m.social_networks.reduce((sum, sn) => sum + sn.followers_count, 0)
-                    return (
-                      <div key={m.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Avatar className="h-10 w-10 shrink-0">
-                            {m.avatar && <AvatarImage src={m.avatar} />}
-                            <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
-                              {(m.display_name || "??").slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="font-medium text-sm text-gray-900 truncate">{m.display_name || `Influencer #${m.id}`}</p>
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                              {m.city && <span>{m.city}</span>}
-                              <span>{fmtFollowers(totalFollowers)} abonnés</span>
-                              {m.social_networks.map((sn) => (
-                                <Badge key={sn.platform} variant="outline" className="text-[10px] px-1.5 py-0">{sn.platform}</Badge>
-                              ))}
-                            </div>
-                            {m.content_themes?.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {m.content_themes.slice(0, 4).map((th) => (
-                                  <Badge key={th} variant="info" className="text-[10px] px-1.5 py-0">{th}</Badge>
-                                ))}
-                                {m.content_themes.length > 4 && <span className="text-[10px] text-gray-400">+{m.content_themes.length - 4}</span>}
+          {!hasEnteredWorkflow && (
+            <Card className="card-base">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4 text-indigo-500" />
+                    Influenceurs correspondants ({matches.length})
+                  </CardTitle>
+                  {unsent.length > 0 && (
+                    <Button size="sm" variant="gradient" onClick={sendToAll} disabled={sending.size > 0}>
+                      <Send className="h-3.5 w-3.5 mr-1.5" />
+                      Proposer à tous ({unsent.length})
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {matches.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">Aucun influenceur ne correspond pour l'instant à vos critères.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {matches.map((m) => {
+                      const proposal = proposals.find((p) => p.influencer === m.id)
+                      const alreadySent = proposal && proposal.status !== "pending"
+                      const isPending = proposal && proposal.status === "pending"
+                      const isAccepted = proposal && proposal.status === "accepted"
+                      const isSending = sending.has(m.id)
+                      const totalFollowers = m.social_networks.reduce((sum, sn) => sum + sn.followers_count, 0)
+                      return (
+                        <div key={m.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
+                          <InfluencerHoverCard
+                            influencerId={m.id}
+                            displayName={m.display_name || `Influencer #${m.id}`}
+                            avatar={m.avatar}
+                            city={m.city}
+                            socialNetworks={m.social_networks}
+                            contentThemes={m.content_themes}
+                          >
+                            <button type="button" onClick={() => openProfilePreview(m.id)} className="flex items-center gap-3 min-w-0 group cursor-pointer text-left">
+                              <Avatar className="h-10 w-10 shrink-0">
+                                {m.avatar && <AvatarImage src={resolveMediaUrl(m.avatar)} />}
+                                <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
+                                  {(m.display_name || "??").slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{m.display_name || `Influencer #${m.id}`}</p>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  {m.city && <span>{m.city}</span>}
+                                  <span>{fmtFollowers(totalFollowers)} abonnes</span>
+                                  {m.social_networks.map((sn) => (
+                                    <Badge key={sn.platform} variant="outline" className="text-[10px] px-1.5 py-0">{sn.platform}</Badge>
+                                  ))}
+                                </div>
+                                {m.content_themes?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {m.content_themes.slice(0, 4).map((th) => (
+                                      <Badge key={th} variant="info" className="text-[10px] px-1.5 py-0">{th}</Badge>
+                                    ))}
+                                    {m.content_themes.length > 4 && <span className="text-[10px] text-gray-400">+{m.content_themes.length - 4}</span>}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </button>
+                          </InfluencerHoverCard>
+                          <div className="shrink-0 ml-3">
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="outline" onClick={() => openMediaKitForInfluencer(m.id)}>
+                                {t("campaign_detail.view_media_kit")}
+                              </Button>
+                              {isAccepted ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium"><CheckCircle2 className="h-3.5 w-3.5" />Acceptée</span>
+                              ) : isPending ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium"><CheckCircle2 className="h-3.5 w-3.5" />Envoyée</span>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => sendProposal(m.id)} disabled={isSending || alreadySent}>
+                                  {isSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Send className="h-3.5 w-3.5 mr-1" />Proposer</>}
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="shrink-0 ml-3">
-                          {alreadySent ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium"><CheckCircle2 className="h-3.5 w-3.5" />Envoyée</span>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => sendProposal(m.id)} disabled={isSending}>
-                              {isSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Send className="h-3.5 w-3.5 mr-1" />Proposer</>}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Propositions */}
           <Card className="card-base">
             <CardHeader><CardTitle className="text-base">{t("campaign_detail.proposals")} ({proposals.length})</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {proposals.length === 0 && <p className="text-sm text-gray-400 text-center py-4">{t("proposals_page.no_proposals")}</p>}
                 {proposals.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
-                          {(p.influencer_display_name || "??").slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-sm text-gray-900">{p.influencer_display_name || `Influencer #${p.id}`}</p>
+                  <div key={p.id} className="rounded-xl border border-gray-100 bg-white p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <InfluencerHoverCard
+                        influencerId={p.influencer}
+                        displayName={p.influencer_display_name || `Influencer #${p.id}`}
+                        avatar={p.influencer_avatar}
+                      >
+                        <button type="button" onClick={() => openProfilePreview(p.influencer)} className="flex items-center gap-3 group cursor-pointer text-left min-w-0">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={resolveMediaUrl(p.influencer_avatar)} alt={p.influencer_display_name} />
+                            <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
+                              {(p.influencer_display_name || "??").slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold text-sm text-gray-900 group-hover:text-indigo-600 transition-colors">{p.influencer_display_name || `Influencer #${p.id}`}</p>
+                            <p className="text-xs text-gray-500">Proposition active</p>
+                          </div>
+                        </button>
+                      </InfluencerHoverCard>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">€{p.proposed_price}</span>
+                        <StatusBadge status={p.status as any} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-sm text-gray-900">€{p.proposed_price}</span>
-                      <StatusBadge status={p.status as any} />
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openMediaKitForInfluencer(p.influencer)}>
+                        {t("campaign_detail.view_media_kit")}
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => openChat(p)}>
                         <MessageSquare className="h-3.5 w-3.5 mr-1" />{t("campaign_detail.chat")}
                       </Button>
+                      {p.status === "accepted" && !p.contract_pdf && (
+                        <Button size="sm" variant="gradient" disabled={generatingProposal === p.id} onClick={() => handleGenerateContractClick(p.id)}>
+                          {generatingProposal === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><FileText className="h-3.5 w-3.5 mr-1" />Générer contrat</>}
+                        </Button>
+                      )}
+                      {p.contract_pdf && !p.brand_signed_at && (
+                        <Button size="sm" variant="gradient" disabled={generatingProposal === p.id} onClick={() => openSignDialog(p.id)}>
+                          {generatingProposal === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Signer"}
+                        </Button>
+                      )}
+                      {p.contract_pdf && p.brand_signed_at && p.influencer_signed_at && !p.escrow_funded_at && (
+                        <Button size="sm" variant="gradient" disabled={fundingProposal === p.id} onClick={() => handleFundEscrow(p.id)}>
+                          {fundingProposal === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><DollarSign className="h-3.5 w-3.5 mr-1" />Approvisionner escrow</>}
+                        </Button>
+                      )}
                       {["pending", "counter_offer", "content_submitted"].includes(p.status) && (
                         <Button size="sm" variant="gradient" onClick={() => navigate(`/brand/proposals/${p.id}`)}>{t("campaign_detail.review")}</Button>
                       )}
@@ -337,6 +567,10 @@ export default function CampaignDetail() {
                         </Button>
                       )}
                     </div>
+
+                    {p.status !== 'declined' && (
+                      <ContractWorkflow proposal={p} className="border-0 shadow-none bg-transparent" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -367,10 +601,23 @@ export default function CampaignDetail() {
               <CardHeader><CardTitle className="text-base">Critères de ciblage</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {campaign.target_filters.target_audience && (
-                  <div><span className="text-gray-500">Audience : </span><span className="font-medium text-gray-900">{campaign.target_filters.target_audience}</span></div>
+                  <div>
+                    <span className="text-gray-500">Age vise : </span>
+                    <span className="font-medium text-gray-900">{formatAudience(campaign.target_filters.target_audience)}</span>
+                  </div>
                 )}
                 {campaign.target_filters.min_followers && (
                   <div><span className="text-gray-500">Min. abonnés : </span><span className="font-medium text-gray-900">{fmtFollowers(campaign.target_filters.min_followers)}</span></div>
+                )}
+                {Array.isArray(campaign.target_filters.content_themes) && campaign.target_filters.content_themes.length > 0 && (
+                  <div className="pt-1">
+                    <div className="text-gray-500 mb-1">Themes cibles :</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {campaign.target_filters.content_themes.map((th: string) => (
+                        <Badge key={th} variant="info" className="text-[11px]">{formatThemeLabel(th)}</Badge>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -410,6 +657,104 @@ export default function CampaignDetail() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={profilePreviewOpen} onOpenChange={setProfilePreviewOpen}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b">
+            <DialogTitle className="text-base">Profil influenceur</DialogTitle>
+          </DialogHeader>
+          {profilePreviewLoading ? (
+            <div className="flex items-center justify-center h-72 text-gray-400"><Loader2 className="h-5 w-5 animate-spin mr-2" />{t("common.loading")}</div>
+          ) : profilePreview ? (
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  {profilePreview.avatar && <AvatarImage src={resolveMediaUrl(profilePreview.avatar)} />}
+                  <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white font-semibold">
+                    {(profilePreview.display_name || "??").slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-lg font-semibold text-gray-900 truncate">{profilePreview.display_name}</p>
+                  <p className="text-sm text-gray-500">{profilePreview.city || "-"}</p>
+                </div>
+              </div>
+
+              {profilePreview.bio && <p className="text-sm text-gray-700 whitespace-pre-wrap">{profilePreview.bio}</p>}
+
+              {profilePreview.social_networks?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {profilePreview.social_networks.map((sn) => (
+                    <Badge key={sn.platform} variant="outline" className="text-[11px]">{sn.platform} · {fmtFollowers(sn.followers_count)}</Badge>
+                  ))}
+                </div>
+              )}
+
+              {profilePreview.content_themes?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {profilePreview.content_themes.map((th) => (
+                    <Badge key={th} variant="info">{th}</Badge>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" onClick={() => openMediaKitForInfluencer(profilePreview.id)}>{t("campaign_detail.view_media_kit")}</Button>
+                <Button variant="gradient" onClick={() => { setProfilePreviewOpen(false); sendProposal(profilePreview.id) }}>
+                  <Send className="h-3.5 w-3.5 mr-1" />Proposer
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Selection Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choisir un modèle de contrat</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {Array.isArray(templates) && templates.map((template) => (
+              <div
+                key={template.id}
+                className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedTemplate === template.id 
+                    ? 'border-indigo-500 bg-indigo-50' 
+                    : 'border-gray-200 hover:border-indigo-300'
+                }`}
+                onClick={() => setSelectedTemplate(template.id)}
+              >
+                <div className="font-medium text-sm">{template.name}</div>
+                {template.description && (
+                  <div className="text-xs text-gray-500 mt-1">{template.description}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>{t("contracts.cancel")}</Button>
+            <Button 
+              variant="gradient" 
+              disabled={!selectedTemplate || !!generatingProposal} 
+              onClick={handleGenerateContract}
+            >
+              {generatingProposal ? <Loader2 className="h-4 w-4 animate-spin" /> : t("brand_proposal.generate_contract")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <SignContractDialog
+        proposalId={proposalForSigning || 0}
+        open={showSignDialog && !!proposalForSigning}
+        onClose={() => {
+          setShowSignDialog(false)
+          setProposalForSigning(null)
+        }}
+        onSuccess={reloadProposals}
+      />
     </div>
   )
 }
