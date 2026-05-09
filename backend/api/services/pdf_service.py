@@ -89,6 +89,10 @@ def _styles():
             "Body", parent=base["BodyText"], fontName="Helvetica",
             fontSize=10, textColor=GRAY_700, leading=15, spaceAfter=2,
         ),
+        "body_bold": ParagraphStyle(
+            "BodyBold", parent=base["BodyText"], fontName="Helvetica-Bold",
+            fontSize=10, textColor=GRAY_900, leading=15, spaceAfter=2,
+        ),
         "body_lg": ParagraphStyle(
             "BodyLg", parent=base["BodyText"], fontName="Helvetica",
             fontSize=11, textColor=GRAY_600, leading=16, spaceAfter=2,
