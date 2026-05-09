@@ -1,4 +1,6 @@
 from decimal import Decimal
+import base64
+import binascii
 from django.conf import settings as django_settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.core.files.base import ContentFile
@@ -74,20 +76,39 @@ def create_notification(user, notification_type, title, message, proposal=None):
     )
 
 
-SIGN_SESSION_TTL_SECONDS = 15 * 60
+SIGN_SESSION_TTL_SECONDS = 60 * 60
 
 
 def _sign_session_signer() -> TimestampSigner:
     return TimestampSigner(salt="proposal-sign-session")
 
 
+def _encode_url_token(raw: str) -> str:
+    encoded = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+    return encoded.rstrip("=")
+
+
+def _decode_url_token(token: str):
+    # Restore removed padding for URL-safe base64 decode.
+    pad = "=" * ((4 - len(token) % 4) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode((token + pad).encode("ascii"))
+        return decoded.decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        return None
+
+
 def _build_sign_session_token(proposal_id: int, user_id: int) -> str:
-    return _sign_session_signer().sign(f"{proposal_id}:{user_id}")
+    raw = _sign_session_signer().sign(f"{proposal_id}:{user_id}")
+    return _encode_url_token(raw)
 
 
 def _decode_sign_session_token(token: str):
+    raw = _decode_url_token(token)
+    if not raw:
+        return None, None
     try:
-        unsigned = _sign_session_signer().unsign(token, max_age=SIGN_SESSION_TTL_SECONDS)
+        unsigned = _sign_session_signer().unsign(raw, max_age=SIGN_SESSION_TTL_SECONDS)
     except (SignatureExpired, BadSignature):
         return None, None
     try:
