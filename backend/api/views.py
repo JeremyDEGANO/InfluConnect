@@ -138,6 +138,18 @@ def _session_completed_at_for_signer(proposal, signer):
     return None
 
 
+def _refresh_signed_contract_pdf(proposal):
+    """Regenerate the visible contract PDF from the saved signature state."""
+    proposal.refresh_from_db()
+    pdf_bytes = generate_contract_pdf(proposal=proposal)
+    filename = (
+        f"contract_prop_{proposal.id}_v{proposal.contract_version}_"
+        f"signed_{timezone.now():%Y%m%d_%H%M%S_%f}.pdf"
+    )
+    proposal.contract_pdf.save(filename, ContentFile(pdf_bytes), save=False)
+    proposal.save(update_fields=["contract_pdf", "updated_at"])
+
+
 def _extract_signature_payload(request_data, signer_user, proposal):
     mode = str(request_data.get("signature_mode") or "").strip()
     value = str(request_data.get("signature_value") or "").strip()
@@ -205,30 +217,9 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
         proposal.influencer_signature_value = (signature_payload or {}).get("value", "")
         proposal.influencer_signature_data = (signature_payload or {}).get("data", "")
 
-    # Refresh the visible contract file after each signature so the PDF always
-    # reflects the latest signing state seen by the other party.
-    if proposal.contract_pdf:
-        try:
-            pdf_bytes = generate_contract_pdf(proposal=proposal)
-            proposal.contract_pdf.save(
-                f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
-                ContentFile(pdf_bytes), save=False,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("signed-contract PDF refresh failed for proposal %s: %s", proposal.id, exc)
-
     if proposal.contract_signed_brand and proposal.contract_signed_influencer:
         proposal.status = "contract_signed"
         proposal.contract_signed_at = now
-        if not proposal.contract_pdf:
-            try:
-                pdf_bytes = generate_contract_pdf(proposal=proposal)
-                proposal.contract_pdf.save(
-                    f"contract_prop_{proposal.id}_v{proposal.contract_version}.pdf",
-                    ContentFile(pdf_bytes), save=False,
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("final contract PDF generation failed for proposal %s: %s", proposal.id, exc)
         _audit(signer_user, "contract_signed", "CampaignProposal", proposal.id, ip=ip)
         for recipient in (proposal.influencer.user, proposal.campaign.brand.user):
             create_notification(
@@ -252,6 +243,14 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
         )
 
     proposal.save()
+    try:
+        _refresh_signed_contract_pdf(proposal)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("signed-contract PDF refresh failed for proposal %s: %s", proposal.id, exc)
+        return Response(
+            {"detail": "Signature saved, but signed contract PDF refresh failed."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
     return None
 
 

@@ -275,6 +275,18 @@ export default function BrandProposalDetail() {
                 </Button>
               )}
               {proposal.contract_pdf && (
+                <a
+                  href={`${proposal.contract_pdf}${proposal.contract_pdf.includes("?") ? "&" : "?"}v=${encodeURIComponent(`${proposal.contract_version ?? ""}-${proposal.brand_signed_at ?? ""}-${proposal.influencer_signed_at ?? ""}`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                >
+                  <Button className="w-full" variant="outline">
+                    <Eye className="h-4 w-4 mr-1" />Voir contrat
+                  </Button>
+                </a>
+              )}
+              {proposal.contract_pdf && (
                 <a href={proposal.contract_pdf} target="_blank" rel="noreferrer" className="block">
                   <Button className="w-full" variant="outline">
                     <Download className="h-4 w-4 mr-1" />{t("brand_proposal.download_contract")}
