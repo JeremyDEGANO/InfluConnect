@@ -59,8 +59,13 @@ services:
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - PLATFORM_COMMISSION_RATE=${PLATFORM_COMMISSION_RATE:-15}
+      - DEEPL_API_KEY=${DEEPL_API_KEY:-}
       # Social OAuth (optional)
       - SOCIAL_OAUTH_REDIRECT_BASE=${SOCIAL_OAUTH_REDIRECT_BASE:-https://influconnect.fr}
+      # Auto admin bootstrap
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@influconnect.fr}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-ChangeMeNow123!}
     volumes:
       - media_files:/app/media
     depends_on:
@@ -68,6 +73,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate --noinput &&
+             python manage.py ensure_admin &&
              gunicorn influconnect.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 90 --access-logfile - --error-logfile -"
     networks:
       - internal

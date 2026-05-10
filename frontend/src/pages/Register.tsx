@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { MultiStepForm } from "@/components/shared/MultiStepForm"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Users, Briefcase, Check } from "lucide-react"
+import { Loader2, Users, Briefcase, Building2, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const STEPS = [
@@ -26,8 +26,9 @@ export default function Register() {
   const { toast } = useToast()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const roleFromQuery = searchParams.get("type") ?? ""
   const [form, setForm] = useState({
-    user_type: (searchParams.get("type") ?? "") as "influencer" | "brand" | "",
+    user_type: (roleFromQuery === "influencer" ? "influencer" : (roleFromQuery === "brand" || roleFromQuery === "agency") ? "brand" : "") as "influencer" | "brand" | "",
     email: "",
     password: "",
     confirm_password: "",
@@ -36,11 +37,14 @@ export default function Register() {
     company_name: "",
     siret: "",
     subscription_plan: "",
+    is_agency: roleFromQuery === "agency",
   })
   const [plans, setPlans] = useState<Plan[]>([])
   useEffect(() => { fetchPlans().then(setPlans).catch(() => {}) }, [])
 
-  const update = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }))
+  const update = (k: string, v: string | boolean) => setForm((p) => ({ ...p, [k]: v }))
+  const selectedRole: "influencer" | "brand" | "agency" | "" =
+    form.user_type === "influencer" ? "influencer" : form.user_type === "brand" ? (form.is_agency ? "agency" : "brand") : ""
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -55,7 +59,7 @@ export default function Register() {
     }
     setLoading(true)
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | boolean> = {
         user_type: form.user_type,
         email: form.email,
         password: form.password,
@@ -67,6 +71,7 @@ export default function Register() {
         payload.company_name = form.company_name
         if (form.siret) payload.siret = form.siret
         payload.subscription_plan = form.subscription_plan
+        payload.is_agency = form.is_agency
       }
       const user = await register(payload)
       if (user.user_type === "brand") navigate("/brand/dashboard")
@@ -98,19 +103,37 @@ export default function Register() {
               {step === 1 && (
                 <div className="space-y-4">
                   <p className="text-center text-sm text-gray-600 mb-4">{t("auth.choose_role")}</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    {(["influencer", "brand"] as const).map((type) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {([
+                      { key: "influencer", icon: Users },
+                      { key: "brand", icon: Briefcase },
+                      { key: "agency", icon: Building2 },
+                    ] as const).map(({ key, icon: Icon }) => (
                       <button
-                        key={type}
+                        key={key}
                         type="button"
-                        onClick={() => update("user_type", type)}
+                        onClick={() => {
+                          if (key === "influencer") {
+                            update("user_type", "influencer")
+                            update("is_agency", false)
+                            return
+                          }
+                          update("user_type", "brand")
+                          update("is_agency", key === "agency")
+                        }}
                         className={cn(
                           "flex flex-col items-center gap-3 p-6 rounded-2xl border-2 transition-all",
-                          form.user_type === type ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-indigo-300"
+                          selectedRole === key ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-indigo-300"
                         )}
                       >
-                        {type === "influencer" ? <Users className="h-8 w-8 text-indigo-500" /> : <Briefcase className="h-8 w-8 text-violet-500" />}
-                        <span className="font-semibold text-sm">{t(`auth.i_am_${type}` as const)}</span>
+                        {key === "influencer" ? (
+                          <Icon className="h-8 w-8 text-indigo-500" />
+                        ) : key === "brand" ? (
+                          <Icon className="h-8 w-8 text-violet-500" />
+                        ) : (
+                          <Icon className="h-8 w-8 text-cyan-600" />
+                        )}
+                        <span className="font-semibold text-sm">{t(`auth.i_am_${key}` as const)}</span>
                       </button>
                     ))}
                   </div>

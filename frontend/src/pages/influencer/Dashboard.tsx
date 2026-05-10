@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth"
 import api from "@/lib/api"
 import { StatsCard } from "@/components/shared/StatsCard"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { SimpleBarChart } from "@/components/shared/Charts"
+import { SimpleLineChart } from "@/components/shared/Charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProfileCompletionBanner } from "@/components/shared/ProfileCompletionBanner"
 import { DollarSign, Briefcase, FileText, Star, Loader2 } from "lucide-react"
@@ -32,6 +32,7 @@ export default function InfluencerDashboard() {
   const { user } = useAuth()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isFirstWelcome, setIsFirstWelcome] = useState(false)
 
   useEffect(() => {
     api.get("/influencers/dashboard/").then((res) => {
@@ -39,22 +40,34 @@ export default function InfluencerDashboard() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!user?.id) return
+    const storageKey = `ic_welcome_seen_${user.id}`
+    const alreadySeen = localStorage.getItem(storageKey) === "1"
+    if (alreadySeen) {
+      setIsFirstWelcome(false)
+      return
+    }
+    setIsFirstWelcome(true)
+    localStorage.setItem(storageKey, "1")
+  }, [user?.id])
+
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t("dashboard.welcome")}, {user?.first_name}! 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t(isFirstWelcome ? "dashboard.welcome_first" : "dashboard.welcome_back")}, {user?.first_name}! 👋</h1>
         <p className="text-gray-500 mt-1">{t("influencer_dashboard.subtitle")}</p>
       </div>
 
       <ProfileCompletionBanner />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title={t("dashboard.earnings")} value={`€${data?.total_earnings ?? 0}`} icon={DollarSign} iconBg="from-green-400 to-emerald-600" />
-        <StatsCard title={t("dashboard.active_campaigns")} value={data?.active_proposals ?? 0} icon={Briefcase} iconBg="from-indigo-500 to-violet-600" />
-        <StatsCard title={t("dashboard.pending_proposals")} value={data?.pending_proposals ?? 0} icon={FileText} iconBg="from-yellow-400 to-orange-500" />
-        <StatsCard title={t("dashboard.avg_rating")} value="—" icon={Star} iconBg="from-pink-400 to-rose-600" />
+        <StatsCard title={t("dashboard.earnings")} value={`€${data?.total_earnings ?? 0}`} icon={DollarSign} />
+        <StatsCard title={t("dashboard.active_campaigns")} value={data?.active_proposals ?? 0} icon={Briefcase} />
+        <StatsCard title={t("dashboard.pending_proposals")} value={data?.pending_proposals ?? 0} icon={FileText} />
+        <StatsCard title={t("dashboard.avg_rating")} value="—" icon={Star} />
       </div>
 
       {data?.timeseries && data.timeseries.length > 0 && (
@@ -62,21 +75,21 @@ export default function InfluencerDashboard() {
           <Card className="card-base">
             <CardHeader><CardTitle className="text-base">{t("influencer_dashboard.monthly_earnings")}</CardTitle></CardHeader>
             <CardContent>
-              <SimpleBarChart
+              <SimpleLineChart
                 data={data.timeseries.map((m) => ({ label: m.label, value: m.earnings }))}
                 height={160}
                 formatValue={(n) => `€${Math.round(n)}`}
-                color="from-emerald-400 to-green-600"
+                stroke="#059669"
               />
             </CardContent>
           </Card>
           <Card className="card-base">
             <CardHeader><CardTitle className="text-base">{t("influencer_dashboard.new_proposals")}</CardTitle></CardHeader>
             <CardContent>
-              <SimpleBarChart
+              <SimpleLineChart
                 data={data.timeseries.map((m) => ({ label: m.label, value: m.proposals }))}
                 height={160}
-                color="from-indigo-400 to-violet-600"
+                stroke="#4f46e5"
               />
             </CardContent>
           </Card>

@@ -14,7 +14,7 @@ import { SignContractDialog } from "@/components/shared/SignContractDialog"
 import { PaymentDialog } from "@/components/shared/PaymentDialog"
 import { ContractWorkflow } from "@/components/shared/ContractWorkflow"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, CheckCircle, XCircle, MessageSquare, Loader2, PenTool, Wallet, Upload, Download, Repeat, Star } from "lucide-react"
+import { ArrowLeft, CheckCircle, XCircle, MessageSquare, Loader2, PenTool, Wallet, Upload, Download, Repeat, Star, Eye } from "lucide-react"
 
 interface ProposalData {
   id: number
@@ -389,9 +389,14 @@ export default function ProposalDetail() {
               actions={(
                 <>
                   {proposal.contract_pdf ? (
-                    <a href={proposal.contract_pdf} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" />{t("proposal_detail.download_contract", "Télécharger contrat")}</Button>
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a href={proposal.contract_pdf} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm"><Eye className="h-4 w-4 mr-1" />{t("contracts_list.view", "Ouvrir")}</Button>
+                      </a>
+                      <a href={proposal.contract_pdf} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" />{t("proposal_detail.download_contract", "Télécharger contrat")}</Button>
+                      </a>
+                    </div>
                   ) : (
                     <div className="text-xs text-gray-500 p-2 rounded bg-gray-50">
                       {t("proposal_detail.contract_pending", "En attente de génération par la marque")}

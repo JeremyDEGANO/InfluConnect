@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,8 @@ import { Loader2, Mail } from "lucide-react"
 export default function PasswordResetRequest() {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const [params] = useSearchParams()
+  const isMfa = params.get("mfa") === "1"
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -20,7 +22,8 @@ export default function PasswordResetRequest() {
     e.preventDefault()
     setLoading(true)
     try {
-      await api.post("/auth/password-reset/", { email })
+      const endpoint = isMfa ? "/auth/2fa/reset/" : "/auth/password-reset/"
+      await api.post(endpoint, { email })
       setSent(true)
     } catch {
       toast({ variant: "destructive", title: t("auth.reset.error") })
@@ -40,8 +43,16 @@ export default function PasswordResetRequest() {
         </div>
         <Card className="card-base shadow-xl shadow-indigo-500/5">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold">{t("auth.reset.title")}</CardTitle>
-            <CardDescription>{t("auth.reset.subtitle")}</CardDescription>
+            <CardTitle className="text-2xl font-bold">
+              {isMfa
+                ? t("auth.mfa_reset.title", "Réinitialiser la 2FA")
+                : t("auth.reset.title")}
+            </CardTitle>
+            <CardDescription>
+              {isMfa
+                ? t("auth.mfa_reset.subtitle", "Saisissez l'adresse email de votre compte pour recevoir un lien de désactivation de l'authentificateur.")
+                : t("auth.reset.subtitle")}
+            </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             {sent ? (

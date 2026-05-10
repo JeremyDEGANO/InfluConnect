@@ -1,4 +1,5 @@
 import axios from "axios"
+import i18next from "i18next"
 
 // VITE_API_BASE_URL:
 //   - unset            → http://localhost:8000/api  (dev default)
@@ -21,6 +22,14 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token")
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  // Send the user's current UI language so the backend can translate accordingly
+  if (config.headers) {
+    config.headers["Accept-Language"] = i18next.language ?? "fr"
+  }
+  if (config.data instanceof FormData && config.headers) {
+    delete (config.headers as Record<string, string | undefined>)["Content-Type"]
+    delete (config.headers as Record<string, string | undefined>)["content-type"]
   }
   return config
 })

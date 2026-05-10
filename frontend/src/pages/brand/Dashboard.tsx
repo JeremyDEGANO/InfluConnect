@@ -5,10 +5,12 @@ import { useNavigate } from "react-router-dom"
 import api from "@/lib/api"
 import { StatsCard } from "@/components/shared/StatsCard"
 import { CampaignCard } from "@/components/shared/CampaignCard"
-import { SimpleBarChart, DonutChart } from "@/components/shared/Charts"
+import { SimpleLineChart, DonutChart } from "@/components/shared/Charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Briefcase, DollarSign, Users, TrendingUp, Plus, Loader2 } from "lucide-react"
+import { Briefcase, DollarSign, Users, TrendingUp, Plus, Loader2, AlertTriangle } from "lucide-react"
+import { Link } from "react-router-dom"
+import { fetchBrandOnboarding, type BrandOnboardingStatus } from "@/lib/apiExtra"
 
 interface DashboardData {
   total_campaigns: number
@@ -35,6 +37,12 @@ export default function BrandDashboard() {
   const [stats, setStats] = useState<DashboardData | null>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
+  const [brandStatus, setBrandStatus] = useState<BrandOnboardingStatus | null>(null)
+  const [isFirstWelcome, setIsFirstWelcome] = useState(false)
+
+  useEffect(() => {
+    fetchBrandOnboarding().then(setBrandStatus).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -54,13 +62,49 @@ export default function BrandDashboard() {
     load()
   }, [])
 
+  useEffect(() => {
+    if (!user?.id) return
+    const storageKey = `ic_welcome_seen_${user.id}`
+    const alreadySeen = localStorage.getItem(storageKey) === "1"
+    if (alreadySeen) {
+      setIsFirstWelcome(false)
+      return
+    }
+    setIsFirstWelcome(true)
+    localStorage.setItem(storageKey, "1")
+  }, [user?.id])
+
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {brandStatus && brandStatus.validation_status !== "approved" && (
+        <Card className="card-base border-l-4 border-l-purple-500">
+          <CardContent className="py-4 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-purple-600 mt-0.5" />
+              <div>
+                <p className="font-semibold text-gray-900">
+                  {brandStatus.validation_status === "rejected"
+                    ? t("brand_dashboard.banner_rejected_title", "Inscription refusée")
+                    : t("brand_dashboard.banner_pending_title", "Validation en attente")}
+                </p>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  {brandStatus.validation_status === "rejected" && brandStatus.validation_notes
+                    ? brandStatus.validation_notes
+                    : t("brand_dashboard.banner_pending_desc", "Vous ne pouvez pas créer de campagnes tant que votre profil n'est pas approuvé.")}
+                </p>
+              </div>
+            </div>
+            <Link to="/brand/onboarding">
+              <Button variant="gradient" size="sm">{t("brand_dashboard.banner_cta", "Compléter l'onboarding")}</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t("dashboard.welcome")}, {user?.first_name}! 👋</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t(isFirstWelcome ? "dashboard.welcome_first" : "dashboard.welcome_back")}, {user?.first_name}! 👋</h1>
           <p className="text-gray-500 mt-1">{t("brand_dashboard.subtitle")}</p>
         </div>
         <Button variant="gradient" onClick={() => navigate("/brand/campaigns/new")}>
@@ -69,10 +113,10 @@ export default function BrandDashboard() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title={t("dashboard.active_campaigns")} value={stats?.active_campaigns ?? 0} icon={Briefcase} iconBg="from-indigo-500 to-violet-600" />
-        <StatsCard title={t("dashboard.total_spent")} value={`€${stats?.total_spent ?? 0}`} icon={DollarSign} iconBg="from-green-400 to-emerald-600" />
-        <StatsCard title={t("dashboard.influencers_contacted")} value={stats?.total_proposals_received ?? 0} icon={Users} iconBg="from-blue-400 to-cyan-500" />
-        <StatsCard title={t("brand_dashboard.avg_roi")} value={stats?.total_campaigns ?? 0} icon={TrendingUp} iconBg="from-pink-400 to-rose-600" />
+        <StatsCard title={t("dashboard.active_campaigns")} value={stats?.active_campaigns ?? 0} icon={Briefcase} />
+        <StatsCard title={t("dashboard.total_spent")} value={`€${stats?.total_spent ?? 0}`} icon={DollarSign} />
+        <StatsCard title={t("dashboard.influencers_contacted")} value={stats?.total_proposals_received ?? 0} icon={Users} />
+        <StatsCard title={t("brand_dashboard.avg_roi")} value={stats?.total_campaigns ?? 0} icon={TrendingUp} />
       </div>
 
       {/* Analytics */}
@@ -83,14 +127,14 @@ export default function BrandDashboard() {
               <CardTitle className="text-base">Dépenses & campagnes (6 derniers mois)</CardTitle>
             </CardHeader>
             <CardContent>
-              <SimpleBarChart
+              <SimpleLineChart
                 data={stats.timeseries.map((m) => ({ label: m.label, value: m.spend }))}
                 height={180}
                 formatValue={(n) => `€${Math.round(n)}`}
-                color="from-emerald-400 to-green-600"
+                stroke="#059669"
               />
               <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-gradient-to-t from-emerald-400 to-green-600" />Dépenses</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />Dépenses</span>
               </div>
             </CardContent>
           </Card>

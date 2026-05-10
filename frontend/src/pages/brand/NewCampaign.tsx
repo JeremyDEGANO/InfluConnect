@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MultiStepForm } from "@/components/shared/MultiStepForm"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Users, Megaphone, UserCheck, Plus, X, Eye, CheckCircle2 } from "lucide-react"
+import { Loader2, ArrowLeft, Users, Megaphone, UserCheck, Plus, X, Eye, CheckCircle2, HelpCircle } from "lucide-react"
 import { cn, resolveMediaUrl } from "@/lib/utils"
 import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
 
@@ -37,8 +38,36 @@ const FALLBACK_PLATFORMS = [
   { code: "x", label: "X / Twitter" },
 ]
 
+const AGE_RANGE_OPTIONS = [
+  { code: "13-17", label: "13-17" },
+  { code: "18-24", label: "18-24" },
+  { code: "25-34", label: "25-34" },
+  { code: "35-44", label: "35-44" },
+  { code: "45-54", label: "45-54" },
+  { code: "55+", label: "55+" },
+]
+
+const GENDER_OPTIONS = [
+  { code: "female", labelKey: "audience.gender_female" },
+  { code: "male", labelKey: "audience.gender_male" },
+  { code: "non_binary", labelKey: "audience.gender_non_binary" },
+  { code: "mixed", labelKey: "audience.gender_mixed" },
+]
+
+const FALLBACK_AUDIENCE_LANGUAGES = [
+  { code: "fr", label: "Français" },
+  { code: "en", label: "English" },
+  { code: "es", label: "Español" },
+  { code: "de", label: "Deutsch" },
+  { code: "it", label: "Italiano" },
+  { code: "pt", label: "Português" },
+  { code: "nl", label: "Nederlands" },
+  { code: "ar", label: "العربية" },
+]
+
 interface InfluencerLite {
   id: number
+  pseudo?: string
   display_name: string
   avatar: string | null
   city: string
@@ -61,6 +90,10 @@ export default function NewCampaign() {
     title: "",
     description: "",
     target_audience: "",
+    age_ranges: [] as string[],
+    audience_cities: [] as string[],
+    audience_languages: [] as string[],
+    audience_genders: [] as string[],
     deadline: "",
     budget: "",
     min_followers: "",
@@ -70,9 +103,14 @@ export default function NewCampaign() {
     is_casting: false,
     max_influencers: 1,
   })
+  const [cityInput, setCityInput] = useState("")
+  const [brandStatus, setBrandStatus] = useState<"pending" | "approved" | "rejected" | null>(null)
 
   useEffect(() => {
     fetchReference().then(setReference).catch(() => {})
+    api.get("/brands/onboarding/")
+      .then((r: any) => setBrandStatus(r.data?.validation_status ?? null))
+      .catch(() => {})
     api.get("/influencers/")
       .then((r: any) => {
         console.log("[NewCampaign] /influencers/ success:", r.data)
@@ -86,6 +124,27 @@ export default function NewCampaign() {
   const contentTypeOptions = reference?.content_types ?? FALLBACK_CONTENT_TYPES
   const platformOptions = reference?.social_platforms ?? FALLBACK_PLATFORMS
   const themeOptions = reference?.themes ?? FALLBACK_THEME_OPTIONS
+  const audienceLanguageOptions = (reference as any)?.languages ?? FALLBACK_AUDIENCE_LANGUAGES
+
+  const toggleAudienceArr = (
+    key: "age_ranges" | "audience_languages" | "audience_genders",
+    val: string,
+  ) =>
+    setForm((p) => ({
+      ...p,
+      [key]: (p[key] as string[]).includes(val)
+        ? (p[key] as string[]).filter((x) => x !== val)
+        : [...(p[key] as string[]), val],
+    }))
+  const addCity = () => {
+    const v = cityInput.trim()
+    if (!v) return
+    if (form.audience_cities.includes(v)) { setCityInput(""); return }
+    setForm((p) => ({ ...p, audience_cities: [...p.audience_cities, v] }))
+    setCityInput("")
+  }
+  const removeCity = (v: string) =>
+    setForm((p) => ({ ...p, audience_cities: p.audience_cities.filter((x) => x !== v) }))
 
   const STEPS = [
     { id: 1, title: t("new_campaign.basics") },
@@ -152,6 +211,10 @@ export default function NewCampaign() {
         max_influencers: Number(form.max_influencers) || 1,
         target_filters: {
           target_audience: form.target_audience,
+          age_ranges: form.age_ranges,
+          audience_cities: form.audience_cities,
+          audience_languages: form.audience_languages,
+          audience_genders: form.audience_genders,
           min_followers: form.min_followers ? parseInt(form.min_followers) : null,
           content_themes: form.themes,
         },
@@ -186,6 +249,30 @@ export default function NewCampaign() {
   }
 
   const fmt = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
+
+  if (brandStatus && brandStatus !== "approved") {
+    return (
+      <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
+          <h1 className="text-2xl font-bold text-gray-900">{t("campaigns.new_campaign")}</h1>
+        </div>
+        <Card className="card-base border-l-4 border-l-purple-500">
+          <CardContent className="py-8 text-center space-y-4">
+            <p className="font-semibold text-gray-900">
+              {brandStatus === "rejected"
+                ? t("new_campaign.blocked_rejected", "Votre compte a été refusé")
+                : t("new_campaign.blocked_pending", "Validation requise")}
+            </p>
+            <p className="text-sm text-gray-600">{t("new_campaign.blocked_desc", "Votre compte marque doit être validé par notre équipe avant de créer des campagnes.")}</p>
+            <Button variant="gradient" onClick={() => navigate("/brand/onboarding")}>
+              {t("new_campaign.go_to_onboarding", "Aller à l'onboarding")}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
@@ -284,18 +371,111 @@ export default function NewCampaign() {
                     ))}
                   </div>
                 </div>
+
                 <div>
-                  <Label>{t("campaigns.target_audience")}</Label>
-                  <Input className="mt-1" placeholder={t("new_campaign_plus.audience_placeholder")} value={form.target_audience} onChange={(e) => update("target_audience", e.target.value)} />
+                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("audience.age_ranges", "Tranches d'âge ciblées")}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {AGE_RANGE_OPTIONS.map((a) => (
+                      <Badge
+                        key={a.code}
+                        variant={form.age_ranges.includes(a.code) ? "info" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleAudienceArr("age_ranges", a.code)}
+                      >
+                        {a.label}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("audience.gender", "Genre de l'audience")}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {GENDER_OPTIONS.map((g) => (
+                      <Badge
+                        key={g.code}
+                        variant={form.audience_genders.includes(g.code) ? "info" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleAudienceArr("audience_genders", g.code)}
+                      >
+                        {t(g.labelKey)}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("audience.languages", "Langues de l'audience")}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {audienceLanguageOptions.map((l: { code: string; label: string }) => (
+                      <Badge
+                        key={l.code}
+                        variant={form.audience_languages.includes(l.code) ? "info" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleAudienceArr("audience_languages", l.code)}
+                      >
+                        {l.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label>{t("audience.cities", "Villes / pays ciblés")}</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      placeholder={t("audience.city_placeholder", "ex : Paris, Lyon, France...")}
+                      value={cityInput}
+                      onChange={(e) => setCityInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); addCity() }
+                      }}
+                    />
+                    <Button type="button" variant="outline" onClick={addCity}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {form.audience_cities.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {form.audience_cities.map((c) => (
+                        <Badge key={c} variant="info" className="cursor-pointer" onClick={() => removeCity(c)}>
+                          {c} <X className="h-3 w-3 ml-1" />
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <Label>{t("new_campaign.min_followers")}</Label>
                   <Input className="mt-1" type="number" placeholder="10000" value={form.min_followers} onChange={(e) => update("min_followers", e.target.value)} />
                 </div>
+
                 <div>
-                  <Label>{t("campaigns.deadline")}</Label>
+                  <Label>{t("campaigns.target_audience")} ({t("audience.optional_notes", "notes complémentaires")})</Label>
+                  <Input className="mt-1" placeholder={t("new_campaign_plus.audience_placeholder")} value={form.target_audience} onChange={(e) => update("target_audience", e.target.value)} />
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-1">
+                    {t("campaigns.deadline")}
+                    <HoverCard openDelay={100}>
+                      <HoverCardTrigger asChild>
+                        <button type="button" tabIndex={-1} className="inline-flex items-center justify-center text-gray-400 hover:text-indigo-600">
+                          <HelpCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="text-xs">
+                        {t(
+                          "new_campaign_plus.deadline_help",
+                          "Date limite de publication des contenus par les influenceurs. Passé ce délai, la campagne ne sera plus considérée active et les livrables non publiés seront marqués en retard.",
+                        )}
+                      </HoverCardContent>
+                    </HoverCard>
+                  </Label>
                   <Input className="mt-1" type="date" value={form.deadline} onChange={(e) => update("deadline", e.target.value)} />
                 </div>
+
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>{t("common.back")}</Button>
                   <Button variant="gradient" className="flex-1" onClick={() => setStep(3)}>{t("common.next")}</Button>
@@ -379,15 +559,20 @@ export default function NewCampaign() {
                               <div className="min-w-0 flex-1">
                                 <InfluencerHoverCard
                                   influencerId={inf.id}
+                                  influencerPseudo={inf.pseudo}
                                   displayName={inf.display_name || `#${inf.id}`}
                                   avatar={inf.avatar}
                                   city={inf.city}
                                   socialNetworks={inf.social_networks}
                                   contentThemes={inf.content_themes}
                                 >
-                                  <a href={`/brand/influencers/${inf.id}`} target="_blank" rel="noopener noreferrer" className="group">
-                                    <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{inf.display_name || `#${inf.id}`}</p>
-                                  </a>
+                                  {inf.pseudo ? (
+                                    <a href={`/brand/influencers/${encodeURIComponent(inf.pseudo)}`} target="_blank" rel="noopener noreferrer" className="group">
+                                      <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{inf.display_name || `#${inf.id}`}</p>
+                                    </a>
+                                  ) : (
+                                    <p className="text-sm font-semibold text-gray-900 truncate">{inf.display_name || `#${inf.id}`}</p>
+                                  )}
                                 </InfluencerHoverCard>
                                 <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                                   <Users className="h-3 w-3" />{fmt(totalFollowers)}
@@ -408,15 +593,19 @@ export default function NewCampaign() {
                               </div>
                             </div>
                             <div className="flex gap-2 mt-3">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="flex-1"
-                                asChild
-                              >
-                                <a href={`/brand/influencers/${inf.id}#media-kit`} target="_blank" rel="noopener noreferrer">{t("new_campaign_plus.view_media_kit")}</a>
-                              </Button>
+                              {inf.pseudo ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1"
+                                  asChild
+                                >
+                                  <a href={`/brand/influencers/${encodeURIComponent(inf.pseudo)}#media-kit`} target="_blank" rel="noopener noreferrer">{t("new_campaign_plus.view_media_kit")}</a>
+                                </Button>
+                              ) : (
+                                <Button type="button" size="sm" variant="outline" className="flex-1" disabled>{t("new_campaign_plus.view_media_kit")}</Button>
+                              )}
                               <Button
                                 type="button"
                                 size="sm"

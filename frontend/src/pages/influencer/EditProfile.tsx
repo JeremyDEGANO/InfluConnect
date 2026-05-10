@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, X, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Info } from "lucide-react"
+import { fetchPseudoAvailability, type PseudoAvailability } from "@/lib/apiExtra"
 
 // Fallback labels FR if backend reference is unavailable
 const FALLBACK_THEMES = [
@@ -169,12 +170,15 @@ export default function InfluencerEditProfile() {
   const [syncingId, setSyncingId] = useState<number | null>(null)
   const [selectedCountry, setSelectedCountry] = useState("FR")
   const [phoneCountry, setPhoneCountry] = useState("FR")
+  const [pseudoAvailability, setPseudoAvailability] = useState<PseudoAvailability | null>(null)
+  const [pseudoChecking, setPseudoChecking] = useState(false)
 
   const [user_form, setUserForm] = useState({
-    first_name: "", last_name: "", phone: "", location: "",
+    first_name: "", last_name: "", email: "", phone: "", location: "",
   })
+  const [initialDisplayName, setInitialDisplayName] = useState("")
   const [profile_form, setProfileForm] = useState({
-    bio: "", display_name: "", collaboration_pitch: "", payment_method: "", payment_details: "",
+    bio: "", display_name: "", gender: "", collaboration_pitch: "", payment_method: "", payment_details: "",
   })
   const [themes, setThemes] = useState<string[]>([])
   const [contentTypes, setContentTypes] = useState<string[]>([])
@@ -182,6 +186,7 @@ export default function InfluencerEditProfile() {
   // Pricing keyed by content_type code
   const [pricing, setPricing] = useState<Record<string, number>>({})
   const [socials, setSocials] = useState<SocialNet[]>([])
+  const [contentLinks, setContentLinks] = useState<{ label: string; url: string }[]>([])
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string>("")
 
@@ -198,6 +203,9 @@ export default function InfluencerEditProfile() {
     if (!u) return ""
     return /^https?:/i.test(u) ? u : apiOrigin + u
   }
+  const currentAvatarUrl = user?.avatar
+    ? `${resolveMedia(user.avatar)}${user.updated_at ? `?v=${encodeURIComponent(user.updated_at)}` : ""}`
+    : ""
 
   // Update preview whenever a new file is picked
   useEffect(() => {
@@ -247,14 +255,17 @@ export default function InfluencerEditProfile() {
       const selectedDial = (countries.find((c) => c.code === selected)?.dial_code ?? "+33")
       setUserForm({
         first_name: u.first_name ?? "", last_name: u.last_name ?? "",
+        email: u.email ?? "",
         phone: u.phone ? stripDialCodeFromPhone(u.phone, selectedDial) : "",
         location: u.location ?? "",
       })
       setProfileForm({
         bio: ip.bio ?? "", display_name: ip.display_name ?? "",
+        gender: ip.gender ?? "",
         collaboration_pitch: ip.collaboration_pitch ?? "",
         payment_method: ip.payment_method ?? "", payment_details: "",
       })
+      setInitialDisplayName(ip.display_name ?? "")
       setThemes(ip.content_themes ?? [])
       setContentTypes(ip.content_types_offered ?? [])
       setLanguages(ip.languages ?? [])
@@ -268,6 +279,7 @@ export default function InfluencerEditProfile() {
         verified_via_api: s.verified_via_api, last_synced_at: s.last_synced_at,
       })))
       setGallery((ip.media_kit_images ?? []) as GalleryImg[])
+      setContentLinks(Array.isArray(ip.content_links) ? ip.content_links : [])
     }).catch(() => {})
   }, [])
 
@@ -293,6 +305,49 @@ export default function InfluencerEditProfile() {
     return m
   }, [contentTypeOptions])
   const collaborationPitchLength = profile_form.collaboration_pitch.trim().length
+  const trimmedDisplayName = profile_form.display_name.trim()
+  const displayNameChanged = trimmedDisplayName !== initialDisplayName.trim()
+  const displayNameIsValid = !trimmedDisplayName || /^[\p{L}\p{N}_.-]+$/u.test(trimmedDisplayName)
+  const pseudoAvailabilityMessage = (() => {
+    if (!pseudoAvailability) return ""
+    switch (pseudoAvailability.reason_code) {
+      case "taken":
+      case "reserved":
+        return t("influencer_profile.pseudo_taken_desc")
+      case "invalid":
+      case "empty":
+        return t("influencer_profile.pseudo_invalid_desc")
+      default:
+        return t("influencer_profile.pseudo_hint")
+    }
+  })()
+
+  useEffect(() => {
+    if (!displayNameChanged) {
+      setPseudoAvailability(null)
+      setPseudoChecking(false)
+      return
+    }
+    if (!trimmedDisplayName || !displayNameIsValid) {
+      setPseudoAvailability(null)
+      setPseudoChecking(false)
+      return
+    }
+
+    const timer = window.setTimeout(async () => {
+      setPseudoChecking(true)
+      try {
+        const result = await fetchPseudoAvailability(trimmedDisplayName)
+        setPseudoAvailability(result)
+      } catch {
+        setPseudoAvailability(null)
+      } finally {
+        setPseudoChecking(false)
+      }
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [displayNameChanged, displayNameIsValid, trimmedDisplayName])
 
   const toggleArr = (setter: (v: any) => void, arr: string[], v: string) =>
     setter(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v])
@@ -403,12 +458,29 @@ export default function InfluencerEditProfile() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (displayNameChanged && !displayNameIsValid) {
+      toast({
+        variant: "destructive",
+        title: t("influencer_profile.pseudo_invalid_title"),
+        description: t("influencer_profile.pseudo_invalid_desc"),
+      })
+      return
+    }
+    if (displayNameChanged && pseudoAvailability && !pseudoAvailability.available) {
+      toast({
+        variant: "destructive",
+        title: t("common.error"),
+        description: t("influencer_profile.pseudo_taken_desc"),
+      })
+      return
+    }
     setLoading(true)
     try {
       if (avatarFile) {
         const fd = new FormData()
         fd.append("avatar", avatarFile)
-        await api.patch("/auth/me/", fd)  // let axios set Content-Type + boundary automatically
+        await api.patch("/auth/me/", fd)
+        await refreshUser()
         setAvatarFile(null)
       }
       const cleanPhone = toE164Phone(user_form.phone, selectedDialCode)
@@ -421,17 +493,27 @@ export default function InfluencerEditProfile() {
       const profilePayload: any = {
         bio: profile_form.bio,
         display_name: profile_form.display_name,
+        gender: profile_form.gender,
         collaboration_pitch: profile_form.collaboration_pitch,
         languages,
         content_themes: themes,
         content_types_offered: contentTypes,
         pricing: pricingObj,
         payment_method: profile_form.payment_method,
+        content_links: contentLinks.filter((l) => l.url.trim()).slice(0, 10),
       }
       if (profile_form.payment_details) profilePayload.payment_details = profile_form.payment_details
       await api.patch("/influencers/profile/", profilePayload)
-      for (const s of socials) {
-        if (!s.profile_url) continue
+      setInitialDisplayName(trimmedDisplayName)
+      setProfileForm((prev) => ({ ...prev, display_name: trimmedDisplayName }))
+      const uniqueSocials = Array.from(
+        new Map(
+          socials
+            .filter((s) => s.profile_url)
+            .map((s) => [String(s.platform).trim().toLowerCase(), s]),
+        ).values(),
+      )
+      for (const s of uniqueSocials) {
         const engagementRate = Math.max(0, Math.min(100, Number(s.engagement_rate) || 0))
         const payload = {
           platform: s.platform, profile_url: s.profile_url,
@@ -449,7 +531,28 @@ export default function InfluencerEditProfile() {
       await refreshStatus()
       toast({ title: t("common.success"), description: t("influencer_profile.updated", "Profil mis à jour") })
     } catch (err: any) {
-      toast({ title: t("common.error"), description: JSON.stringify(err?.response?.data ?? "").slice(0, 200), variant: "destructive" })
+      const emailErrors = err?.response?.data?.email
+      const pseudoErrors = err?.response?.data?.display_name
+      let description = JSON.stringify(err?.response?.data ?? "").slice(0, 200)
+      if (Array.isArray(emailErrors) && emailErrors.length > 0) {
+        const message = String(emailErrors[0]).toLowerCase()
+        if (message.includes("already") || message.includes("exist")) {
+          description = t("influencer_profile.email_taken_desc")
+        } else {
+          description = String(emailErrors[0])
+        }
+      }
+      if (Array.isArray(pseudoErrors) && pseudoErrors.length > 0) {
+        const message = String(pseudoErrors[0])
+        if (message.toLowerCase().includes("already")) {
+          description = t("influencer_profile.pseudo_taken_desc")
+        } else if (message.toLowerCase().includes("letters") || message.toLowerCase().includes("dots")) {
+          description = t("influencer_profile.pseudo_invalid_desc")
+        } else {
+          description = message
+        }
+      }
+      toast({ title: t("common.error"), description, variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -500,8 +603,54 @@ export default function InfluencerEditProfile() {
               <Input className="mt-1" value={user_form.last_name} onChange={(e) => setUserForm({ ...user_form, last_name: e.target.value })} />
             </div>
             <div>
+              <Label>{t("auth.email")}</Label>
+              <Input className="mt-1" type="email" value={user_form.email} onChange={(e) => setUserForm({ ...user_form, email: e.target.value })} />
+            </div>
+            <div>
               <Label>{t("influencer_profile.display_name", "Pseudo / nom public")}</Label>
-              <Input className="mt-1" placeholder="@monpseudo" value={profile_form.display_name} onChange={(e) => setProfileForm({ ...profile_form, display_name: e.target.value })} />
+              <Input className="mt-1" placeholder="mon.pseudo" value={profile_form.display_name} onChange={(e) => setProfileForm({ ...profile_form, display_name: e.target.value })} />
+              {pseudoChecking ? (
+                <p className="mt-1 text-[11px] text-gray-400">{t("influencer_profile.pseudo_checking", "Vérification de disponibilité...")}</p>
+              ) : null}
+              {!pseudoChecking && displayNameChanged && pseudoAvailability && !pseudoAvailability.available ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] text-amber-600">{pseudoAvailabilityMessage}</p>
+                  {pseudoAvailability.suggestions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {pseudoAvailability.suggestions.map((suggestion) => (
+                        <button
+                          type="button"
+                          key={suggestion}
+                          className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                          onClick={() => setProfileForm({ ...profile_form, display_name: suggestion })}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <p className={`mt-1 text-[11px] ${displayNameChanged && !displayNameIsValid ? "text-red-500" : "text-gray-400"}`}>
+                {displayNameChanged && !displayNameIsValid
+                  ? t("influencer_profile.pseudo_invalid_desc")
+                  : t("influencer_profile.pseudo_hint")}
+              </p>
+            </div>
+            <div>
+              <Label>{t("influencer_profile.gender", "Pronom / genre")}</Label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={profile_form.gender}
+                onChange={(e) => setProfileForm({ ...profile_form, gender: e.target.value })}
+              >
+                <option value="">{t("influencer_profile.gender_unspecified", "Non renseigné")}</option>
+                <option value="she">{t("influencer_profile.gender_she", "Elle")}</option>
+                <option value="he">{t("influencer_profile.gender_he", "Il")}</option>
+                <option value="they">{t("influencer_profile.gender_they", "Iel")}</option>
+                <option value="other">{t("influencer_profile.gender_other", "Autre")}</option>
+                <option value="prefer_not">{t("influencer_profile.gender_prefer_not", "Préfère ne pas dire")}</option>
+              </select>
             </div>
             <div>
               <Label>{t("influencer_profile.phone", "Téléphone")}</Label>
@@ -552,8 +701,8 @@ export default function InfluencerEditProfile() {
                 <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-100 to-violet-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
                   {avatarPreview ? (
                     <img src={avatarPreview} alt={t("influencer_profile.avatar_preview_alt")} className="h-full w-full object-cover" />
-                  ) : user?.avatar ? (
-                    <img src={resolveMedia(user.avatar)} alt={t("influencer_profile.avatar_current_alt")} className="h-full w-full object-cover" />
+                  ) : currentAvatarUrl ? (
+                    <img src={currentAvatarUrl} alt={t("influencer_profile.avatar_current_alt")} className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-2xl font-semibold text-indigo-400">
                       {(user_form.first_name?.[0] ?? "").toUpperCase()}
@@ -842,6 +991,41 @@ export default function InfluencerEditProfile() {
                 ? t("influencer_profile.gallery_count", { count: gallery.length })
                 : t("influencer_profile.gallery_count_plural", { count: gallery.length })} {" — "}{t("influencer_profile.gallery_note")}
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Liens externes (portfolio / contenus) */}
+        <Card className="card-base">
+          <CardHeader>
+            <CardTitle className="text-base">{t("influencer_profile.content_links_title", "Liens de contenus")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-gray-500">{t("influencer_profile.content_links_desc", "Partagez jusqu'à 10 liens vers vos meilleurs contenus, votre portfolio externe ou votre site.")}</p>
+            {contentLinks.map((l, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <Input
+                  className="col-span-4"
+                  placeholder={t("influencer_profile.link_label_placeholder", "Libellé (ex. Portfolio)")}
+                  value={l.label}
+                  maxLength={120}
+                  onChange={(e) => setContentLinks((arr) => arr.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                />
+                <Input
+                  className="col-span-7"
+                  placeholder="https://..."
+                  type="url"
+                  value={l.url}
+                  maxLength={500}
+                  onChange={(e) => setContentLinks((arr) => arr.map((x, i) => i === idx ? { ...x, url: e.target.value } : x))}
+                />
+                <Button type="button" variant="ghost" size="sm" className="col-span-1 text-red-500" onClick={() => setContentLinks((arr) => arr.filter((_, i) => i !== idx))}>×</Button>
+              </div>
+            ))}
+            {contentLinks.length < 10 && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setContentLinks((arr) => [...arr, { label: "", url: "" }])}>
+                + {t("influencer_profile.add_link", "Ajouter un lien")}
+              </Button>
+            )}
           </CardContent>
         </Card>
 

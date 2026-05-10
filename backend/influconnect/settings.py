@@ -124,6 +124,13 @@ SIMPLE_JWT = {
 FERNET_KEY = config('FERNET_KEY', default='')
 
 # ---------------------------------------------------------------------------
+# Translation — DeepL Free API (optional)
+# Set DEEPL_API_KEY in .env to enable automatic FR↔EN translation of support tickets.
+# Leave empty to disable translation (original text is shown as-is).
+# ---------------------------------------------------------------------------
+DEEPL_API_KEY = config('DEEPL_API_KEY', default='')
+
+# ---------------------------------------------------------------------------
 # Email — SMTP configurable via env (e.g. OVH, SendGrid, Postal)
 # In dev, defaults to console backend (prints to stdout). In prod, set EMAIL_HOST
 # and friends in your .env file or docker-compose environment block.

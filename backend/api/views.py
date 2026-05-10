@@ -2,6 +2,7 @@ from decimal import Decimal
 import base64
 import binascii
 import logging
+from django.db.models.functions import Lower
 from django.conf import settings as django_settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.core.files.base import ContentFile
@@ -33,6 +34,21 @@ from .constants import CONTENT_THEMES
 
 
 logger = logging.getLogger(__name__)
+
+
+def _shift_month_start(value, months_back):
+    month_index = value.month - months_back - 1
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    return value.replace(
+        year=year,
+        month=month,
+        day=1,
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
 
 
 _THEME_ALIAS_TO_CODE = {}
@@ -323,6 +339,20 @@ class LoginView(APIView):
                         {"totp_required": True, "detail": "Invalid verification code."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+            elif user.email_2fa_enabled:
+                from .views_auth import issue_user_email_login_code, verify_user_email_login_code
+                email_code = (request.data.get("email_otp_code") or "").strip()
+                if not email_code:
+                    issue_user_email_login_code(user)
+                    return Response(
+                        {"email_otp_required": True, "email_otp_sent": True},
+                        status=status.HTTP_200_OK,
+                    )
+                if not verify_user_email_login_code(user, email_code):
+                    return Response(
+                        {"email_otp_required": True, "detail": "Invalid or expired email code."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             tokens = get_tokens_for_user(user)
             return Response({"user": UserSerializer(user, context={"request": request}).data, **tokens})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -422,6 +452,27 @@ class InfluencerDetailView(generics.RetrieveAPIView):
     serializer_class = InfluencerProfileSerializer
     permission_classes = [IsAuthenticated]
 
+
+class InfluencerDetailByPseudoView(generics.RetrieveAPIView):
+    queryset = InfluencerProfile.objects.select_related("user").prefetch_related("social_networks")
+    serializer_class = InfluencerProfileSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_url_kwarg = "pseudo"
+
+    def get_object(self):
+        pseudo = (self.kwargs.get(self.lookup_url_kwarg) or "").strip()
+        queryset = self.get_queryset()
+
+        profile = queryset.filter(display_name__iexact=pseudo).first()
+        if profile:
+            return profile
+
+        profile = queryset.filter(user__username__iexact=pseudo).first()
+        if profile:
+            return profile
+
+        raise Http404("No InfluencerProfile matches the given query.")
+
 class InfluencerProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -470,8 +521,8 @@ class InfluencerDashboardView(APIView):
         now = timezone.now()
         months = []
         for i in range(5, -1, -1):
-            month_start = (now.replace(day=1) - timedelta(days=30 * i)).replace(day=1)
-            next_month = (month_start + timedelta(days=32)).replace(day=1)
+            month_start = _shift_month_start(now.replace(day=1), i)
+            next_month = _shift_month_start(now.replace(day=1), i - 1)
             label = month_start.strftime("%b %Y")
             prop_count = proposals.filter(
                 created_at__gte=month_start, created_at__lt=next_month
@@ -515,7 +566,30 @@ class SocialNetworkViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.user_type != "influencer":
             raise PermissionDenied("Only influencers can manage social networks.")
-        serializer.save(influencer=self.request.user.influencer_profile)
+        profile = self.request.user.influencer_profile
+        platform = serializer.validated_data.get("platform")
+        if not platform:
+            serializer.save(influencer=profile)
+            return
+        existing = SocialNetwork.objects.filter(influencer=profile, platform=platform).first()
+        if existing:
+            serializer.instance = existing
+            serializer.save(influencer=profile)
+            return
+        serializer.save(influencer=profile)
+
+    def perform_update(self, serializer):
+        if self.request.user.user_type != "influencer":
+            raise PermissionDenied("Only influencers can manage social networks.")
+        profile = self.request.user.influencer_profile
+        platform = serializer.validated_data.get("platform", getattr(serializer.instance, "platform", None))
+        if platform:
+            duplicate = SocialNetwork.objects.filter(influencer=profile, platform=platform).exclude(pk=serializer.instance.pk).first()
+            if duplicate:
+                serializer.instance = duplicate
+                serializer.save(influencer=profile)
+                return
+        serializer.save(influencer=profile)
 
 
 # ---------------------------------------------------------------------------
@@ -599,8 +673,8 @@ class BrandDashboardView(APIView):
         now = timezone.now()
         months = []
         for i in range(5, -1, -1):
-            month_start = (now.replace(day=1) - timedelta(days=30 * i)).replace(day=1)
-            next_month = (month_start + timedelta(days=32)).replace(day=1)
+            month_start = _shift_month_start(now.replace(day=1), i)
+            next_month = _shift_month_start(now.replace(day=1), i - 1)
             label = month_start.strftime("%b %Y")
             camp_count = campaigns.filter(
                 created_at__gte=month_start, created_at__lt=next_month
@@ -657,9 +731,18 @@ class CampaignViewSet(viewsets.ModelViewSet):
         if self.request.user.user_type != "brand":
             raise PermissionDenied("Only brands can create campaigns.")
         try:
-            serializer.save(brand=self.request.user.brand_profile)
+            brand = self.request.user.brand_profile
         except BrandProfile.DoesNotExist:
             raise PermissionDenied("Brand profile not found.")
+        if brand.is_agency:
+            raise PermissionDenied(
+                "Agency profiles cannot create campaigns. Agencies can manage influencers and contracts instead."
+            )
+        if brand.validation_status != "approved":
+            raise PermissionDenied(
+                "Your brand account must be approved by the InfluConnect team before creating campaigns."
+            )
+        serializer.save(brand=brand)
 
     def perform_destroy(self, instance):
         if instance.brand.user != self.request.user and not self.request.user.is_staff:

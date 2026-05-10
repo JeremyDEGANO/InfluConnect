@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
 import { useAuth } from "@/lib/auth"
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Shield, ShieldCheck, ShieldOff } from "lucide-react"
+import { Loader2, Shield, ShieldCheck, ShieldOff, KeyRound } from "lucide-react"
 
 interface SetupData {
   secret: string
@@ -25,7 +25,24 @@ export default function SecuritySettings() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const enabled = !!user?.totp_enabled
+  // Password change
+  const [pwdCurrent, setPwdCurrent] = useState("")
+  const [pwdNew, setPwdNew] = useState("")
+  const [pwdConfirm, setPwdConfirm] = useState("")
+  const [pwdLoading, setPwdLoading] = useState(false)
+
+  // MFA reset request
+  const [resetEmail, setResetEmail] = useState(user?.email ?? "")
+  const [resetSending, setResetSending] = useState(false)
+
+  const totpEnabled = !!user?.totp_enabled
+  const emailEnabled = !!user?.email_2fa_enabled
+  const activeMode: "none" | "email" | "totp" = totpEnabled ? "totp" : emailEnabled ? "email" : "none"
+  const [selectedMode, setSelectedMode] = useState<"none" | "email" | "totp">(activeMode)
+
+  useEffect(() => {
+    setSelectedMode(activeMode)
+  }, [activeMode])
 
   const beginSetup = async () => {
     setLoading(true)
@@ -74,6 +91,88 @@ export default function SecuritySettings() {
     }
   }
 
+  const enableEmail2FA = async () => {
+    setLoading(true)
+    try {
+      await api.post("/auth/2fa/email/enable/")
+      toast({ title: t("security.email_enabled_title") })
+      setSetup(null)
+      setCode("")
+      await refreshUser()
+    } catch {
+      toast({ variant: "destructive", title: t("security.error") })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const disableEmail2FA = async () => {
+    if (!password) {
+      toast({ variant: "destructive", title: t("security.current_password") })
+      return
+    }
+    setLoading(true)
+    try {
+      await api.post("/auth/2fa/email/disable/", { password })
+      toast({ title: t("security.email_disabled_title") })
+      setPassword("")
+      await refreshUser()
+    } catch {
+      toast({ variant: "destructive", title: t("security.email_disable_failed") })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const changePassword = async () => {
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+      toast({ variant: "destructive", title: t("security.fill_all") })
+      return
+    }
+    if (pwdNew !== pwdConfirm) {
+      toast({ variant: "destructive", title: t("security.password_mismatch", "Les mots de passe ne correspondent pas") })
+      return
+    }
+    if (pwdNew.length < 8) {
+      toast({ variant: "destructive", title: t("security.password_too_short", "Mot de passe trop court (8 caractères minimum)") })
+      return
+    }
+    setPwdLoading(true)
+    try {
+      await api.post("/auth/password-change/", { current_password: pwdCurrent, new_password: pwdNew })
+      toast({ title: t("security.password_changed", "Mot de passe modifié") })
+      setPwdCurrent(""); setPwdNew(""); setPwdConfirm("")
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail
+      toast({
+        variant: "destructive",
+        title: t("security.password_change_failed", "Échec du changement"),
+        description: Array.isArray(detail) ? detail.join(" • ") : (typeof detail === "string" ? detail : undefined),
+      })
+    } finally {
+      setPwdLoading(false)
+    }
+  }
+
+  const requestMfaReset = async () => {
+    if (!resetEmail) {
+      toast({ variant: "destructive", title: t("security.fill_all") })
+      return
+    }
+    setResetSending(true)
+    try {
+      await api.post("/auth/2fa/reset/", { email: resetEmail })
+      toast({
+        title: t("security.mfa_reset_sent_title", "Email envoyé"),
+        description: t("security.mfa_reset_sent_desc", "Si un compte existe avec cet email et que la 2FA est active, un lien de réinitialisation a été envoyé."),
+      })
+    } catch {
+      toast({ variant: "destructive", title: t("security.error") })
+    } finally {
+      setResetSending(false)
+    }
+  }
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div>
@@ -85,28 +184,86 @@ export default function SecuritySettings() {
 
       <Card className="card-base">
         <CardHeader>
+          <CardTitle className="text-lg">{t("security.method_title")}</CardTitle>
+          <CardDescription>{t("security.method_desc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Badge variant={activeMode === "none" ? "outline" : "success"}>
+            {activeMode === "totp" ? t("security.method_totp") : activeMode === "email" ? t("security.method_email") : t("security.method_none")}
+          </Badge>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => { setSelectedMode("none"); setSetup(null); setCode("") }}
+              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "none" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-gray-200 hover:bg-gray-50"}`}
+            >
+              {t("security.method_none")}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedMode("email"); setSetup(null); setCode("") }}
+              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "email" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-gray-200 hover:bg-gray-50"}`}
+            >
+              {t("security.method_email")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMode("totp")}
+              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "totp" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-gray-200 hover:bg-gray-50"}`}
+            >
+              {t("security.method_totp")}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="card-base">
+        <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
-                {enabled ? <ShieldCheck className="h-5 w-5 text-emerald-500" /> : <ShieldOff className="h-5 w-5 text-gray-400" />}
-                {t("security.totp_title")}
+                {selectedMode === "none" ? <ShieldOff className="h-5 w-5 text-gray-400" /> : <ShieldCheck className="h-5 w-5 text-emerald-500" />}
+                {selectedMode === "totp" ? t("security.totp_title") : selectedMode === "email" ? t("security.email_title") : t("security.method_none")}
               </CardTitle>
-              <CardDescription>{t("security.totp_desc")}</CardDescription>
+              <CardDescription>
+                {selectedMode === "totp" ? t("security.totp_desc") : selectedMode === "email" ? t("security.email_desc") : t("security.method_none")}
+              </CardDescription>
             </div>
-            {enabled
-              ? <Badge variant="success">{t("security.status_on")}</Badge>
-              : <Badge variant="outline">{t("security.status_off")}</Badge>}
+            <Badge variant={activeMode === selectedMode && selectedMode !== "none" ? "success" : "outline"}>
+              {activeMode === selectedMode ? t("security.status_on") : t("security.status_off")}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!enabled && !setup && (
+          {selectedMode === "email" && !emailEnabled && (
+            <Button variant="gradient" onClick={enableEmail2FA} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
+              {t("security.email_enable")}
+            </Button>
+          )}
+
+          {selectedMode === "email" && emailEnabled && (
+            <div className="space-y-3 border-t pt-4">
+              <p className="text-sm text-gray-600">{t("security.email_disable_desc")}</p>
+              <div>
+                <Label htmlFor="email-disable-pw">{t("security.current_password")}</Label>
+                <Input id="email-disable-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 max-w-sm" />
+              </div>
+              <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={disableEmail2FA} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldOff className="h-4 w-4 mr-2" />}
+                {t("security.email_disable")}
+              </Button>
+            </div>
+          )}
+
+          {selectedMode === "totp" && !totpEnabled && !setup && (
             <Button variant="gradient" onClick={beginSetup} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
               {t("security.enable")}
             </Button>
           )}
 
-          {!enabled && setup && (
+          {selectedMode === "totp" && !totpEnabled && setup && (
             <div className="space-y-4">
               <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
                 <li>{t("security.step_install")}</li>
@@ -146,7 +303,7 @@ export default function SecuritySettings() {
             </div>
           )}
 
-          {enabled && (
+          {selectedMode === "totp" && totpEnabled && (
             <div className="space-y-3 border-t pt-4">
               <p className="text-sm text-gray-600">{t("security.disable_desc")}</p>
               <div>
@@ -172,6 +329,98 @@ export default function SecuritySettings() {
               </Button>
             </div>
           )}
+
+          {selectedMode === "none" && activeMode === "email" && (
+            <div className="space-y-3 border-t pt-4">
+              <p className="text-sm text-gray-600">{t("security.email_disable_desc")}</p>
+              <div>
+                <Label htmlFor="none-disable-email-pw">{t("security.current_password")}</Label>
+                <Input id="none-disable-email-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 max-w-sm" />
+              </div>
+              <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={disableEmail2FA} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldOff className="h-4 w-4 mr-2" />}
+                {t("security.email_disable")}
+              </Button>
+            </div>
+          )}
+
+          {selectedMode === "none" && activeMode === "totp" && (
+            <div className="space-y-3 border-t pt-4">
+              <p className="text-sm text-gray-600">{t("security.disable_desc")}</p>
+              <div>
+                <Label htmlFor="none-disable-totp-pw">{t("security.current_password")}</Label>
+                <Input id="none-disable-totp-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 max-w-sm" />
+              </div>
+              <div>
+                <Label htmlFor="none-disable-totp-code">{t("security.enter_code")}</Label>
+                <Input
+                  id="none-disable-totp-code"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  className="mt-1 tracking-[0.4em] text-center font-mono max-w-[180px]"
+                  placeholder="123456"
+                />
+              </div>
+              <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={disable} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldOff className="h-4 w-4 mr-2" />}
+                {t("security.disable")}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="card-base">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <KeyRound className="h-5 w-5 text-indigo-500" /> {t("security.password_title", "Mot de passe")}
+          </CardTitle>
+          <CardDescription>{t("security.password_desc", "Modifiez votre mot de passe en saisissant l'actuel et un nouveau (8 caractères minimum).")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label htmlFor="pwd-current">{t("security.current_password")}</Label>
+            <Input id="pwd-current" type="password" value={pwdCurrent} onChange={(e) => setPwdCurrent(e.target.value)} className="mt-1 max-w-sm" autoComplete="current-password" />
+          </div>
+          <div>
+            <Label htmlFor="pwd-new">{t("security.new_password", "Nouveau mot de passe")}</Label>
+            <Input id="pwd-new" type="password" value={pwdNew} onChange={(e) => setPwdNew(e.target.value)} className="mt-1 max-w-sm" autoComplete="new-password" />
+          </div>
+          <div>
+            <Label htmlFor="pwd-confirm">{t("security.confirm_password", "Confirmer le nouveau mot de passe")}</Label>
+            <Input id="pwd-confirm" type="password" value={pwdConfirm} onChange={(e) => setPwdConfirm(e.target.value)} className="mt-1 max-w-sm" autoComplete="new-password" />
+          </div>
+          <Button variant="gradient" onClick={changePassword} disabled={pwdLoading}>
+            {pwdLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <KeyRound className="h-4 w-4 mr-2" />}
+            {t("security.change_password", "Modifier le mot de passe")}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="card-base">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ShieldOff className="h-5 w-5 text-amber-500" /> {t("security.mfa_reset_title", "Authentificateur perdu ?")}
+          </CardTitle>
+          <CardDescription>
+            {t(
+              "security.mfa_reset_desc",
+              "Si vous n'avez plus accès à votre application d'authentification, demandez un email de réinitialisation. Le lien expire dans 1 heure et requiert votre mot de passe pour valider la désactivation.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label htmlFor="mfa-email">{t("auth.email", "Email")}</Label>
+            <Input id="mfa-email" type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className="mt-1 max-w-sm" />
+          </div>
+          <Button variant="outline" onClick={requestMfaReset} disabled={resetSending}>
+            {resetSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldOff className="h-4 w-4 mr-2" />}
+            {t("security.mfa_reset_button", "Envoyer le lien de réinitialisation 2FA")}
+          </Button>
         </CardContent>
       </Card>
     </div>

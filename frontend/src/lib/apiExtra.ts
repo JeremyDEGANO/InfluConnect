@@ -50,10 +50,101 @@ export interface AuditEntry {
   metadata: Record<string, unknown>
   created_at: string
 }
+export interface AdminOverviewBrand {
+  id: number
+  company_name: string
+  email: string
+  owner_name: string
+  website: string
+  sector: string
+  siret: string
+  validation_status: "pending" | "approved" | "rejected"
+  subscription_plan: "starter" | "growth" | "pro" | ""
+  subscription_active: boolean
+  subscription_expires_at: string | null
+  plan_price_monthly: number
+  team_size: number
+  campaigns_count: number
+  created_at: string
+  days_since_signup: number
+  validated_by_username: string
+  validation_notes: string
+}
+export interface AdminOverviewUser {
+  id: number
+  name: string
+  email: string
+  user_type: "influencer" | "brand" | "admin"
+  is_active: boolean
+  language_preference: "fr" | "en"
+  phone: string
+  location: string
+  totp_enabled: boolean
+  last_login: string | null
+  created_at: string
+  company_name: string
+  subscription_plan: "starter" | "growth" | "pro" | ""
+  subscription_active: boolean
+}
+export interface AdminOverview {
+  kpis: {
+    users_total: number
+    users_new_last_30d: number
+    brands_total: number
+    brands_pending_validation: number
+    brands_active_subscription: number
+    influencers_total: number
+    campaigns_total: number
+    campaigns_live: number
+    support_tickets_open: number
+    support_tickets_stale_48h: number
+  }
+  subscription_projection: {
+    currency: string
+    month_start: string
+    next_month_start: string
+    projected_this_month: number
+    projected_next_month: number
+    delta_next_vs_this: number
+    active_plan_counts: Record<string, number>
+    pending_plan_counts: Record<string, number>
+  }
+  proposal_status_counts: Record<string, number>
+  brands: AdminOverviewBrand[]
+  users: AdminOverviewUser[]
+}
+export interface SupportTicketImage {
+  id: number
+  image_url: string
+  uploaded_at: string
+}
+export interface SupportTicket {
+  id: number
+  requester: number
+  requester_email: string
+  subject: string
+  message: string
+  status: "open" | "in_progress" | "closed"
+  priority: "normal" | "high" | "urgent"
+  admin_reply: string
+  admin_note?: string  // only visible to admins
+  images: SupportTicketImage[]
+  created_at: string
+  updated_at: string
+}
 export interface OnboardingStatus {
   completion_percent: number
   onboarding_completed: boolean
   missing_fields: string[]
+}
+export interface PseudoAvailability {
+  value: string
+  available: boolean
+  valid: boolean
+  normalized: string
+  reason: string
+  reason_code: "available" | "empty" | "invalid" | "taken" | "reserved"
+  suggestions: string[]
 }
 export interface ProposalFull {
   id: number
@@ -96,9 +187,24 @@ export const approveBrand = (id: number) =>
 export const rejectBrand = (id: number, reason: string) =>
   api.post(`/admin/brands/${id}/reject/`, { reason }).then((r) => r.data)
 
+// ====== Brand onboarding (CDC §5.1) ======
+export interface BrandOnboardingStatus {
+  validation_status: "pending" | "approved" | "rejected"
+  validation_notes: string
+  missing_fields: string[]
+  ready_to_submit: boolean
+  can_create_campaigns: boolean
+}
+export const fetchBrandOnboarding = () =>
+  api.get<BrandOnboardingStatus>("/brands/onboarding/").then((r) => r.data)
+export const submitBrandForValidation = () =>
+  api.post<BrandOnboardingStatus>("/brands/submit-validation/").then((r) => r.data)
+
 // ====== Influencer onboarding & media kit ======
 export const fetchOnboarding = () =>
   api.get<OnboardingStatus>("/influencers/onboarding/").then((r) => r.data)
+export const fetchPseudoAvailability = (value: string) =>
+  api.get<PseudoAvailability>("/influencers/pseudo-availability/", { params: { value } }).then((r) => r.data)
 export const generateMediaKit = () =>
   api.post<{ media_kit_pdf: string }>("/influencers/media-kit/generate/").then((r) => r.data)
 export const startStripeOnboarding = () =>
@@ -215,6 +321,32 @@ export const rejectReview = (id: number, reason: string) =>
 export const fetchAuditLog = (page = 1) =>
   api.get<{ results: AuditEntry[]; count?: number }>(`/admin/audit-log/?page=${page}`).then((r) => r.data)
 
+// ====== Admin overview ======
+export const fetchAdminOverview = () =>
+  api.get<AdminOverview>("/admin/overview/").then((r) => r.data)
+export const updateAdminUserStatus = (id: number, is_active: boolean) =>
+  api.patch<{ id: number; is_active: boolean }>(`/admin/users/${id}/status/`, { is_active }).then((r) => r.data)
+
+// ====== Support tickets ======
+export const fetchSupportTickets = () =>
+  api.get<SupportTicket[] | { results?: SupportTicket[] }>("/support/tickets/").then((r) => {
+    const d = r.data as any
+    return (d.results ?? d) as SupportTicket[]
+  })
+export const createSupportTicket = (payload: { subject: string; message: string; priority?: "normal" | "high" | "urgent" }) =>
+  api.post<SupportTicket>("/support/tickets/", payload).then((r) => r.data)
+export const uploadSupportTicketImage = (ticketId: number, file: File) => {
+  const fd = new FormData()
+  fd.append("image", file)
+  return api.post<SupportTicketImage>(`/support/tickets/${ticketId}/images/`, fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data)
+}
+export const updateAdminSupportTicket = (
+  id: number,
+  payload: { status?: "open" | "in_progress" | "closed"; priority?: "normal" | "high" | "urgent"; admin_note?: string; admin_reply?: string },
+) => api.patch<SupportTicket>(`/admin/support/tickets/${id}/`, payload).then((r) => r.data)
+
 // ====== Notifications ======
 export const fetchNotifications = () =>
   api.get("/notifications/").then((r) => {
@@ -305,3 +437,44 @@ export interface BrandPublic {
 }
 export const fetchBrandPublic = (brandId: number) =>
   api.get<BrandPublic>(`/brands/${brandId}/`).then((r) => r.data)
+
+
+// ---- Brand multi-user (memberships) ----
+export interface BrandMembership {
+  id: number
+  user: number | null
+  user_email: string
+  user_name: string
+  invited_email: string
+  role: 'owner' | 'admin' | 'member'
+  status: 'invited' | 'active' | 'revoked'
+  invited_at: string
+  joined_at: string | null
+}
+export const fetchBrandMemberships = () =>
+  api.get<BrandMembership[]>("/brands/memberships/").then((r) => (r.data as any).results ?? r.data)
+export const inviteBrandMember = (invited_email: string, role: 'admin' | 'member' = 'member') =>
+  api.post<BrandMembership>("/brands/memberships/", { invited_email, role }).then((r) => r.data)
+export const revokeBrandMember = (id: number) =>
+  api.delete(`/brands/memberships/${id}/`).then((r) => r.data)
+
+// ---- Agency delegations ----
+export interface AgencyDelegation {
+  id: number
+  agency: number
+  agency_name: string
+  influencer: number
+  influencer_name: string
+  commission_percent: number | string
+  status: 'pending' | 'accepted' | 'declined' | 'revoked'
+  invitation_message: string
+  created_at: string
+  accepted_at: string | null
+  revoked_at: string | null
+}
+export const fetchAgencyDelegations = () =>
+  api.get<AgencyDelegation[]>("/agency/delegations/").then((r) => (r.data as any).results ?? r.data)
+export const createAgencyDelegation = (influencer: number | string, commission_percent: number, invitation_message = "") =>
+  api.post<AgencyDelegation>("/agency/delegations/", { influencer, commission_percent, invitation_message }).then((r) => r.data)
+export const actionAgencyDelegation = (id: number, action: 'accept' | 'decline' | 'revoke') =>
+  api.post<AgencyDelegation>(`/agency/delegations/${id}/action/`, { action }).then((r) => r.data)

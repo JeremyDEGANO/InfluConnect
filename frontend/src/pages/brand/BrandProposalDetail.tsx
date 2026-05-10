@@ -26,13 +26,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, CheckCircle, XCircle, Loader2, FileText, MessageSquare, Download, ExternalLink, PenTool, DollarSign } from "lucide-react"
+import { ArrowLeft, CheckCircle, XCircle, Loader2, FileText, MessageSquare, Download, ExternalLink, PenTool, DollarSign, Eye } from "lucide-react"
 
 interface ProposalData {
   id: number
   campaign: number
   campaign_title: string
   influencer: number
+  influencer_pseudo: string
   influencer_display_name: string
   status: string
   proposed_price: number
@@ -40,6 +41,7 @@ interface ProposalData {
   counter_message: string
   decline_reason: string
   contract_pdf: string | null
+  contract_version?: number | null
   brand_signed_at: string | null
   influencer_signed_at: string | null
   escrow_funded_at?: string | null
@@ -194,7 +196,7 @@ export default function BrandProposalDetail() {
           <ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}
         </Button>
         <h1 className="text-xl font-bold text-gray-900 flex-1">
-          {t("brand_proposal.title")} — <InfluencerHoverCard influencerId={proposal.influencer} displayName={proposal.influencer_display_name}><a href={`/brand/influencers/${proposal.influencer}`} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition-colors">{proposal.influencer_display_name}</a></InfluencerHoverCard>
+          {t("brand_proposal.title")} — <InfluencerHoverCard influencerId={proposal.influencer} influencerPseudo={proposal.influencer_pseudo} displayName={proposal.influencer_display_name}>{proposal.influencer_pseudo ? <a href={`/brand/influencers/${encodeURIComponent(proposal.influencer_pseudo)}`} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition-colors">{proposal.influencer_display_name}</a> : <span>{proposal.influencer_display_name}</span>}</InfluencerHoverCard>
         </h1>
         <StatusBadge status={proposal.status as any} />
       </div>
@@ -251,9 +253,13 @@ export default function BrandProposalDetail() {
           <Card className="card-base">
             <CardHeader><CardTitle className="text-base">{t("brand_proposal.actions")}</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              <Button className="w-full" variant="outline" asChild>
-                <a href={`/brand/influencers/${proposal.influencer}#media-kit`} target="_blank" rel="noopener noreferrer">{t("campaign_detail.view_media_kit")}</a>
-              </Button>
+              {proposal.influencer_pseudo ? (
+                <Button className="w-full" variant="outline" asChild>
+                  <a href={`/brand/influencers/${encodeURIComponent(proposal.influencer_pseudo)}#media-kit`} target="_blank" rel="noopener noreferrer">{t("campaign_detail.view_media_kit")}</a>
+                </Button>
+              ) : (
+                <Button className="w-full" variant="outline" disabled>{t("campaign_detail.view_media_kit")}</Button>
+              )}
               {proposal.status === "counter_offer" && (
                 <Button className="w-full" variant="gradient" disabled={acting} onClick={handleAcceptCounter}>
                   {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4 mr-1" />{t("brand_proposal.accept_counter")}</>}

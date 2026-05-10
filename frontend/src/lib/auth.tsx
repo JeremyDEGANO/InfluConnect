@@ -20,20 +20,24 @@ export interface User {
   phone: string
   location: string
   totp_enabled?: boolean
+  email_2fa_enabled?: boolean
   created_at: string
   updated_at: string
   influencer_profile?: Record<string, unknown>
   brand_profile?: Record<string, unknown>
 }
 
-export type LoginResult = { user: User; totp_required?: false } | { user: null; totp_required: true }
+export type LoginResult =
+  | { user: User; totp_required?: false; email_otp_required?: false }
+  | { user: null; totp_required: true; email_otp_required?: false }
+  | { user: null; email_otp_required: true; totp_required?: false }
 
 interface AuthState {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (username: string, password: string, totpCode?: string) => Promise<LoginResult>
-  register: (data: Record<string, string>) => Promise<User>
+  login: (username: string, password: string, totpCode?: string, emailOtpCode?: string) => Promise<LoginResult>
+  register: (data: Record<string, string | boolean>) => Promise<User>
   logout: () => void
   refreshUser: () => Promise<void>
 }
@@ -67,12 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchUser()
   }, [fetchUser])
 
-  const login = async (username: string, password: string, totpCode?: string): Promise<LoginResult> => {
+  const login = async (username: string, password: string, totpCode?: string, emailOtpCode?: string): Promise<LoginResult> => {
     const payload: Record<string, string> = { username, password }
     if (totpCode) payload.totp_code = totpCode
+    if (emailOtpCode) payload.email_otp_code = emailOtpCode
     const { data } = await api.post("/auth/login/", payload)
     if (data?.totp_required && !data.access) {
       return { user: null, totp_required: true }
+    }
+    if (data?.email_otp_required && !data.access) {
+      return { user: null, email_otp_required: true }
     }
     localStorage.setItem("access_token", data.access)
     localStorage.setItem("refresh_token", data.refresh)
@@ -80,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { user: data.user }
   }
 
-  const register = async (payload: Record<string, string>): Promise<User> => {
+  const register = async (payload: Record<string, string | boolean>): Promise<User> => {
     const { data } = await api.post("/auth/register/", payload)
     localStorage.setItem("access_token", data.access)
     localStorage.setItem("refresh_token", data.refresh)

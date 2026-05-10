@@ -5,7 +5,7 @@ import { fetchContracts, ContractItem } from "@/lib/apiExtra"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Download, Loader2, CheckCircle2, Clock } from "lucide-react"
+import { FileText, Eye, Loader2, CheckCircle2, Clock } from "lucide-react"
 import { Link } from "react-router-dom"
 
 export default function Contracts() {
@@ -77,7 +77,7 @@ export default function Contracts() {
                     {c.contract_pdf && (
                       <a href={c.contract_pdf} target="_blank" rel="noreferrer" className="flex-1">
                         <Button size="sm" variant="outline" className="w-full">
-                          <Download className="h-3.5 w-3.5 mr-1.5" />{t("contracts_list.download")}
+                          <Eye className="h-3.5 w-3.5 mr-1.5" />{t("contracts_list.view")}
                         </Button>
                       </a>
                     )}

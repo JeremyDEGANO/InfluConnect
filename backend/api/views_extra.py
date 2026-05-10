@@ -21,11 +21,12 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.db.models import Q, Avg
+from django.db.models import Q, Avg, Count
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -39,12 +40,16 @@ from .models import (
     AmbassadorProgram, AuditLog, BrandProfile, Campaign, CampaignProposal,
     CastingApplication, ContractTemplate, ContentSubmission, InfluencerProfile,
     MediaKitImage, Notification, PlatformSettings, Review, SocialNetwork, User,
+    BrandMembership, AgencyDelegation, SupportTicket, SupportTicketImage,
 )
 from .serializers import (
     AmbassadorProgramSerializer, AuditLogSerializer, BrandAdminSerializer,
     BrandProfileSerializer, CampaignProposalSerializer, CastingApplicationSerializer,
     ContractTemplateSerializer, InfluencerProfileSerializer, MediaKitImageSerializer,
     ReviewSerializer, SocialNetworkSerializer,
+    BrandMembershipSerializer, AgencyDelegationSerializer,
+    SupportTicketSerializer, SupportTicketAdminUpdateSerializer, SupportTicketImageSerializer,
+    _validate_influencer_pseudo, suggest_influencer_pseudos,
 )
 from .services import email_service, stripe_service
 from .services.completion import compute_influencer_completion
@@ -155,6 +160,60 @@ class ReferenceDataView(APIView):
         })
 
 
+class InfluencerPseudoAvailabilityView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        raw_value = request.query_params.get("value") or request.query_params.get("pseudo") or ""
+        profile = None
+        if getattr(request.user, "user_type", None) == "influencer":
+            try:
+                profile = request.user.influencer_profile
+            except InfluencerProfile.DoesNotExist:
+                profile = None
+
+        cleaned = (raw_value or "").strip()
+        if not cleaned:
+            return Response({
+                "value": raw_value,
+                "available": False,
+                "valid": False,
+                "normalized": "",
+                "reason": "empty",
+                "reason_code": "empty",
+                "suggestions": [],
+            })
+
+        try:
+            normalized = _validate_influencer_pseudo(cleaned, current_profile=profile)
+            available = True
+            reason = ""
+            reason_code = "available"
+            suggestions: list[str] = []
+        except ValidationError as exc:
+            normalized = cleaned
+            available = False
+            reason = str(exc.detail[0]) if getattr(exc, "detail", None) else "unavailable"
+            lowered = reason.lower()
+            if "reserved" in lowered:
+                reason_code = "reserved"
+            elif "taken" in lowered:
+                reason_code = "taken"
+            else:
+                reason_code = "invalid"
+            suggestions = suggest_influencer_pseudos(cleaned, current_profile=profile)
+
+        return Response({
+            "value": raw_value,
+            "available": available,
+            "valid": available,
+            "normalized": normalized,
+            "reason": reason,
+            "reason_code": reason_code,
+            "suggestions": suggestions,
+        })
+
+
 # ---------------------------------------------------------------------------
 # Brand subscription management
 # ---------------------------------------------------------------------------
@@ -223,6 +282,279 @@ class BrandSubscriptionCancelView(APIView):
 # ---------------------------------------------------------------------------
 # Admin — brand validation workflow (CDC §5.1)
 # ---------------------------------------------------------------------------
+class SupportTicketListCreateView(generics.ListCreateAPIView):
+    serializer_class = SupportTicketSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _target_lang(self):
+        """Return the target language code based on the client's Accept-Language header."""
+        accept = self.request.headers.get('Accept-Language', '').lower()
+        if accept.startswith('en'):
+            return 'EN'
+        if accept.startswith('fr'):
+            return 'FR'
+        return ''
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx['translate_to'] = self._target_lang()
+        return ctx
+
+    def get_queryset(self):
+        if self.request.user.is_staff or self.request.user.user_type == "admin":
+            return SupportTicket.objects.select_related("requester").all()
+        return SupportTicket.objects.select_related("requester").filter(requester=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(requester=self.request.user)
+
+
+class SupportTicketImageUploadView(generics.CreateAPIView):
+    """POST /support/tickets/<ticket_pk>/images/ — upload une image (max 5)."""
+    serializer_class = SupportTicketImageSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_ticket(self):
+        ticket = get_object_or_404(
+            SupportTicket,
+            pk=self.kwargs['ticket_pk'],
+            requester=self.request.user,
+        )
+        return ticket
+
+    def create(self, request, *args, **kwargs):
+        ticket = self.get_ticket()
+        if ticket.images.count() >= 5:
+            return Response(
+                {'detail': 'Maximum 5 images per ticket.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response({'detail': 'No image provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        obj = SupportTicketImage.objects.create(ticket=ticket, image=image_file)
+        serializer = SupportTicketImageSerializer(obj, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class AdminSupportTicketUpdateView(generics.RetrieveUpdateAPIView):
+    serializer_class = SupportTicketAdminUpdateSerializer
+    permission_classes = [IsAdminUser]
+    queryset = SupportTicket.objects.select_related("requester").all()
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        accept = self.request.headers.get('Accept-Language', '').lower()
+        if accept.startswith('en'):
+            ctx['translate_to'] = 'EN'
+        elif accept.startswith('fr'):
+            ctx['translate_to'] = 'FR'
+        else:
+            ctx['translate_to'] = ''
+        return ctx
+
+
+class AdminOverviewView(APIView):
+    """Consolidated admin cockpit metrics + lists for operations."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if month_start.month == 12:
+            next_month_start = month_start.replace(year=month_start.year + 1, month=1)
+        else:
+            next_month_start = month_start.replace(month=month_start.month + 1)
+
+        plan_prices = {
+            plan_id: Decimal(str(plan.get('price_eur_monthly', 0)))
+            for plan_id, plan in SUBSCRIPTION_PLANS.items()
+        }
+
+        active_plan_counts = {
+            plan_id: BrandProfile.objects.filter(
+                subscription_active=True,
+                subscription_plan=plan_id,
+            ).count()
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        }
+        approved_not_active_plan_counts = {
+            plan_id: BrandProfile.objects.filter(
+                validation_status='approved',
+                subscription_active=False,
+                subscription_plan=plan_id,
+            ).count()
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        }
+        pending_validation_plan_counts = {
+            plan_id: BrandProfile.objects.filter(
+                validation_status='pending',
+                subscription_plan=plan_id,
+            ).count()
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        }
+        pending_plan_counts = {
+            plan_id: approved_not_active_plan_counts[plan_id] + pending_validation_plan_counts[plan_id]
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        }
+
+        agency_active_plan_counts = {
+            plan_id: BrandProfile.objects.filter(
+                is_agency=True,
+                subscription_active=True,
+                subscription_plan=plan_id,
+            ).count()
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        }
+        agency_non_active_plan_counts = {
+            plan_id: BrandProfile.objects.filter(
+                is_agency=True,
+                subscription_active=False,
+                subscription_plan=plan_id,
+            ).count()
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        }
+
+        projected_this_month = sum(
+            int(active_plan_counts[plan_id] + approved_not_active_plan_counts[plan_id]) * plan_prices[plan_id]
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        )
+        projected_next_month = sum(
+            int(
+                active_plan_counts[plan_id]
+                + approved_not_active_plan_counts[plan_id]
+                + pending_validation_plan_counts[plan_id]
+            ) * plan_prices[plan_id]
+            for plan_id in SUBSCRIPTION_PLANS.keys()
+        )
+
+        brands_qs = BrandProfile.objects.select_related('user', 'validated_by').annotate(
+            active_members_count=Count('memberships', filter=Q(memberships__status='active'), distinct=True),
+            campaigns_count=Count('campaigns', distinct=True),
+        ).order_by('-user__created_at')
+
+        users_qs = User.objects.select_related('brand_profile', 'influencer_profile').order_by('-created_at')
+
+        support_open = SupportTicket.objects.exclude(status='closed').count()
+        support_stale_48h = SupportTicket.objects.filter(
+            status__in=['open', 'in_progress'],
+            created_at__lt=now - timedelta(hours=48),
+        ).count()
+
+        proposal_status_counts = {
+            row['status']: row['count']
+            for row in CampaignProposal.objects.values('status').annotate(count=Count('id')).order_by()
+        }
+
+        brands_data = []
+        for b in brands_qs:
+            created_at = b.user.created_at
+            days_since_signup = max((now - created_at).days, 0) if created_at else 0
+            brands_data.append({
+                'id': b.id,
+                'company_name': b.company_name,
+                'email': b.user.email,
+                'owner_name': (f"{b.user.first_name} {b.user.last_name}".strip() or b.user.username),
+                'website': b.website,
+                'sector': b.sector,
+                'siret': b.siret,
+                'validation_status': b.validation_status,
+                'subscription_plan': b.subscription_plan,
+                'subscription_active': b.subscription_active,
+                'subscription_expires_at': b.subscription_expires_at,
+                'plan_price_monthly': float(plan_prices.get(b.subscription_plan or '', Decimal('0'))),
+                'team_size': int(b.active_members_count or 0) + 1,
+                'campaigns_count': int(b.campaigns_count or 0),
+                'created_at': created_at,
+                'days_since_signup': days_since_signup,
+                'validated_by_username': b.validated_by.username if b.validated_by else '',
+                'validation_notes': b.validation_notes,
+            })
+
+        users_data = []
+        for u in users_qs:
+            brand_profile = getattr(u, 'brand_profile', None)
+            users_data.append({
+                'id': u.id,
+                'name': (f"{u.first_name} {u.last_name}".strip() or u.username),
+                'email': u.email,
+                'user_type': u.user_type,
+                'is_active': u.is_active,
+                'language_preference': u.language_preference,
+                'phone': u.phone,
+                'location': u.location,
+                'totp_enabled': u.totp_enabled,
+                'last_login': u.last_login,
+                'created_at': u.created_at,
+                'company_name': brand_profile.company_name if brand_profile else '',
+                'subscription_plan': brand_profile.subscription_plan if brand_profile else '',
+                'subscription_active': bool(brand_profile.subscription_active) if brand_profile else False,
+            })
+
+        return Response({
+            'kpis': {
+                'users_total': User.objects.count(),
+                'users_new_last_30d': User.objects.filter(created_at__gte=now - timedelta(days=30)).count(),
+                'brands_total': BrandProfile.objects.count(),
+                'agencies_total': BrandProfile.objects.filter(is_agency=True).count(),
+                'agencies_with_plan': BrandProfile.objects.filter(is_agency=True).exclude(subscription_plan__isnull=True).exclude(subscription_plan='').count(),
+                'brands_pending_validation': BrandProfile.objects.filter(validation_status='pending').count(),
+                'brands_active_subscription': BrandProfile.objects.filter(subscription_active=True).count(),
+                'influencers_total': User.objects.filter(user_type='influencer').count(),
+                'campaigns_total': Campaign.objects.count(),
+                'campaigns_live': Campaign.objects.filter(status='active').count(),
+                'support_tickets_open': support_open,
+                'support_tickets_stale_48h': support_stale_48h,
+            },
+            'subscription_projection': {
+                'currency': 'EUR',
+                'month_start': month_start,
+                'next_month_start': next_month_start,
+                'projected_this_month': float(projected_this_month),
+                'projected_next_month': float(projected_next_month),
+                'delta_next_vs_this': float(projected_next_month - projected_this_month),
+                'active_plan_counts': active_plan_counts,
+                'pending_plan_counts': pending_plan_counts,
+                'approved_not_active_plan_counts': approved_not_active_plan_counts,
+                'pending_validation_plan_counts': pending_validation_plan_counts,
+                'agency_active_plan_counts': agency_active_plan_counts,
+                'agency_non_active_plan_counts': agency_non_active_plan_counts,
+            },
+            'proposal_status_counts': proposal_status_counts,
+            'brands': brands_data,
+            'users': users_data,
+        })
+
+
+class AdminUserStatusUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if user.id == request.user.id:
+            return Response({'detail': 'Cannot deactivate yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_active = request.data.get('is_active', None)
+        if is_active is None:
+            return Response({'detail': 'is_active is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.is_active = bool(is_active)
+        user.save(update_fields=['is_active'])
+
+        _audit(
+            request.user,
+            'admin_user_status_update',
+            'User',
+            user.id,
+            metadata={'is_active': user.is_active},
+            ip=_client_ip(request),
+        )
+        return Response({'id': user.id, 'is_active': user.is_active})
+
+
 class AdminPendingBrandsView(generics.ListAPIView):
     serializer_class = BrandAdminSerializer
     permission_classes = [IsAdminUser]
@@ -296,6 +628,81 @@ class AdminBrandRejectView(APIView):
                 f"Motif : {reason}", send_email=True)
         email_service.send_brand_rejected(profile.user.email, profile.company_name, reason)
         return Response(BrandAdminSerializer(profile).data)
+
+
+# ---------------------------------------------------------------------------
+# Brand onboarding (CDC §5.1) — required fields & submit-for-validation
+# ---------------------------------------------------------------------------
+BRAND_REQUIRED_FIELDS = ["company_name", "siret", "website", "sector", "description", "logo"]
+
+
+def _brand_missing_fields(profile):
+    missing = []
+    for f in BRAND_REQUIRED_FIELDS:
+        val = getattr(profile, f, None)
+        if f == "logo":
+            if not val:
+                missing.append(f)
+        else:
+            if not (val or "").strip() if isinstance(val, str) else not val:
+                missing.append(f)
+    return missing
+
+
+class BrandOnboardingStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            profile = request.user.brand_profile
+        except BrandProfile.DoesNotExist:
+            return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        missing = _brand_missing_fields(profile)
+        return Response({
+            "validation_status": profile.validation_status,
+            "validation_notes": profile.validation_notes,
+            "missing_fields": missing,
+            "ready_to_submit": len(missing) == 0,
+            "can_create_campaigns": profile.validation_status == "approved",
+        })
+
+
+class BrandSubmitForValidationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            profile = request.user.brand_profile
+        except BrandProfile.DoesNotExist:
+            return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        if profile.validation_status == "approved":
+            return Response({"detail": "Already approved."}, status=status.HTTP_400_BAD_REQUEST)
+        missing = _brand_missing_fields(profile)
+        if missing:
+            return Response(
+                {"detail": "Missing required fields.", "missing_fields": missing},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Reset to pending (covers re-submission after rejection)
+        profile.validation_status = "pending"
+        profile.validation_notes = ""
+        profile.validated_at = None
+        profile.validated_by = None
+        profile.save(update_fields=[
+            "validation_status", "validation_notes", "validated_at", "validated_by",
+        ])
+        _audit(request.user, "brand_submitted_for_validation", "BrandProfile", profile.id,
+               ip=_client_ip(request))
+        return Response({
+            "validation_status": profile.validation_status,
+            "missing_fields": [],
+            "ready_to_submit": True,
+            "can_create_campaigns": False,
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -377,10 +784,50 @@ class MediaKitGenerateView(APIView):
         filename = f"media_kit_{profile.id}_{timezone.now():%Y%m%d_%H%M%S}.pdf"
         profile.media_kit_pdf.save(filename, ContentFile(pdf_bytes), save=False)
         profile.media_kit_generated_at = timezone.now()
+        profile.media_kit_is_custom = False
         profile.profile_completion_percent = completion
         profile.onboarding_completed = True
         profile.save()
         return Response(InfluencerProfileSerializer(profile).data)
+
+
+class MediaKitUploadView(APIView):
+    """Allow influencer to upload their own media kit PDF (overrides generator)."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        if request.user.user_type != "influencer":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        f = request.FILES.get("file")
+        if not f:
+            return Response({"detail": "file is required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Validation: type + size (max 10 MB)
+        name_lower = (f.name or "").lower()
+        ctype = (f.content_type or "").lower()
+        if not name_lower.endswith(".pdf") or "pdf" not in ctype:
+            return Response({"detail": "Only PDF files are accepted."}, status=status.HTTP_400_BAD_REQUEST)
+        if f.size and f.size > 10 * 1024 * 1024:
+            return Response({"detail": "File too large (10 MB max)."}, status=status.HTTP_400_BAD_REQUEST)
+        profile = request.user.influencer_profile
+        filename = f"media_kit_custom_{profile.id}_{timezone.now():%Y%m%d_%H%M%S}.pdf"
+        profile.media_kit_pdf.save(filename, f, save=False)
+        profile.media_kit_generated_at = timezone.now()
+        profile.media_kit_is_custom = True
+        profile.save(update_fields=["media_kit_pdf", "media_kit_generated_at", "media_kit_is_custom"])
+        return Response(InfluencerProfileSerializer(profile, context={"request": request}).data)
+
+    def delete(self, request):
+        if request.user.user_type != "influencer":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        profile = request.user.influencer_profile
+        if profile.media_kit_pdf:
+            profile.media_kit_pdf.delete(save=False)
+        profile.media_kit_pdf = None
+        profile.media_kit_generated_at = None
+        profile.media_kit_is_custom = False
+        profile.save(update_fields=["media_kit_pdf", "media_kit_generated_at", "media_kit_is_custom"])
+        return Response({"detail": "Media kit removed."})
 
 
 # ---------------------------------------------------------------------------
@@ -999,3 +1446,9 @@ class PublicMarketplaceView(generics.ListAPIView):
         return InfluencerProfile.objects.filter(
             is_verified=True, onboarding_completed=True,
         ).select_related("user").prefetch_related("social_networks").order_by("-average_rating")
+
+from ._views_team_agency import (
+    BrandMembershipListCreateView, BrandMembershipDetailView,
+    AgencyDelegationListCreateView, AgencyDelegationActionView,
+)
+

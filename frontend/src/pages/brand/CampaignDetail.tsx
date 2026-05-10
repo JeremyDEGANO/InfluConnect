@@ -40,6 +40,7 @@ interface Campaign {
 interface Proposal {
   id: number
   influencer_display_name: string
+  influencer_pseudo: string
   influencer_avatar?: string | null
   influencer: number
   proposed_price: number
@@ -61,6 +62,7 @@ interface SocialNetwork {
 
 interface MatchedInfluencer {
   id: number
+  pseudo: string
   display_name: string
   avatar: string | null
   city: string
@@ -71,6 +73,7 @@ interface MatchedInfluencer {
 
 interface InfluencerProfilePreview {
   id: number
+  pseudo?: string
   display_name: string
   avatar: string | null
   bio: string
@@ -160,11 +163,12 @@ export default function CampaignDetail() {
     }
   }
 
-  const openProfilePreview = async (influencerId: number) => {
+  const openProfilePreview = async (influencerId: number, influencerPseudo?: string) => {
     setProfilePreviewOpen(true)
     setProfilePreviewLoading(true)
     try {
-      const res = await api.get(`/influencers/${influencerId}/`)
+      const endpoint = influencerPseudo ? `/influencers/p/${encodeURIComponent(influencerPseudo)}/` : `/influencers/${influencerId}/`
+      const res = await api.get(endpoint)
       setProfilePreview(res.data as InfluencerProfilePreview)
     } catch {
       toast({ variant: "destructive", title: t("common.error") })
@@ -174,9 +178,10 @@ export default function CampaignDetail() {
     }
   }
 
-  const openMediaKitForInfluencer = async (influencerId: number) => {
+  const openMediaKitForInfluencer = async (influencerId: number, influencerPseudo?: string) => {
     try {
-      const res = await api.get(`/influencers/${influencerId}/`)
+      const endpoint = influencerPseudo ? `/influencers/p/${encodeURIComponent(influencerPseudo)}/` : `/influencers/${influencerId}/`
+      const res = await api.get(endpoint)
       const pdf = (res.data as InfluencerProfilePreview).media_kit_pdf
       const url = resolveMediaUrl(pdf)
       if (!url) {
@@ -447,13 +452,14 @@ export default function CampaignDetail() {
                         <div key={m.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
                           <InfluencerHoverCard
                             influencerId={m.id}
+                            influencerPseudo={m.pseudo}
                             displayName={m.display_name || `Influencer #${m.id}`}
                             avatar={m.avatar}
                             city={m.city}
                             socialNetworks={m.social_networks}
                             contentThemes={m.content_themes}
                           >
-                            <button type="button" onClick={() => openProfilePreview(m.id)} className="flex items-center gap-3 min-w-0 group cursor-pointer text-left">
+                            <button type="button" onClick={() => openProfilePreview(m.id, m.pseudo)} className="flex items-center gap-3 min-w-0 group cursor-pointer text-left">
                               <Avatar className="h-10 w-10 shrink-0">
                                 {m.avatar && <AvatarImage src={resolveMediaUrl(m.avatar)} />}
                                 <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
@@ -482,7 +488,7 @@ export default function CampaignDetail() {
                           </InfluencerHoverCard>
                           <div className="shrink-0 ml-3">
                             <div className="flex items-center gap-2">
-                              <Button size="sm" variant="outline" onClick={() => openMediaKitForInfluencer(m.id)}>
+                              <Button size="sm" variant="outline" onClick={() => openMediaKitForInfluencer(m.id, m.pseudo)}>
                                 {t("campaign_detail.view_media_kit")}
                               </Button>
                               {isAccepted ? (
@@ -515,10 +521,11 @@ export default function CampaignDetail() {
                     <div className="flex items-center justify-between gap-4">
                       <InfluencerHoverCard
                         influencerId={p.influencer}
+                        influencerPseudo={p.influencer_pseudo}
                         displayName={p.influencer_display_name || `Influencer #${p.id}`}
                         avatar={p.influencer_avatar}
                       >
-                        <button type="button" onClick={() => openProfilePreview(p.influencer)} className="flex items-center gap-3 group cursor-pointer text-left min-w-0">
+                        <button type="button" onClick={() => openProfilePreview(p.influencer, p.influencer_pseudo)} className="flex items-center gap-3 group cursor-pointer text-left min-w-0">
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={resolveMediaUrl(p.influencer_avatar)} alt={p.influencer_display_name} />
                             <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
@@ -538,7 +545,7 @@ export default function CampaignDetail() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => openMediaKitForInfluencer(p.influencer)}>
+                      <Button size="sm" variant="outline" onClick={() => openMediaKitForInfluencer(p.influencer, p.influencer_pseudo)}>
                         {t("campaign_detail.view_media_kit")}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => openChat(p)}>
@@ -610,20 +617,48 @@ export default function CampaignDetail() {
 
           {campaign.target_filters && Object.keys(campaign.target_filters).length > 0 && (
             <Card className="card-base">
-              <CardHeader><CardTitle className="text-base">Critères de ciblage</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">{t("campaign_detail.target_criteria", "Critères de ciblage")}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
+                {Array.isArray(campaign.target_filters.age_ranges) && campaign.target_filters.age_ranges.length > 0 && (
+                  <div>
+                    <span className="text-gray-500">{t("audience.age_ranges", "Tranches d'âge")} : </span>
+                    <span className="font-medium text-gray-900">{campaign.target_filters.age_ranges.join(", ")}</span>
+                  </div>
+                )}
+                {Array.isArray(campaign.target_filters.audience_genders) && campaign.target_filters.audience_genders.length > 0 && (
+                  <div>
+                    <span className="text-gray-500">{t("audience.gender", "Genre")} : </span>
+                    <span className="font-medium text-gray-900">
+                      {campaign.target_filters.audience_genders
+                        .map((g: string) => t(`audience.gender_${g}`, g))
+                        .join(", ")}
+                    </span>
+                  </div>
+                )}
+                {Array.isArray(campaign.target_filters.audience_languages) && campaign.target_filters.audience_languages.length > 0 && (
+                  <div>
+                    <span className="text-gray-500">{t("audience.languages", "Langues")} : </span>
+                    <span className="font-medium text-gray-900">{campaign.target_filters.audience_languages.join(", ").toUpperCase()}</span>
+                  </div>
+                )}
+                {Array.isArray(campaign.target_filters.audience_cities) && campaign.target_filters.audience_cities.length > 0 && (
+                  <div>
+                    <span className="text-gray-500">{t("audience.cities", "Villes")} : </span>
+                    <span className="font-medium text-gray-900">{campaign.target_filters.audience_cities.join(", ")}</span>
+                  </div>
+                )}
                 {campaign.target_filters.target_audience && (
                   <div>
-                    <span className="text-gray-500">Age vise : </span>
+                    <span className="text-gray-500">{t("audience.notes", "Notes")} : </span>
                     <span className="font-medium text-gray-900">{formatAudience(campaign.target_filters.target_audience)}</span>
                   </div>
                 )}
                 {campaign.target_filters.min_followers && (
-                  <div><span className="text-gray-500">Min. abonnés : </span><span className="font-medium text-gray-900">{fmtFollowers(campaign.target_filters.min_followers)}</span></div>
+                  <div><span className="text-gray-500">{t("campaign_detail.min_followers_label", "Min. abonnés")} : </span><span className="font-medium text-gray-900">{fmtFollowers(campaign.target_filters.min_followers)}</span></div>
                 )}
                 {Array.isArray(campaign.target_filters.content_themes) && campaign.target_filters.content_themes.length > 0 && (
                   <div className="pt-1">
-                    <div className="text-gray-500 mb-1">Themes cibles :</div>
+                    <div className="text-gray-500 mb-1">{t("campaign_detail.target_themes", "Thèmes cibles")} :</div>
                     <div className="flex flex-wrap gap-1.5">
                       {campaign.target_filters.content_themes.map((th: string) => (
                         <Badge key={th} variant="info" className="text-[11px]">{formatThemeLabel(th)}</Badge>
@@ -711,7 +746,7 @@ export default function CampaignDetail() {
               )}
 
               <div className="flex gap-2 pt-2">
-                <Button variant="outline" onClick={() => openMediaKitForInfluencer(profilePreview.id)}>{t("campaign_detail.view_media_kit")}</Button>
+                <Button variant="outline" onClick={() => openMediaKitForInfluencer(profilePreview.id, profilePreview.pseudo)}>{t("campaign_detail.view_media_kit")}</Button>
                 <Button variant="gradient" onClick={() => { setProfilePreviewOpen(false); sendProposal(profilePreview.id) }}>
                   <Send className="h-3.5 w-3.5 mr-1" />Proposer
                 </Button>

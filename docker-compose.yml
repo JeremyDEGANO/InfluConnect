@@ -5,7 +5,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: InfluConnect
+      POSTGRES_DB: influconnect
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -26,7 +26,7 @@ services:
     environment:
       - SECRET_KEY=django-insecure-dev-secret-key-change-in-production
       - DEBUG=True
-      - DB_NAME=InfluConnect
+      - DB_NAME=influconnect
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - DB_HOST=db
@@ -47,8 +47,13 @@ services:
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - PLATFORM_COMMISSION_RATE=${PLATFORM_COMMISSION_RATE:-15}
+      - DEEPL_API_KEY=${DEEPL_API_KEY:-}
       # ---- Frontend URL (for email links / QR codes) ----
       - FRONTEND_URL=${FRONTEND_URL:-https://influconnect.fr}
+      # ---- Auto admin bootstrap ----
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@local.dev}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-AdminLocal123!}
     volumes:
       - ./backend:/app
       - media_files:/app/media
@@ -59,6 +64,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate &&
+             python manage.py ensure_admin &&
              python manage.py collectstatic --noinput &&
              python manage.py runserver 0.0.0.0:8000"
 

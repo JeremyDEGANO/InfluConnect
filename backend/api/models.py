@@ -13,19 +13,32 @@ class User(AbstractUser):
         ('en', 'English'),
         ('fr', 'French'),
     ]
+    AUTH_PROVIDER_CHOICES = [
+        ('local', 'Local credentials'),
+        ('google', 'Google SSO'),
+        ('office365', 'Office 365 SSO'),
+        ('saml', 'SAML SSO'),
+        ('other_sso', 'Other SSO'),
+    ]
 
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES)
+    auth_provider = models.CharField(max_length=20, choices=AUTH_PROVIDER_CHOICES, default='local')
     language_preference = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default='en')
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     location = models.CharField(max_length=200, blank=True)
     totp_secret = models.CharField(max_length=64, blank=True)
     totp_enabled = models.BooleanField(default=False)
+    email_2fa_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f'{self.username} ({self.user_type})'
+
+    @property
+    def is_sso_account(self) -> bool:
+        return (self.auth_provider or 'local') != 'local'
 
 
 class InfluencerProfile(models.Model):
@@ -33,10 +46,18 @@ class InfluencerProfile(models.Model):
         ('iban', 'IBAN'),
         ('paypal', 'PayPal'),
     ]
+    GENDER_CHOICES = [
+        ('she', 'Elle'),
+        ('he', 'Il'),
+        ('they', 'Iel'),
+        ('other', 'Autre'),
+        ('prefer_not', 'Préfère ne pas dire'),
+    ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='influencer_profile')
     bio = models.TextField(blank=True)
     display_name = models.CharField(max_length=100, blank=True)
+    gender = models.CharField(max_length=20, blank=True, choices=GENDER_CHOICES)
     collaboration_pitch = models.TextField(blank=True)
     languages = models.JSONField(default=list, blank=True)  # CDC §4.1
     content_themes = models.JSONField(default=list)
@@ -52,6 +73,9 @@ class InfluencerProfile(models.Model):
     profile_completion_percent = models.IntegerField(default=0)
     media_kit_pdf = models.FileField(upload_to='media_kits/', null=True, blank=True)
     media_kit_generated_at = models.DateTimeField(null=True, blank=True)
+    media_kit_is_custom = models.BooleanField(default=False)
+    # List of {"label": str, "url": str} entries — portfolio / sample content links
+    content_links = models.JSONField(default=list, blank=True)
 
     # Stripe Connect (for payouts)
     stripe_account_id = models.CharField(max_length=100, blank=True)
@@ -89,6 +113,11 @@ class SocialNetwork(models.Model):
 
     def __str__(self):
         return f'{self.influencer.user.username} - {self.platform}'
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['influencer', 'platform'], name='uniq_social_network_per_platform'),
+        ]
 
 
 class MediaKitImage(models.Model):
@@ -148,8 +177,70 @@ class BrandProfile(models.Model):
 
     average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
 
+    # Agency mode (CDC §11 — agency representing influencers)
+    is_agency = models.BooleanField(default=False)
+    agency_default_commission_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=20,
+        help_text="Default commission percent applied on managed influencers' earnings.",
+    )
+
     def __str__(self):
         return f'BrandProfile: {self.company_name}'
+
+
+class BrandMembership(models.Model):
+    """Multi-user enterprise: extra users attached to a brand workspace."""
+    ROLE_CHOICES = [
+        ('owner', 'Owner'),
+        ('admin', 'Admin'),
+        ('member', 'Member'),
+    ]
+    STATUS_CHOICES = [
+        ('invited', 'Invited'),
+        ('active', 'Active'),
+        ('revoked', 'Revoked'),
+    ]
+    brand = models.ForeignKey(BrandProfile, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='brand_memberships')
+    invited_email = models.EmailField(blank=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='invited')
+    invited_at = models.DateTimeField(auto_now_add=True)
+    joined_at = models.DateTimeField(null=True, blank=True)
+    invited_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='brand_invitations_sent')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['brand', 'user'], condition=models.Q(user__isnull=False), name='uniq_brand_user_membership'),
+            models.UniqueConstraint(fields=['brand', 'invited_email'], condition=~models.Q(invited_email=''), name='uniq_brand_email_membership'),
+        ]
+
+    def __str__(self):
+        return f'{self.brand.company_name} — {self.user_id or self.invited_email} ({self.role})'
+
+
+class AgencyDelegation(models.Model):
+    """Delegation contract between an agency (BrandProfile.is_agency=True) and an influencer."""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+        ('revoked', 'Revoked'),
+    ]
+    agency = models.ForeignKey(BrandProfile, on_delete=models.CASCADE, related_name='delegations_as_agency')
+    influencer = models.ForeignKey(InfluencerProfile, on_delete=models.CASCADE, related_name='agency_delegations')
+    commission_percent = models.DecimalField(max_digits=5, decimal_places=2, default=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    invitation_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [('agency', 'influencer')]
+
+    def __str__(self):
+        return f'{self.agency.company_name} ⇄ {self.influencer.user.username} ({self.status})'
 
 
 class ContractTemplate(models.Model):
@@ -381,6 +472,55 @@ class Notification(models.Model):
 
     def __str__(self):
         return f'Notification for {self.user.username}: {self.title}'
+
+
+class SupportTicket(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_progress', 'In progress'),
+        ('closed', 'Closed'),
+    ]
+    PRIORITY_CHOICES = [
+        ('normal', 'Normal'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+
+    requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_tickets')
+    subject = models.CharField(max_length=200)
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='normal')
+    admin_note = models.TextField(blank=True)   # note interne (non visible par l'utilisateur)
+    admin_reply = models.TextField(blank=True)  # réponse publique visible par l'utilisateur
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'SupportTicket #{self.id} - {self.subject}'
+
+
+class SupportTicketImage(models.Model):
+    """Pièces jointes image (max 5) sur un ticket support."""
+    ticket = models.ForeignKey(SupportTicket, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='support/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Image #{self.id} for ticket #{self.ticket_id}'
+
+
+class TranslationCache(models.Model):
+    """Cache persistant des traductions DeepL (évite de retraduire le même texte)."""
+    cache_key = models.CharField(max_length=64, unique=True, db_index=True)
+    translated_text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'translation_cache'
 
 
 class CastingApplication(models.Model):

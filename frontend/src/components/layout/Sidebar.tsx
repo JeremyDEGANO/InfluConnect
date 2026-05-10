@@ -2,12 +2,12 @@ import { useEffect, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/lib/auth"
-import { fetchOnboarding } from "@/lib/apiExtra"
+import { fetchOnboarding, fetchBrandOnboarding } from "@/lib/apiExtra"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard, FileText, DollarSign, User, Briefcase, PlusCircle,
   CreditCard, ChevronLeft, ChevronRight, Shield, Sparkles, Star, ScrollText, Building2,
-  Bell, Megaphone, Crown,
+  Bell, Megaphone, Crown, Users, LifeBuoy,
 } from "lucide-react"
 
 interface NavItem { label: string; href: string; icon: React.ElementType }
@@ -19,37 +19,48 @@ const INFLUENCER_NAV: NavItem[] = [
   { label: "nav.proposals", href: "/influencer/proposals", icon: FileText },
   { label: "nav.castings", href: "/influencer/castings", icon: Megaphone },
   { label: "nav.contracts", href: "/influencer/contracts", icon: FileText },
+  { label: "nav.delegations", href: "/influencer/delegations", icon: Crown },
   { label: "nav.earnings", href: "/influencer/earnings", icon: DollarSign },
   { label: "nav.notifications", href: "/influencer/notifications", icon: Bell },
   { label: "nav.profile", href: "/influencer/profile/edit", icon: User },
+  { label: "nav.support", href: "/influencer/support", icon: LifeBuoy },
 ]
 
 const BRAND_NAV: NavItem[] = [
   { label: "nav.dashboard", href: "/brand/dashboard", icon: LayoutDashboard },
+  { label: "nav.brand_onboarding", href: "/brand/onboarding", icon: Sparkles },
   { label: "nav.campaigns", href: "/brand/campaigns", icon: Briefcase },
   { label: "campaigns.new_campaign", href: "/brand/campaigns/new", icon: PlusCircle },
   { label: "nav.castings", href: "/brand/castings", icon: Megaphone },
   { label: "nav.contracts", href: "/brand/contracts", icon: FileText },
+  { label: "nav.team", href: "/brand/team", icon: Users },
+  { label: "nav.delegations", href: "/brand/delegations", icon: Crown },
   { label: "nav.ambassadors", href: "/brand/ambassadors", icon: Crown },
   { label: "nav.contract_templates", href: "/brand/contract-templates", icon: ScrollText },
   { label: "nav.notifications", href: "/brand/notifications", icon: Bell },
   { label: "nav.profile", href: "/brand/profile/edit", icon: User },
   { label: "nav.subscription", href: "/brand/subscription", icon: CreditCard },
+  { label: "nav.support", href: "/brand/support", icon: LifeBuoy },
 ]
 
 const ADMIN_NAV: NavItem[] = [
   { label: "nav.admin", href: "/admin", icon: Shield },
+  { label: "nav.admin_companies", href: "/admin/companies", icon: Building2 },
+  { label: "nav.admin_users", href: "/admin/users", icon: Users },
   { label: "nav.admin_brands", href: "/admin/brands", icon: Building2 },
   { label: "nav.admin_reviews", href: "/admin/reviews", icon: Star },
   { label: "nav.admin_audit", href: "/admin/audit-log", icon: ScrollText },
+  { label: "nav.admin_support", href: "/admin/support", icon: LifeBuoy },
 ]
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null)
+  const [brandApproved, setBrandApproved] = useState<boolean | null>(null)
   const { user } = useAuth()
   const { t } = useTranslation()
   const location = useLocation()
+  const isAgency = Boolean((user as { brand_profile?: { is_agency?: boolean } } | null)?.brand_profile?.is_agency)
 
   useEffect(() => {
     if (user?.user_type !== "influencer") {
@@ -61,8 +72,24 @@ export function Sidebar() {
       .catch(() => setOnboardingCompleted(null))
   }, [user?.user_type])
 
+  useEffect(() => {
+    if (user?.user_type !== "brand") {
+      setBrandApproved(null)
+      return
+    }
+    fetchBrandOnboarding()
+      .then((s) => setBrandApproved(s.validation_status === "approved"))
+      .catch(() => setBrandApproved(null))
+  }, [user?.user_type])
+
   const items = user?.user_type === "brand"
-    ? BRAND_NAV
+    ? BRAND_NAV.filter((item) => {
+        if (item.href === "/brand/onboarding" && brandApproved === true) return false
+        if (isAgency && (item.href === "/brand/campaigns" || item.href === "/brand/campaigns/new" || item.href === "/brand/castings")) {
+          return false
+        }
+        return true
+      })
     : user?.user_type === "admin"
       ? ADMIN_NAV
       : INFLUENCER_NAV.filter((item) => item.href !== "/influencer/onboarding" || onboardingCompleted !== true)

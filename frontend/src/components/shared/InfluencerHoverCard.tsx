@@ -11,6 +11,7 @@ interface SocialNetwork {
 
 interface InfluencerHoverCardProps {
   influencerId: number
+  influencerPseudo?: string
   displayName: string
   avatar?: string | null
   city?: string
@@ -26,6 +27,7 @@ const fmt = (n: number) =>
 
 export function InfluencerHoverCard({
   influencerId,
+  influencerPseudo,
   displayName,
   avatar,
   city,
@@ -35,7 +37,7 @@ export function InfluencerHoverCard({
   profileBase = "/brand/influencers",
   mediaKitPdf,
 }: InfluencerHoverCardProps) {
-  const profileUrl = `${profileBase}/${influencerId}`
+  const profileUrl = influencerPseudo ? `${profileBase}/${encodeURIComponent(influencerPseudo)}` : undefined
   const mediaKitUrl = mediaKitPdf ? resolveMediaUrl(mediaKitPdf) : undefined
   const totalFollowers = socialNetworks.reduce((s, sn) => s + sn.followers_count, 0)
 
@@ -79,14 +81,16 @@ export function InfluencerHoverCard({
         )}
 
         <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-          <a
-            href={profileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"
-          >
-            <ExternalLink className="h-3 w-3" />Voir le profil
-          </a>
+          {profileUrl && (
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"
+            >
+              <ExternalLink className="h-3 w-3" />Voir le profil
+            </a>
+          )}
           {mediaKitUrl && (
             <a
               href={mediaKitUrl}

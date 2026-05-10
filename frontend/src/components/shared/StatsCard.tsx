@@ -11,25 +11,25 @@ interface StatsCardProps {
   iconBg?: string
 }
 
-export function StatsCard({ title, value, icon: Icon, trend, trendLabel, iconBg = "from-indigo-500 to-violet-600" }: StatsCardProps) {
+export function StatsCard({ title, value, icon: Icon, trend, trendLabel, iconBg = "" }: StatsCardProps) {
   const isPositive = (trend ?? 0) >= 0
 
   return (
-    <Card className="card-base">
-      <CardContent className="p-6">
+    <Card className="card-base border border-slate-200/80 shadow-sm">
+      <CardContent className="p-5">
         <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
             {trend !== undefined && (
-              <div className={cn("flex items-center gap-1 mt-2 text-xs font-medium", isPositive ? "text-green-600" : "text-red-500")}>
+              <div className={cn("mt-2 flex items-center gap-1 text-xs font-medium", isPositive ? "text-emerald-600" : "text-rose-600")}>
                 {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {isPositive ? "+" : ""}{trend}% {trendLabel}
               </div>
             )}
           </div>
-          <div className={cn("h-12 w-12 rounded-xl bg-gradient-to-br flex items-center justify-center", iconBg)}>
-            <Icon className="h-6 w-6 text-white" />
+          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50", iconBg)}>
+            <Icon className="h-4.5 w-4.5 text-slate-600" />
           </div>
         </div>
       </CardContent>

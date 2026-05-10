@@ -9,6 +9,7 @@ import Login from "@/pages/Login"
 import Register from "@/pages/Register"
 import PasswordResetRequest from "@/pages/PasswordResetRequest"
 import PasswordResetConfirm from "@/pages/PasswordResetConfirm"
+import MfaResetConfirm from "@/pages/MfaResetConfirm"
 import SecuritySettings from "@/pages/SecuritySettings"
 import Pricing from "@/pages/Pricing"
 import InfluencerDashboard from "@/pages/influencer/Dashboard"
@@ -22,6 +23,9 @@ import NewCampaign from "@/pages/brand/NewCampaign"
 import CampaignDetail from "@/pages/brand/CampaignDetail"
 import ValidateContent from "@/pages/brand/ValidateContent"
 import BrandEditProfile from "@/pages/brand/EditProfile"
+import BrandOnboarding from "@/pages/brand/Onboarding"
+import BrandTeam from "@/pages/brand/Team"
+import BrandDelegations from "@/pages/brand/Delegations"
 import Subscription from "@/pages/brand/Subscription"
 import AmbassadorPrograms from "@/pages/brand/AmbassadorPrograms"
 import ContractTemplates from "@/pages/brand/ContractTemplates"
@@ -38,8 +42,12 @@ import Privacy from "@/pages/legal/Privacy"
 import LegalNotice from "@/pages/legal/LegalNotice"
 import Admin from "@/pages/Admin"
 import AdminBrands from "@/pages/admin/Brands"
+import AdminCompanies from "@/pages/admin/Companies"
+import AdminUsers from "@/pages/admin/Users"
 import AdminReviews from "@/pages/admin/Reviews"
 import AdminAuditLog from "@/pages/admin/AuditLog"
+import AdminSupport from "@/pages/admin/Support"
+import SupportPage from "@/pages/Support"
 import InfluencerOnboarding from "@/pages/influencer/Onboarding"
 import InfluencerMediaKit from "@/pages/influencer/MediaKit"
 import SignMobile from "@/pages/SignMobile"
@@ -84,8 +92,9 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/reset-password" element={<PasswordResetRequest />} />
           <Route path="/reset-password/confirm" element={<PasswordResetConfirm />} />
+          <Route path="/security/reset-mfa" element={<MfaResetConfirm />} />
           <Route path="/marketplace" element={<Marketplace />} />
-          <Route path="/marketplace/:id" element={<InfluencerPublicProfile />} />
+          <Route path="/marketplace/:pseudo" element={<InfluencerPublicProfile />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/privacy" element={<Privacy />} />
@@ -107,6 +116,8 @@ export default function App() {
               <Route path="/influencer/contracts" element={<Contracts />} />
               <Route path="/influencer/notifications" element={<Notifications />} />
               <Route path="/influencer/security" element={<SecuritySettings />} />
+              <Route path="/influencer/delegations" element={<BrandDelegations />} />
+              <Route path="/influencer/support" element={<SupportPage />} />
             </Route>
             <Route element={<ProtectedRoute roles={["brand"]} />}>
               <Route path="/brand/dashboard" element={<BrandDashboard />} />
@@ -115,21 +126,29 @@ export default function App() {
               <Route path="/brand/campaigns/:id" element={<CampaignDetail />} />
               <Route path="/brand/campaigns/:id/validate/:proposalId" element={<ValidateContent />} />
               <Route path="/brand/proposals/:id" element={<BrandProposalDetail />} />
-              <Route path="/brand/influencers/:id" element={<InfluencerPublicProfile />} />
+              <Route path="/brand/influencers/:pseudo" element={<InfluencerPublicProfile />} />
               <Route path="/brand/profile/edit" element={<BrandEditProfile />} />
+              <Route path="/brand/onboarding" element={<BrandOnboarding />} />
+              <Route path="/brand/profile" element={<BrandEditProfile />} />
               <Route path="/brand/subscription" element={<Subscription />} />
               <Route path="/brand/ambassadors" element={<AmbassadorPrograms />} />
               <Route path="/brand/contract-templates" element={<ContractTemplates />} />
               <Route path="/brand/castings" element={<BrandCastings />} />
+              <Route path="/brand/team" element={<BrandTeam />} />
+              <Route path="/brand/delegations" element={<BrandDelegations />} />
               <Route path="/brand/contracts" element={<Contracts />} />
               <Route path="/brand/notifications" element={<Notifications />} />
               <Route path="/brand/security" element={<SecuritySettings />} />
+              <Route path="/brand/support" element={<SupportPage />} />
             </Route>
             <Route element={<ProtectedRoute roles={["admin"]} />}>
               <Route path="/admin" element={<Admin />} />
               <Route path="/admin/brands" element={<AdminBrands />} />
+              <Route path="/admin/companies" element={<AdminCompanies />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/reviews" element={<AdminReviews />} />
               <Route path="/admin/audit-log" element={<AdminAuditLog />} />
+              <Route path="/admin/support" element={<AdminSupport />} />
             </Route>
           </Route>
         </Route>

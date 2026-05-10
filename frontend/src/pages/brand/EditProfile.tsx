@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from "react"
+import { useState, useEffect, FormEvent, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/lib/auth"
 import api from "@/lib/api"
@@ -6,25 +6,36 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2 } from "lucide-react"
+import { Loader2, Upload } from "lucide-react"
+import { Link } from "react-router-dom"
 
 export default function BrandEditProfile() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [validationStatus, setValidationStatus] = useState<string>("pending")
+  const [validationNotes, setValidationNotes] = useState<string>("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     first_name: user?.first_name ?? "",
     last_name: user?.last_name ?? "",
     company_name: "",
+    siret: "",
     website: "",
     sector: "",
     description: "",
+    billing_address: "",
+    is_agency: false,
+    agency_default_commission_percent: "20",
   })
 
-  useEffect(() => {
-    api.get("/auth/me/").then((res) => {
+  const refreshProfile = () => {
+    return api.get("/auth/me/").then((res) => {
       const bp = res.data.brand_profile
       if (bp) {
         setForm((prev) => ({
@@ -32,15 +43,48 @@ export default function BrandEditProfile() {
           first_name: res.data.first_name ?? prev.first_name,
           last_name: res.data.last_name ?? prev.last_name,
           company_name: bp.company_name ?? "",
+          siret: bp.siret ?? "",
           website: bp.website ?? "",
           sector: bp.sector ?? "",
           description: bp.description ?? "",
+          billing_address: bp.billing_address ?? "",
+          is_agency: Boolean(bp.is_agency),
+          agency_default_commission_percent: String(bp.agency_default_commission_percent ?? "20"),
         }))
+        setLogoUrl(bp.logo ?? null)
+        setValidationStatus(bp.validation_status ?? "pending")
+        setValidationNotes(bp.validation_notes ?? "")
       }
-    }).catch(() => {})
+    })
+  }
+
+  useEffect(() => {
+    refreshProfile().catch(() => {})
   }, [])
 
   const update = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }))
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ variant: "destructive", title: t("brand_profile.logo_too_large", "Logo trop volumineux (max 5 Mo)") })
+      return
+    }
+    setLogoUploading(true)
+    const fd = new FormData()
+    fd.append("logo_upload", file)
+    try {
+      const res = await api.patch("/brands/profile/", fd, { headers: { "Content-Type": "multipart/form-data" } })
+      setLogoUrl(res.data.logo ?? null)
+      toast({ title: t("brand_profile.logo_updated", "Logo mis à jour") })
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    } finally {
+      setLogoUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -48,10 +92,15 @@ export default function BrandEditProfile() {
     try {
       await api.patch("/brands/profile/", {
         company_name: form.company_name,
+        siret: form.siret,
         website: form.website,
         sector: form.sector,
         description: form.description,
+        billing_address: form.billing_address,
+        is_agency: form.is_agency,
+        agency_default_commission_percent: form.agency_default_commission_percent,
       })
+      await refreshProfile()
       toast({ title: t("common.success"), description: t("brand_profile.updated") })
     } catch {
       toast({ title: t("common.error"), variant: "destructive" })
@@ -62,7 +111,35 @@ export default function BrandEditProfile() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("brand_profile.title")}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">{t("brand_profile.title")}</h1>
+        <Badge variant={validationStatus === "approved" ? "purple" : validationStatus === "rejected" ? "destructive" : "outline"}>
+          {t(`brand_profile.status_${validationStatus}`, validationStatus)}
+        </Badge>
+      </div>
+
+      {validationStatus !== "approved" && (
+        <Card className="card-base border-l-4 border-l-purple-500">
+          <CardContent className="py-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-semibold text-gray-900">
+                {validationStatus === "rejected"
+                  ? t("brand_profile.banner_rejected_title", "Inscription refusée")
+                  : t("brand_profile.banner_pending_title", "Validation requise")}
+              </p>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {validationStatus === "rejected" && validationNotes
+                  ? validationNotes
+                  : t("brand_profile.banner_pending_desc", "Complétez votre profil et soumettez-le pour validation.")}
+              </p>
+            </div>
+            <Link to="/brand/onboarding">
+              <Button variant="gradient" size="sm">{t("brand_profile.go_to_onboarding", "Voir l'onboarding")}</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="card-base">
           <CardHeader><CardTitle className="text-base">{t("brand_profile.contact_person")}</CardTitle></CardHeader>
@@ -74,12 +151,49 @@ export default function BrandEditProfile() {
         <Card className="card-base">
           <CardHeader><CardTitle className="text-base">{t("brand_profile.company_info")}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div><Label>{t("auth.company_name")}</Label><Input className="mt-1" value={form.company_name} onChange={(e) => update("company_name", e.target.value)} /></div>
-            <div><Label>{t("brand_profile.industry")}</Label><Input className="mt-1" value={form.sector} onChange={(e) => update("sector", e.target.value)} placeholder="e.g. Fashion, Technology..." /></div>
-            <div><Label>{t("brand_profile.website")}</Label><Input className="mt-1" type="url" value={form.website} onChange={(e) => update("website", e.target.value)} placeholder="https://..." /></div>
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="logo" className="object-contain w-full h-full" />
+                ) : (
+                  <span className="text-xs text-gray-400">{t("brand_profile.no_logo", "Aucun logo")}</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <Label>{t("brand_profile.logo", "Logo")}</Label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                  <Button type="button" variant="outline" size="sm" disabled={logoUploading} onClick={() => fileInputRef.current?.click()}>
+                    {logoUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                    {t("brand_profile.upload_logo", "Téléverser")}
+                  </Button>
+                  <span className="text-xs text-gray-400">{t("brand_profile.logo_hint", "PNG/JPG, 5 Mo max")}</span>
+                </div>
+              </div>
+            </div>
+            <div><Label>{t("auth.company_name")} *</Label><Input className="mt-1" value={form.company_name} onChange={(e) => update("company_name", e.target.value)} /></div>
+            <div><Label>{t("brand_profile.siret", "SIRET")} *</Label><Input className="mt-1" value={form.siret} onChange={(e) => update("siret", e.target.value)} placeholder="14 chiffres" maxLength={14} /></div>
+            <div><Label>{t("brand_profile.industry")} *</Label><Input className="mt-1" value={form.sector} onChange={(e) => update("sector", e.target.value)} placeholder="Mode, Tech..." /></div>
+            <div><Label>{t("brand_profile.website")} *</Label><Input className="mt-1" type="url" value={form.website} onChange={(e) => update("website", e.target.value)} placeholder="https://..." /></div>
             <div>
-              <Label>{t("brand_profile.company_description")}</Label>
+              <Label>{t("brand_profile.company_description")} *</Label>
               <textarea className="mt-1 w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={form.description} onChange={(e) => update("description", e.target.value)} />
+            </div>
+            <div>
+              <Label>{t("brand_profile.billing_address", "Adresse de facturation")}</Label>
+              <textarea className="mt-1 w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={form.billing_address} onChange={(e) => update("billing_address", e.target.value)} />
+            </div>
+            <div className="border-t pt-4 space-y-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" className="mt-1" checked={form.is_agency} onChange={(e) => setForm((p) => ({ ...p, is_agency: e.target.checked }))} />
+                <span className="text-sm">{t("agency.is_agency", "Cette marque est une agence (gère des influenceurs pour leur compte)")}</span>
+              </label>
+              {form.is_agency && (
+                <div>
+                  <Label>{t("agency.default_commission", "Commission agence par défaut %")}</Label>
+                  <Input className="mt-1" type="number" min={0} max={100} step={0.1} value={form.agency_default_commission_percent} onChange={(e) => update("agency_default_commission_percent", e.target.value)} />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

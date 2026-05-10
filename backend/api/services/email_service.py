@@ -142,3 +142,88 @@ def send_payment_released(influencer_email: str, net_amount_eur, campaign_title:
             "L'équipe InfluConnect"
         ),
     )
+
+
+def send_contract_ready_for_signature(recipient_email: str, role: str, campaign_title: str) -> bool:
+    """role: 'brand' or 'influencer' — indicates who is asked to sign now."""
+    who = "marque" if role == "brand" else "influenceur"
+    return send(
+        to=recipient_email,
+        subject=f"InfluConnect — Contrat prêt à signer ({campaign_title})",
+        body_text=(
+            "Bonjour,\n\n"
+            f"Le contrat pour la campagne « {campaign_title} » est prêt et attend votre signature ({who}).\n"
+            "Connectez-vous à votre tableau de bord pour le consulter et le signer électroniquement.\n\n"
+            "L'équipe InfluConnect"
+        ),
+    )
+
+
+def send_contract_signed_both(recipient_email: str, campaign_title: str, pdf_url: str | None = None) -> bool:
+    body = (
+        "Bonjour,\n\n"
+        f"Le contrat pour la campagne « {campaign_title} » est désormais signé par les deux parties.\n"
+    )
+    if pdf_url:
+        body += f"Vous pouvez télécharger la version finale ici : {pdf_url}\n\n"
+    body += "L'équipe InfluConnect"
+    return send(
+        to=recipient_email,
+        subject=f"InfluConnect — Contrat signé ({campaign_title})",
+        body_text=body,
+    )
+
+
+def send_content_submitted_to_brand(brand_email: str, campaign_title: str, influencer_name: str) -> bool:
+    return send(
+        to=brand_email,
+        subject=f"InfluConnect — Contenu soumis pour validation ({campaign_title})",
+        body_text=(
+            f"Bonjour,\n\n"
+            f"{influencer_name} vient de soumettre le contenu pour la campagne « {campaign_title} ».\n"
+            "Connectez-vous à votre tableau de bord pour le valider ou demander des modifications.\n\n"
+            "L'équipe InfluConnect"
+        ),
+    )
+
+
+def send_content_validated(influencer_email: str, campaign_title: str) -> bool:
+    return send(
+        to=influencer_email,
+        subject=f"InfluConnect — Contenu validé ({campaign_title})",
+        body_text=(
+            "Bonjour,\n\n"
+            f"Bonne nouvelle : votre contenu pour la campagne « {campaign_title} » a été validé.\n"
+            "Le paiement va être libéré sous peu.\n\n"
+            "L'équipe InfluConnect"
+        ),
+    )
+
+
+def send_password_reset(user_email: str, reset_url: str) -> bool:
+    return send(
+        to=user_email,
+        subject="InfluConnect — Réinitialisation de votre mot de passe",
+        body_text=(
+            "Bonjour,\n\n"
+            "Vous avez demandé la réinitialisation de votre mot de passe.\n"
+            f"Cliquez sur le lien suivant (valide 1h) : {reset_url}\n\n"
+            "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\n"
+            "L'équipe InfluConnect"
+        ),
+    )
+
+
+def send_mfa_reset(user_email: str, reset_url: str) -> bool:
+    return send(
+        to=user_email,
+        subject="InfluConnect — Réinitialisation de la double authentification",
+        body_text=(
+            "Bonjour,\n\n"
+            "Vous avez demandé la désactivation de la double authentification (TOTP).\n"
+            f"Cliquez sur le lien suivant (valide 1h) pour confirmer : {reset_url}\n\n"
+            "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message et changez "
+            "immédiatement votre mot de passe.\n\n"
+            "L'équipe InfluConnect"
+        ),
+    )

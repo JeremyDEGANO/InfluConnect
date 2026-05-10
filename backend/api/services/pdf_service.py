@@ -13,6 +13,7 @@ import io
 import logging
 import os
 import re
+from urllib.parse import quote
 from html.parser import HTMLParser
 from typing import Iterable
 from xml.sax.saxutils import escape
@@ -1063,7 +1064,8 @@ def generate_media_kit_pdf(*, profile) -> bytes:
     s = _styles()
     user = profile.user
     networks = list(profile.social_networks.all())
-    public_url = f"https://influconnect.fr/influencers/{profile.id}"
+    pseudo = (profile.display_name or "").strip() or user.username
+    public_url = f"https://influconnect.fr/influencers/{quote(pseudo, safe='')}"
 
     avatar_path = None
     try:
@@ -1478,7 +1480,8 @@ def generate_media_kit_pdf(*, profile) -> bytes:  # noqa: F811 - overrides legac
     year = timezone.now().year
 
     frontend_url = getattr(settings, "FRONTEND_URL", "https://influconnect.fr").rstrip("/")
-    public_url = f"{frontend_url}/marketplace/{profile.id}"
+    public_pseudo = (profile.display_name or '').strip() or user.username
+    public_url = f"{frontend_url}/marketplace/{quote(public_pseudo, safe='')}"
 
     avatar_path = None
     try:

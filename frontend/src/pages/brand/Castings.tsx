@@ -22,6 +22,7 @@ interface Campaign {
 interface Application {
   id: number
   influencer: number
+  influencer_pseudo: string
   influencer_display_name: string
   influencer_avatar?: string | null
   motivation: string
@@ -133,10 +134,11 @@ export default function BrandCastings() {
                     <div className="flex items-start justify-between gap-3">
                         <InfluencerHoverCard
                           influencerId={a.influencer}
+                          influencerPseudo={a.influencer_pseudo}
                           displayName={a.influencer_display_name || "?"}
                           avatar={a.influencer_avatar}
                         >
-                          <a href={`/brand/influencers/${a.influencer}`} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 min-w-0 group cursor-pointer">
+                          <a href={`/brand/influencers/${encodeURIComponent(a.influencer_pseudo)}`} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 min-w-0 group cursor-pointer">
                             <Avatar className="h-10 w-10 shrink-0">
                               <AvatarImage src={resolveMediaUrl(a.influencer_avatar)} alt={a.influencer_display_name} />
                               <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
@@ -159,9 +161,13 @@ export default function BrandCastings() {
                     )}
 
                     <div className="flex gap-2 pt-1 flex-wrap">
-                      <Button asChild size="sm" variant="outline">
-                        <a href={`/brand/influencers/${a.influencer}#media-kit`} target="_blank" rel="noopener noreferrer">{t("castings_brand.view_media_kit")}</a>
-                      </Button>
+                      {a.influencer_pseudo ? (
+                        <Button asChild size="sm" variant="outline">
+                          <a href={`/brand/influencers/${encodeURIComponent(a.influencer_pseudo)}#media-kit`} target="_blank" rel="noopener noreferrer">{t("castings_brand.view_media_kit")}</a>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" disabled>{t("castings_brand.view_media_kit")}</Button>
+                      )}
                       {a.status === "pending" && (
                         <Button size="sm" variant="gradient" disabled={acting === a.id} onClick={() => decide(a.id, "selected")}>
                           <CheckCircle2 className="h-4 w-4 mr-1.5" />{t("castings_brand.select")}

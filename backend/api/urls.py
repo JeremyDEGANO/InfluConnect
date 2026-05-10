@@ -21,12 +21,18 @@ urlpatterns = [
     path("auth/2fa/setup/", views_auth.TOTPSetupView.as_view(), name="2fa-setup"),
     path("auth/2fa/confirm/", views_auth.TOTPConfirmView.as_view(), name="2fa-confirm"),
     path("auth/2fa/disable/", views_auth.TOTPDisableView.as_view(), name="2fa-disable"),
+    path("auth/2fa/email/enable/", views_auth.Email2FAEnableView.as_view(), name="2fa-email-enable"),
+    path("auth/2fa/email/disable/", views_auth.Email2FADisableView.as_view(), name="2fa-email-disable"),
+    path("auth/2fa/reset/", views_auth.TOTPResetRequestView.as_view(), name="2fa-reset"),
+    path("auth/2fa/reset-confirm/", views_auth.TOTPResetConfirmView.as_view(), name="2fa-reset-confirm"),
+    path("auth/password-change/", views_auth.PasswordChangeView.as_view(), name="password-change"),
     path("auth/password-reset/", views_auth.PasswordResetRequestView.as_view(), name="password-reset"),
     path("auth/password-reset-confirm/", views_auth.PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
 
     # ---- Reference data (public) ----
     path("reference/plans/", views_extra.SubscriptionPlansView.as_view(), name="plans"),
     path("reference/data/", views_extra.ReferenceDataView.as_view(), name="reference-data"),
+    path("influencers/pseudo-availability/", views_extra.InfluencerPseudoAvailabilityView.as_view(), name="influencer-pseudo-availability"),
     path("stripe/config/", views_extra.StripeConfigView.as_view(), name="stripe-config"),
     path("public/marketplace/", views_extra.PublicMarketplaceView.as_view(), name="public-marketplace"),
 
@@ -36,7 +42,9 @@ urlpatterns = [
     path("influencers/dashboard/", views.InfluencerDashboardView.as_view(), name="influencer-dashboard"),
     path("influencers/onboarding/", views_extra.InfluencerOnboardingStatusView.as_view(), name="influencer-onboarding"),
     path("influencers/media-kit/generate/", views_extra.MediaKitGenerateView.as_view(), name="media-kit-generate"),
+    path("influencers/media-kit/upload/", views_extra.MediaKitUploadView.as_view(), name="media-kit-upload"),
     path("influencers/stripe-onboard/", views_extra.InfluencerStripeOnboardView.as_view(), name="influencer-stripe-onboard"),
+    path("influencers/p/<str:pseudo>/", views.InfluencerDetailByPseudoView.as_view(), name="influencer-detail-by-pseudo"),
     path("influencers/<int:pk>/", views.InfluencerDetailView.as_view(), name="influencer-detail"),
 
     # Social network OAuth (stub)
@@ -48,6 +56,8 @@ urlpatterns = [
     # ---- Brands ----
     path("brands/<int:pk>/", views.BrandDetailView.as_view(), name="brand-detail"),
     path("brands/profile/", views.BrandProfileUpdateView.as_view(), name="brand-profile-update"),
+    path("brands/onboarding/", views_extra.BrandOnboardingStatusView.as_view(), name="brand-onboarding"),
+    path("brands/submit-validation/", views_extra.BrandSubmitForValidationView.as_view(), name="brand-submit-validation"),
     path("brands/subscribe/", views.BrandSubscribeView.as_view(), name="brand-subscribe"),  # legacy
     path("brands/subscription/change/", views_extra.BrandSubscriptionChangeView.as_view(), name="brand-subscription-change"),
     path("brands/subscription/cancel/", views_extra.BrandSubscriptionCancelView.as_view(), name="brand-subscription-cancel"),
@@ -95,11 +105,17 @@ urlpatterns = [
     path("notifications/<int:pk>/read/", views.NotificationReadView.as_view(), name="notification-read"),
     path("notifications/read-all/", views.NotificationReadAllView.as_view(), name="notification-read-all"),
 
+    # ---- Support tickets ----
+    path("support/tickets/", views_extra.SupportTicketListCreateView.as_view(), name="support-tickets"),
+    path("support/tickets/<int:ticket_pk>/images/", views_extra.SupportTicketImageUploadView.as_view(), name="support-ticket-images"),
+
     # ---- Admin ----
     path("admin/users/", views.AdminUserListView.as_view(), name="admin-users"),
     path("admin/campaigns/", views.AdminCampaignListView.as_view(), name="admin-campaigns"),
     path("admin/proposals/", views.AdminProposalListView.as_view(), name="admin-proposals"),
     path("admin/proposals/<int:pk>/arbitrate/", views.AdminArbitrateView.as_view(), name="admin-arbitrate"),
+    path("admin/overview/", views_extra.AdminOverviewView.as_view(), name="admin-overview"),
+    path("admin/users/<int:pk>/status/", views_extra.AdminUserStatusUpdateView.as_view(), name="admin-user-status-update"),
     path("admin/financials/", views.AdminFinancialsView.as_view(), name="admin-financials"),
     path("admin/settings/", views.AdminSettingsView.as_view(), name="admin-settings"),
     # Brand validation workflow (CDC §5.1)
@@ -112,6 +128,16 @@ urlpatterns = [
     path("admin/reviews/<int:pk>/reject/", views_extra.AdminReviewRejectView.as_view(), name="admin-review-reject"),
     # Audit log
     path("admin/audit-log/", views_extra.AdminAuditLogListView.as_view(), name="admin-audit-log"),
+    # Support tickets
+    path("admin/support/tickets/<int:pk>/", views_extra.AdminSupportTicketUpdateView.as_view(), name="admin-support-ticket-update"),
+
+    # ---- Brand multi-user (memberships) ----
+    path("brands/memberships/", views_extra.BrandMembershipListCreateView.as_view(), name="brand-memberships"),
+    path("brands/memberships/<int:pk>/", views_extra.BrandMembershipDetailView.as_view(), name="brand-membership-detail"),
+
+    # ---- Agency delegations ----
+    path("agency/delegations/", views_extra.AgencyDelegationListCreateView.as_view(), name="agency-delegations"),
+    path("agency/delegations/<int:pk>/action/", views_extra.AgencyDelegationActionView.as_view(), name="agency-delegation-action"),
 
     # ---- Stripe webhook (stub) ----
     path("webhooks/stripe/", views_extra.StripeWebhookView.as_view(), name="stripe-webhook"),

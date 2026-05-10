@@ -26,6 +26,7 @@ interface InfluencerProfile {
   content_themes: string[]
   content_types_offered: string[]
   social_networks: SocialNetwork[]
+  content_links: { label: string; url: string }[]
   average_rating: number | string | null
   media_kit_pdf?: string | null
 }
@@ -60,13 +61,18 @@ function normalizeProfile(raw: any): InfluencerProfile {
     content_themes: toArray(raw?.content_themes),
     content_types_offered: toArray(raw?.content_types_offered),
     social_networks: socialNetworks,
+    content_links: Array.isArray(raw?.content_links)
+      ? raw.content_links
+          .filter((l: any) => l && typeof l === "object" && typeof l.url === "string" && l.url)
+          .map((l: any) => ({ label: typeof l.label === "string" ? l.label : "", url: l.url }))
+      : [],
     average_rating: raw?.average_rating ?? null,
     media_kit_pdf: typeof raw?.media_kit_pdf === "string" ? raw.media_kit_pdf : null,
   }
 }
 
 export default function InfluencerPublicProfile() {
-  const { id } = useParams<{ id: string }>()
+  const { pseudo } = useParams<{ pseudo: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -78,7 +84,7 @@ export default function InfluencerPublicProfile() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get(`/influencers/${id}/`)
+        const res = await api.get(`/influencers/p/${pseudo}/`)
         setInf(normalizeProfile(res.data))
       } catch {
         toast({ variant: "destructive", title: t("common.error") })
@@ -88,7 +94,7 @@ export default function InfluencerPublicProfile() {
     }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [pseudo])
 
   const fmt = (n: number) =>
     n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
@@ -176,6 +182,18 @@ export default function InfluencerPublicProfile() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {inf.content_links?.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-2">{t("influencer_public.content_links", "Liens & contenus")}</p>
+              <ul className="space-y-1 text-sm">
+                {inf.content_links.map((l, i) => (
+                  <li key={i}>
+                    <a href={l.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline break-all">{l.label || l.url}</a>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           <div id="media-kit" className={focus === "media-kit" || hashFocus === "media-kit" ? "rounded-xl border border-indigo-200 bg-indigo-50 p-3" : ""}>
