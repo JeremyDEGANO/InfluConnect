@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Users, Megaphone, UserCheck, Plus, X, Eye, CheckCircle2, HelpCircle } from "lucide-react"
+import { Loader2, ArrowLeft, Users, Megaphone, UserCheck, Plus, X, CheckCircle2, HelpCircle } from "lucide-react"
 import { cn, resolveMediaUrl } from "@/lib/utils"
 import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
 
@@ -89,6 +89,10 @@ export default function NewCampaign() {
   const [form, setForm] = useState({
     title: "",
     description: "",
+    campaign_type: "paid" as "paid" | "gifting",
+    gifting_requires_content: true,
+    products_text: "",
+    shipping_info: "",
     target_audience: "",
     age_ranges: [] as string[],
     audience_cities: [] as string[],
@@ -154,6 +158,13 @@ export default function NewCampaign() {
   ]
 
   const update = (k: string, v: any) => setForm((p) => ({ ...p, [k]: v }))
+  const updateCampaignType = (type: "paid" | "gifting") => {
+    setForm((p) => ({
+      ...p,
+      campaign_type: type,
+      gifting_requires_content: type === "paid" ? true : p.gifting_requires_content,
+    }))
+  }
   const toggle = (key: "themes" | "target_networks", val: string) =>
     setForm((p) => ({
       ...p,
@@ -194,18 +205,54 @@ export default function NewCampaign() {
     return true
   })
 
+  useEffect(() => {
+    if (form.campaign_type === "gifting" && !form.gifting_requires_content && form.content_formats.length > 0) {
+      setForm((p) => ({ ...p, content_formats: [] }))
+    }
+  }, [form.campaign_type, form.gifting_requires_content, form.content_formats.length])
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+
+    const normalizedContentFormats = form.content_formats
+      .filter((cf) => Boolean(cf.code) && Number(cf.quantity) > 0)
+      .map((cf) => ({ code: cf.code, quantity: Math.max(1, Number(cf.quantity) || 1) }))
+
+    if (form.campaign_type === "gifting" && !form.products_text.trim()) {
+      toast({
+        title: t("common.error"),
+        description: t("new_campaign_plus.products_required", "Ajoute au moins un produit pour une campagne gifting."),
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (form.campaign_type === "gifting" && form.gifting_requires_content && normalizedContentFormats.length === 0) {
+      toast({
+        title: t("common.error"),
+        description: t("new_campaign_plus.content_required_formats", "Ajoute au moins un format de contenu si une contrepartie est demandée."),
+        variant: "destructive",
+      })
+      return
+    }
+
     setLoading(true)
     try {
+      const products = form.products_text
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+
       const res = await api.post("/campaigns/", {
         title: form.title,
         description: form.description,
-        campaign_type: "paid",
+        campaign_type: form.campaign_type,
         status: "active",
+        products,
+        shipping_info: form.shipping_info,
         target_networks: form.target_networks,
-        content_formats: form.content_formats,
-        price_per_influencer: form.budget ? parseFloat(form.budget) : null,
+        content_formats: (form.campaign_type === "gifting" && !form.gifting_requires_content) ? [] : normalizedContentFormats,
+        price_per_influencer: form.campaign_type === "paid" && form.budget ? parseFloat(form.budget) : null,
         deadline: form.deadline || null,
         is_casting: form.is_casting,
         max_influencers: Number(form.max_influencers) || 1,
@@ -217,6 +264,7 @@ export default function NewCampaign() {
           audience_genders: form.audience_genders,
           min_followers: form.min_followers ? parseInt(form.min_followers) : null,
           content_themes: form.themes,
+          content_required: form.campaign_type === "paid" ? true : form.gifting_requires_content,
         },
       })
       const campaignId = res.data.id
@@ -288,6 +336,35 @@ export default function NewCampaign() {
               <div className="space-y-4">
                 <CardHeader className="p-0 pb-4"><CardTitle className="text-base">{t("new_campaign.basics")}</CardTitle></CardHeader>
                 <div>
+                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+                    {t("new_campaign_plus.campaign_type", "Type de campagne")}
+                  </Label>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => updateCampaignType("paid")}
+                      className={cn(
+                        "p-4 rounded-xl border-2 text-left transition-all",
+                        form.campaign_type === "paid" ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                      )}
+                    >
+                      <p className="font-semibold text-sm text-gray-900">{t("new_campaign_plus.campaign_type_paid", "Rémunérée")}</p>
+                      <p className="text-xs text-gray-500 mt-1">{t("new_campaign_plus.campaign_type_paid_desc", "Les influenceurs sont payés par publication.")}</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCampaignType("gifting")}
+                      className={cn(
+                        "p-4 rounded-xl border-2 text-left transition-all",
+                        form.campaign_type === "gifting" ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                      )}
+                    >
+                      <p className="font-semibold text-sm text-gray-900">{t("new_campaign_plus.campaign_type_gifting", "Gifting")}</p>
+                      <p className="text-xs text-gray-500 mt-1">{t("new_campaign_plus.campaign_type_gifting_desc", "Non rémunérée, envoi de produits aux influenceurs.")}</p>
+                    </button>
+                  </div>
+                </div>
+                <div>
                   <Label>{t("new_campaign.campaign_title")} *</Label>
                   <Input className="mt-1" placeholder={t("new_campaign_plus.title_placeholder")} value={form.title} onChange={(e) => update("title", e.target.value)} required />
                 </div>
@@ -303,59 +380,91 @@ export default function NewCampaign() {
                     ))}
                   </div>
                 </div>
-                <div>
-                  <Label>{t("new_campaign_plus.content_formats")}</Label>
-                  <p className="text-xs text-gray-500 mt-1 mb-2">{t("new_campaign_plus.content_formats_hint")}</p>
-                  <div className="space-y-2">
-                    {form.content_formats.map((cf, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <select
-                          className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm"
-                          value={cf.code}
-                          onChange={(e) => {
-                            const next = [...form.content_formats]
-                            next[idx] = { ...next[idx], code: e.target.value }
-                            update("content_formats", next)
-                          }}
-                        >
-                          <option value="">{t("new_campaign_plus.pick_placeholder")}</option>
-                          {contentTypeOptions.map((ct) => (
-                            <option key={ct.code} value={ct.code}>{ct.label}</option>
-                          ))}
-                        </select>
-                        <Input
-                          type="number"
-                          min={1}
-                          className="w-20"
-                          value={cf.quantity}
-                          onChange={(e) => {
-                            const next = [...form.content_formats]
-                            next[idx] = { ...next[idx], quantity: Math.max(1, Number(e.target.value) || 1) }
-                            update("content_formats", next)
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600"
-                          onClick={() => update("content_formats", form.content_formats.filter((_, i) => i !== idx))}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => update("content_formats", [...form.content_formats, { code: "", quantity: 1 }])}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />{t("new_campaign_plus.add_format")}
-                    </Button>
+                {form.campaign_type === "gifting" && (
+                  <div>
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+                      {t("new_campaign_plus.gifting_content_question", "Contenu en contrepartie ?")}
+                    </Label>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => update("gifting_requires_content", true)}
+                        className={cn(
+                          "p-3 rounded-xl border text-left text-sm transition-all",
+                          form.gifting_requires_content ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                        )}
+                      >
+                        {t("new_campaign_plus.gifting_content_yes", "Oui, je veux du contenu")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => update("gifting_requires_content", false)}
+                        className={cn(
+                          "p-3 rounded-xl border text-left text-sm transition-all",
+                          !form.gifting_requires_content ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                        )}
+                      >
+                        {t("new_campaign_plus.gifting_content_no", "Non, envoi de produit sans livrable")}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {(form.campaign_type === "paid" || form.gifting_requires_content) && (
+                  <div>
+                    <Label>{t("new_campaign_plus.content_formats")}</Label>
+                    <p className="text-xs text-gray-500 mt-1 mb-2">{t("new_campaign_plus.content_formats_hint")}</p>
+                    <div className="space-y-2">
+                      {form.content_formats.map((cf, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <select
+                            className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            value={cf.code}
+                            onChange={(e) => {
+                              const next = [...form.content_formats]
+                              next[idx] = { ...next[idx], code: e.target.value }
+                              update("content_formats", next)
+                            }}
+                          >
+                            <option value="">{t("new_campaign_plus.pick_placeholder")}</option>
+                            {contentTypeOptions.map((ct) => (
+                              <option key={ct.code} value={ct.code}>{ct.label}</option>
+                            ))}
+                          </select>
+                          <Input
+                            type="number"
+                            min={1}
+                            className="w-20"
+                            value={cf.quantity}
+                            onChange={(e) => {
+                              const next = [...form.content_formats]
+                              next[idx] = { ...next[idx], quantity: Math.max(1, Number(e.target.value) || 1) }
+                              update("content_formats", next)
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600"
+                            onClick={() => update("content_formats", form.content_formats.filter((_, i) => i !== idx))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => update("content_formats", [...form.content_formats, { code: "", quantity: 1 }])}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />{t("new_campaign_plus.add_format")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <Button variant="gradient" className="w-full" disabled={!form.title} onClick={() => setStep(2)}>{t("common.next")}</Button>
               </div>
             )}
@@ -486,6 +595,30 @@ export default function NewCampaign() {
             {step === 3 && (
               <div className="space-y-4">
                 <CardHeader className="p-0 pb-4"><CardTitle className="text-base">{t("new_campaign_plus.mode_step")}</CardTitle></CardHeader>
+
+                {form.campaign_type === "gifting" && (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label>{t("new_campaign_plus.products_list", "Produits à offrir")}</Label>
+                      <textarea
+                        className="mt-1 w-full min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        placeholder={t("new_campaign_plus.products_list_placeholder", "Ex: Serum 30ml\nBox découverte\nBon d'achat")}
+                        value={form.products_text}
+                        onChange={(e) => update("products_text", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>{t("new_campaign_plus.shipping_info", "Infos d'expédition")}</Label>
+                      <textarea
+                        className="mt-1 w-full min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        placeholder={t("new_campaign_plus.shipping_info_placeholder", "Délais, transporteur, zones livrées, contraintes...")}
+                        value={form.shipping_info}
+                        onChange={(e) => update("shipping_info", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid sm:grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -633,18 +766,28 @@ export default function NewCampaign() {
             {step === 4 && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <CardHeader className="p-0 pb-4"><CardTitle className="text-base">{t("new_campaign.budget_launch")}</CardTitle></CardHeader>
-                <div>
-                  <Label>{t("new_campaign_plus.price_per_influencer")} *</Label>
-                  <Input className="mt-1" type="number" placeholder="2000" value={form.budget} onChange={(e) => update("budget", e.target.value)} required />
-                  <p className="text-xs text-gray-400 mt-1">
-                    {t("new_campaign_plus.total_budget")}: €{((parseFloat(form.budget) || 0) * form.max_influencers).toFixed(2)}
-                  </p>
-                </div>
+                {form.campaign_type === "paid" ? (
+                  <div>
+                    <Label>{t("new_campaign_plus.price_per_influencer")} *</Label>
+                    <Input className="mt-1" type="number" placeholder="2000" value={form.budget} onChange={(e) => update("budget", e.target.value)} required />
+                    <p className="text-xs text-gray-400 mt-1">
+                      {t("new_campaign_plus.total_budget")}: €{((parseFloat(form.budget) || 0) * form.max_influencers).toFixed(2)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+                    {t("new_campaign_plus.gifting_budget_hint", "Campagne gifting: pas de rémunération directe, les produits sont envoyés aux influenceurs.")}
+                  </div>
+                )}
                 <div className="p-4 bg-indigo-50 rounded-xl text-sm space-y-1">
                   <p className="font-semibold text-indigo-800 mb-2">{t("new_campaign.summary")}</p>
                   <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_title")}:</span> {form.title || "—"}</p>
+                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.campaign_type", "Type de campagne")}:</span> {form.campaign_type === "gifting" ? t("new_campaign_plus.campaign_type_gifting", "Gifting") : t("new_campaign_plus.campaign_type_paid", "Rémunérée")}</p>
+                  {form.campaign_type === "gifting" && (
+                    <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.gifting_content_question", "Contenu en contrepartie ?")}:</span> {form.gifting_requires_content ? t("common.yes", "Oui") : t("common.no", "Non")}</p>
+                  )}
                   <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_themes")}:</span> {form.themes.join(", ") || "—"}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.content_formats")}:</span> {form.content_formats.length > 0 ? form.content_formats.map((cf) => `${cf.quantity}x ${contentTypeOptions.find((c) => c.code === cf.code)?.label || cf.code}`).join(", ") : "—"}</p>
+                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.content_formats")}:</span> {(form.campaign_type === "gifting" && !form.gifting_requires_content) ? t("new_campaign_plus.no_content_expected", "Aucun contenu attendu") : (form.content_formats.length > 0 ? form.content_formats.map((cf) => `${cf.quantity}x ${contentTypeOptions.find((c) => c.code === cf.code)?.label || cf.code}`).join(", ") : "—")}</p>
                   <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.target_networks")}:</span> {form.target_networks.join(", ") || "—"}</p>
                   <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.mode_label")}:</span> {form.is_casting ? t("new_campaign_plus.mode_casting_title") : t("new_campaign_plus.mode_direct_title")}</p>
                   <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.max_influencers")}:</span> {form.max_influencers}</p>
@@ -652,11 +795,11 @@ export default function NewCampaign() {
                     <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.picked")}:</span> {selectedIds.size}</p>
                   )}
                   <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_deadline")}:</span> {form.deadline || "—"}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_budget")}:</span> {form.budget ? `€${form.budget}` : "—"}</p>
+                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_budget")}:</span> {form.campaign_type === "paid" ? (form.budget ? `€${form.budget}` : "—") : t("new_campaign_plus.not_paid", "Non rémunérée")}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(3)}>{t("common.back")}</Button>
-                  <Button type="submit" variant="gradient" className="flex-1" disabled={loading || !form.budget}>
+                  <Button type="submit" variant="gradient" className="flex-1" disabled={loading || (form.campaign_type === "paid" && !form.budget)}>
                     {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.loading")}</> : t("campaigns.launch")}
                   </Button>
                 </div>

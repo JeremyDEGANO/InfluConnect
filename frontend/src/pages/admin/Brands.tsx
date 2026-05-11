@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, CheckCircle, XCircle } from "lucide-react"
+import { Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react"
 
 export default function AdminBrands() {
   const { t } = useTranslation()
@@ -13,6 +13,7 @@ export default function AdminBrands() {
   const [items, setItems] = useState<BrandPending[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<number | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -25,7 +26,7 @@ export default function AdminBrands() {
     try {
       await approveBrand(id)
       toast({ title: t("admin_brands.approved", "Marque approuvée") })
-      load()
+      setItems((prev) => prev.filter((it) => it.id !== id))
     } catch { toast({ variant: "destructive", title: t("common.error") }) }
     finally { setBusy(null) }
   }
@@ -36,7 +37,7 @@ export default function AdminBrands() {
     try {
       await rejectBrand(id, reason)
       toast({ title: t("admin_brands.rejected", "Marque refusée") })
-      load()
+      setItems((prev) => prev.filter((it) => it.id !== id))
     } catch { toast({ variant: "destructive", title: t("common.error") }) }
     finally { setBusy(null) }
   }
@@ -54,28 +55,50 @@ export default function AdminBrands() {
           ) : (
             <div className="space-y-3">
               {items.map((b) => (
-                <div key={b.id} className="border border-gray-100 rounded-xl p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-900">{b.company_name}</p>
-                    <p className="text-xs text-gray-500">{b.user_name} · {b.user_email}</p>
-                    {b.siret && <p className="text-xs text-gray-400 mt-0.5">SIRET: {b.siret}</p>}
-                    <p className="text-xs text-gray-400 mt-1">{new Date(b.created_at).toLocaleDateString()}</p>
+                <div key={b.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      className="text-left"
+                      onClick={() => setExpandedId((current) => (current === b.id ? null : b.id))}
+                    >
+                      <p className="font-semibold text-gray-900 flex items-center gap-1">
+                        {expandedId === b.id ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                        {b.company_name}
+                      </p>
+                      <p className="text-xs text-gray-500">{b.user_name} · {b.user_email}</p>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={b.validation_status === "pending" ? "outline" : b.validation_status === "approved" ? "purple" : "destructive"}>
+                        {b.validation_status}
+                      </Badge>
+                      {b.validation_status === "pending" && (
+                        <>
+                          <Button size="sm" variant="gradient" disabled={busy === b.id} onClick={() => approve(b.id)}>
+                            <CheckCircle className="h-4 w-4 mr-1" />{t("admin_brands.approve", "Approuver")}
+                          </Button>
+                          <Button size="sm" variant="destructive" disabled={busy === b.id} onClick={() => reject(b.id)}>
+                            <XCircle className="h-4 w-4 mr-1" />{t("admin_brands.reject", "Refuser")}
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={b.validation_status === "pending" ? "outline" : b.validation_status === "approved" ? "purple" : "destructive"}>
-                      {b.validation_status}
-                    </Badge>
-                    {b.validation_status === "pending" && (
-                      <>
-                        <Button size="sm" variant="gradient" disabled={busy === b.id} onClick={() => approve(b.id)}>
-                          <CheckCircle className="h-4 w-4 mr-1" />{t("admin_brands.approve", "Approuver")}
-                        </Button>
-                        <Button size="sm" variant="destructive" disabled={busy === b.id} onClick={() => reject(b.id)}>
-                          <XCircle className="h-4 w-4 mr-1" />{t("admin_brands.reject", "Refuser")}
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                  {expandedId === b.id && (
+                    <div className="grid md:grid-cols-2 gap-3 text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                      {b.logo && (
+                        <div className="md:col-span-2">
+                          <img src={b.logo} alt={b.company_name} className="h-16 w-16 rounded-lg border border-gray-200 object-cover" />
+                        </div>
+                      )}
+                      <p><span className="text-gray-400">SIRET: </span>{b.siret || "-"}</p>
+                      <p><span className="text-gray-400">Secteur: </span>{b.sector || "-"}</p>
+                      <p className="md:col-span-2"><span className="text-gray-400">Site: </span>{b.website || "-"}</p>
+                      <p className="md:col-span-2"><span className="text-gray-400">Description: </span>{b.description || "-"}</p>
+                      <p><span className="text-gray-400">Créé le: </span>{new Date(b.created_at).toLocaleDateString()}</p>
+                      <p><span className="text-gray-400">Note admin: </span>{b.validation_notes || "-"}</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -88,11 +88,18 @@ export default function BrandOnboarding() {
             <p className="text-sm text-gray-600 mt-3">{t("brand_onboarding.rejected_desc", "Corrigez les éléments puis soumettez à nouveau votre profil.")}</p>
           </CardContent>
         </Card>
-      ) : (
+      ) : status.validation_status === "pending" ? (
         <Card className="card-base border-l-4 border-l-purple-500">
           <CardContent className="py-6">
             <p className="font-semibold text-gray-900">{t("brand_onboarding.pending_title", "Validation en cours")}</p>
             <p className="text-sm text-gray-600 mt-1">{t("brand_onboarding.pending_desc", "Votre profil est en attente de validation par notre équipe (48h ouvrées max).")}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="card-base border-l-4 border-l-slate-400">
+          <CardContent className="py-6">
+            <p className="font-semibold text-gray-900">{t("brand_onboarding.draft_title", "Profil à compléter")}</p>
+            <p className="text-sm text-gray-600 mt-1">{t("brand_onboarding.draft_desc", "Complétez les informations requises puis soumettez votre dossier à validation.")}</p>
           </CardContent>
         </Card>
       )}

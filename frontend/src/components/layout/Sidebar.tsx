@@ -1,46 +1,55 @@
 import { useEffect, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import api from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { fetchOnboarding, fetchBrandOnboarding } from "@/lib/apiExtra"
+import { fetchOnboarding } from "@/lib/apiExtra"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard, FileText, DollarSign, User, Briefcase, PlusCircle,
   CreditCard, ChevronLeft, ChevronRight, Shield, Sparkles, Star, ScrollText, Building2,
-  Bell, Megaphone, Crown, Users, LifeBuoy,
+  Bell, Megaphone, Crown, Users, LifeBuoy, MessageSquare, CalendarCheck,
 } from "lucide-react"
 
 interface NavItem { label: string; href: string; icon: React.ElementType }
 
+interface ConversationItem {
+  unread_count?: number
+}
+
 const INFLUENCER_NAV: NavItem[] = [
   { label: "nav.dashboard", href: "/influencer/dashboard", icon: LayoutDashboard },
   { label: "nav.onboarding", href: "/influencer/onboarding", icon: Sparkles },
-  { label: "nav.media_kit", href: "/influencer/media-kit", icon: FileText },
+  { label: "nav.message", href: "/influencer/messages", icon: MessageSquare },
+  { label: "nav.events", href: "/influencer/events", icon: CalendarCheck },
   { label: "nav.proposals", href: "/influencer/proposals", icon: FileText },
   { label: "nav.castings", href: "/influencer/castings", icon: Megaphone },
   { label: "nav.contracts", href: "/influencer/contracts", icon: FileText },
-  { label: "nav.delegations", href: "/influencer/delegations", icon: Crown },
   { label: "nav.earnings", href: "/influencer/earnings", icon: DollarSign },
+  { label: "nav.media_kit", href: "/influencer/media-kit", icon: FileText },
   { label: "nav.notifications", href: "/influencer/notifications", icon: Bell },
   { label: "nav.profile", href: "/influencer/profile/edit", icon: User },
   { label: "nav.support", href: "/influencer/support", icon: LifeBuoy },
+  { label: "nav.delegations", href: "/influencer/delegations", icon: Crown },
 ]
 
 const BRAND_NAV: NavItem[] = [
   { label: "nav.dashboard", href: "/brand/dashboard", icon: LayoutDashboard },
-  { label: "nav.brand_onboarding", href: "/brand/onboarding", icon: Sparkles },
   { label: "nav.campaigns", href: "/brand/campaigns", icon: Briefcase },
   { label: "campaigns.new_campaign", href: "/brand/campaigns/new", icon: PlusCircle },
+  { label: "nav.events", href: "/brand/events", icon: CalendarCheck },
+  { label: "nav.marketplace", href: "/marketplace", icon: Users },
+  { label: "nav.message", href: "/brand/messages", icon: MessageSquare },
+  { label: "nav.notifications", href: "/brand/notifications", icon: Bell },
   { label: "nav.castings", href: "/brand/castings", icon: Megaphone },
   { label: "nav.contracts", href: "/brand/contracts", icon: FileText },
   { label: "nav.team", href: "/brand/team", icon: Users },
-  { label: "nav.delegations", href: "/brand/delegations", icon: Crown },
-  { label: "nav.ambassadors", href: "/brand/ambassadors", icon: Crown },
-  { label: "nav.contract_templates", href: "/brand/contract-templates", icon: ScrollText },
-  { label: "nav.notifications", href: "/brand/notifications", icon: Bell },
   { label: "nav.profile", href: "/brand/profile/edit", icon: User },
   { label: "nav.subscription", href: "/brand/subscription", icon: CreditCard },
   { label: "nav.support", href: "/brand/support", icon: LifeBuoy },
+  { label: "nav.ambassadors", href: "/brand/ambassadors", icon: Crown },
+  { label: "nav.contract_templates", href: "/brand/contract-templates", icon: ScrollText },
+  { label: "nav.brand_onboarding", href: "/brand/onboarding", icon: Sparkles },
 ]
 
 const ADMIN_NAV: NavItem[] = [
@@ -56,11 +65,12 @@ const ADMIN_NAV: NavItem[] = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null)
-  const [brandApproved, setBrandApproved] = useState<boolean | null>(null)
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const { user } = useAuth()
   const { t } = useTranslation()
   const location = useLocation()
   const isAgency = Boolean((user as { brand_profile?: { is_agency?: boolean } } | null)?.brand_profile?.is_agency)
+  const brandApproved = ((user as { brand_profile?: { validation_status?: string } } | null)?.brand_profile?.validation_status) === "approved"
 
   useEffect(() => {
     if (user?.user_type !== "influencer") {
@@ -73,18 +83,43 @@ export function Sidebar() {
   }, [user?.user_type])
 
   useEffect(() => {
-    if (user?.user_type !== "brand") {
-      setBrandApproved(null)
+    if (!user || (user.user_type !== "brand" && user.user_type !== "influencer")) {
+      setUnreadMessages(0)
       return
     }
-    fetchBrandOnboarding()
-      .then((s) => setBrandApproved(s.validation_status === "approved"))
-      .catch(() => setBrandApproved(null))
-  }, [user?.user_type])
+
+    let cancelled = false
+    const loadUnread = async () => {
+      try {
+        const res = await api.get("/conversations/")
+        const list = Array.isArray(res.data)
+          ? (res.data as ConversationItem[])
+          : Array.isArray(res.data?.results)
+            ? (res.data.results as ConversationItem[])
+            : []
+        const total = list.reduce((sum, c) => sum + (c.unread_count || 0), 0)
+        if (!cancelled) setUnreadMessages(total)
+      } catch {
+        if (!cancelled) setUnreadMessages(0)
+      }
+    }
+
+    loadUnread()
+    const onUnreadRefresh = () => {
+      loadUnread()
+    }
+    window.addEventListener("messages:unread-refresh", onUnreadRefresh)
+    const timer = setInterval(loadUnread, 30000)
+    return () => {
+      cancelled = true
+      window.removeEventListener("messages:unread-refresh", onUnreadRefresh)
+      clearInterval(timer)
+    }
+  }, [user])
 
   const items = user?.user_type === "brand"
     ? BRAND_NAV.filter((item) => {
-        if (item.href === "/brand/onboarding" && brandApproved === true) return false
+        if (item.href === "/brand/onboarding" && brandApproved) return false
         if (isAgency && (item.href === "/brand/campaigns" || item.href === "/brand/campaigns/new" || item.href === "/brand/castings")) {
           return false
         }
@@ -112,14 +147,26 @@ export function Sidebar() {
               key={item.href}
               to={item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
                 active
                   ? "bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-700 border border-indigo-100"
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               )}
             >
               <Icon className={cn("h-4.5 w-4.5 shrink-0", active ? "text-indigo-600" : "text-gray-400")} style={{ width: "18px", height: "18px" }} />
-              {!collapsed && <span className="truncate">{t(item.label)}</span>}
+              {!collapsed && (
+                <span className="truncate flex-1">{t(item.label)}</span>
+              )}
+              {item.href.includes("/messages") && unreadMessages > 0 && (
+                <span
+                  className={cn(
+                    "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white",
+                    collapsed && "absolute right-2 top-2 h-4 min-w-4 px-1 text-[10px]"
+                  )}
+                >
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
+                </span>
+              )}
             </Link>
           )
         })}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
+import { openProtectedFile } from "@/lib/apiExtra"
 import { fetchProposalMessages, sendProposalMessage, cancelProposal, deleteCampaign, generateContractPdf, fetchContractTemplates, fundEscrow } from "@/lib/apiExtra"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -567,15 +568,9 @@ export default function CampaignDetail() {
                         </Button>
                       )}
                       {p.contract_pdf && (
-                        <a
-                          href={`${p.contract_pdf}${p.contract_pdf.includes("?") ? "&" : "?"}v=${encodeURIComponent(`${p.contract_version ?? ""}-${p.brand_signed_at ?? ""}-${p.influencer_signed_at ?? ""}`)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <Button size="sm" variant="outline">
-                            <Eye className="h-3.5 w-3.5 mr-1" />Voir contrat
-                          </Button>
-                        </a>
+                        <Button size="sm" variant="outline" onClick={() => p.contract_pdf && openProtectedFile(p.contract_pdf)}>
+                          <Eye className="h-3.5 w-3.5 mr-1" />Voir contrat
+                        </Button>
                       )}
                       {["pending", "counter_offer", "content_submitted"].includes(p.status) && (
                         <Button size="sm" variant="gradient" onClick={() => navigate(`/brand/proposals/${p.id}`)}>{t("campaign_detail.review")}</Button>

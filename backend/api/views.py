@@ -3,13 +3,16 @@ import base64
 import binascii
 import logging
 from django.db.models.functions import Lower
+from django.db import models
 from django.conf import settings as django_settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.core.files.base import ContentFile
+from django.http import FileResponse
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q, Sum, Avg
 from rest_framework import generics, status, viewsets
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -18,22 +21,53 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import (
     User, InfluencerProfile, SocialNetwork, BrandProfile,
-    Campaign, CampaignProposal, ContentSubmission,
-    Message, Review, Notification, PlatformSettings, AuditLog,
+    Campaign, CampaignProposal, Event, EventInvitation, ContentSubmission,
+    Message, DirectMessage, Review, Notification, PlatformSettings, AuditLog,
 )
 from .serializers import (
     UserSerializer, InfluencerProfileSerializer, InfluencerProfileWithPaymentSerializer,
     SocialNetworkSerializer, BrandProfileSerializer,
-    CampaignSerializer, CampaignProposalSerializer, ContentSubmissionSerializer,
-    MessageSerializer, ReviewSerializer, NotificationSerializer, PlatformSettingsSerializer,
-    RegisterSerializer, LoginSerializer,
+    CampaignSerializer, CampaignProposalSerializer, EventSerializer, EventInvitationSerializer, ContentSubmissionSerializer,
+    MessageSerializer, DirectMessageSerializer, ReviewSerializer, NotificationSerializer, PlatformSettingsSerializer,
+    RegisterSerializer, LoginSerializer, _abs_media_url,
 )
 from .services import email_service, stripe_service
 from .services.pdf_service import generate_contract_pdf
 from .constants import CONTENT_THEMES
+from cryptography.fernet import Fernet, InvalidToken
+import hashlib
 
 
 logger = logging.getLogger(__name__)
+
+
+def _message_fernet() -> Fernet:
+    key = getattr(django_settings, 'FERNET_KEY', None)
+    if not key:
+        raw = b'influconnect-default-encryption-key-32b!'
+        key = base64.urlsafe_b64encode(hashlib.sha256(raw).digest())
+    elif isinstance(key, str):
+        key = key.encode()
+    return Fernet(key)
+
+
+def _encrypt_message_text(value: str) -> str:
+    plain = (value or '').strip()
+    if not plain:
+        return ''
+    token = _message_fernet().encrypt(plain.encode('utf-8')).decode('utf-8')
+    return f'enc:v1:{token}'
+
+
+def _decrypt_message_text(value: str) -> str:
+    raw = value or ''
+    if not raw.startswith('enc:v1:'):
+        return raw
+    token = raw[len('enc:v1:'):]
+    try:
+        return _message_fernet().decrypt(token.encode('utf-8')).decode('utf-8')
+    except (InvalidToken, ValueError):
+        return ''
 
 
 def _shift_month_start(value, months_back):
@@ -94,6 +128,22 @@ def create_notification(user, notification_type, title, message, proposal=None):
         message=message,
         related_proposal=proposal,
     )
+
+
+def _conversation_display_name(user):
+    if getattr(user, "user_type", "") == "influencer":
+        try:
+            pseudo = (user.influencer_profile.display_name or "").strip()
+        except InfluencerProfile.DoesNotExist:
+            pseudo = ""
+        return pseudo or user.username
+    if getattr(user, "user_type", "") == "brand":
+        try:
+            company = (user.brand_profile.company_name or "").strip()
+        except BrandProfile.DoesNotExist:
+            company = ""
+        return company or user.username
+    return user.username
 
 
 SIGN_SESSION_TTL_SECONDS = 60 * 60
@@ -879,6 +929,266 @@ class CampaignSendProposalsView(APIView):
         return Response({"created": created, "skipped": skipped}, status=status.HTTP_201_CREATED)
 
 
+class EventViewSet(viewsets.ModelViewSet):
+    serializer_class = EventSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.user_type == "brand":
+            try:
+                return Event.objects.filter(brand=user.brand_profile).prefetch_related('invitations__influencer__user', 'invitations__checked_in_by').order_by('-starts_at')
+            except BrandProfile.DoesNotExist:
+                return Event.objects.none()
+        if user.user_type == "influencer":
+            try:
+                influencer = user.influencer_profile
+            except InfluencerProfile.DoesNotExist:
+                return Event.objects.none()
+            return Event.objects.filter(invitations__influencer=influencer).distinct().order_by('-starts_at')
+        return Event.objects.none()
+
+    def perform_create(self, serializer):
+        if self.request.user.user_type != "brand":
+            raise PermissionDenied("Only brands can create events.")
+        try:
+            brand = self.request.user.brand_profile
+        except BrandProfile.DoesNotExist:
+            raise PermissionDenied("Brand profile not found.")
+        if brand.validation_status != "approved":
+            raise PermissionDenied("Your brand account must be approved before creating events.")
+        serializer.save(brand=brand)
+
+    def perform_destroy(self, instance):
+        if instance.brand.user != self.request.user and not self.request.user.is_staff:
+            raise PermissionDenied("You do not own this event.")
+        instance.delete()
+
+
+class EventInviteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            event = Event.objects.get(pk=pk, brand__user=request.user)
+        except Event.DoesNotExist:
+            return Response({"detail": "Event not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        influencer_ids = request.data.get("influencer_ids", []) or []
+        invited_emails = request.data.get("invited_emails", []) or []
+        max_plus_ones = int(request.data.get("max_plus_ones", 0) or 0)
+        max_plus_ones = max(0, min(max_plus_ones, 2))
+        created_ids = []
+        skipped_ids = []
+        external_created = []
+        external_skipped = []
+
+        for inf_id in influencer_ids:
+            try:
+                influencer = InfluencerProfile.objects.select_related('user').get(pk=inf_id)
+            except InfluencerProfile.DoesNotExist:
+                skipped_ids.append(inf_id)
+                continue
+
+            invitation, created = EventInvitation.objects.get_or_create(
+                event=event,
+                influencer=influencer,
+                defaults={"max_plus_ones": max_plus_ones},
+            )
+            if not created:
+                invitation.max_plus_ones = max_plus_ones
+                invitation.status = 'pending'
+                invitation.plus_ones_confirmed = 0
+                invitation.response_message = ''
+                invitation.responded_at = None
+                invitation.save(update_fields=['max_plus_ones', 'status', 'plus_ones_confirmed', 'response_message', 'responded_at', 'updated_at'])
+
+            created_ids.append(influencer.id)
+
+            if influencer.user.email:
+                frontend_url = getattr(django_settings, 'FRONTEND_URL', '').rstrip('/')
+                rsvp_url = f"{frontend_url}/events/rsvp/{invitation.invite_token}"
+                email_service.send_event_invitation(
+                    influencer_email=influencer.user.email,
+                    event_title=event.title,
+                    event_address=event.address,
+                    starts_at_label=timezone.localtime(event.starts_at).strftime('%d/%m/%Y %H:%M'),
+                    rsvp_url=rsvp_url,
+                    max_plus_ones=max_plus_ones,
+                )
+
+        for raw_email in invited_emails:
+            email = str(raw_email or '').strip().lower()
+            if not email:
+                continue
+            invitation, created = EventInvitation.objects.get_or_create(
+                event=event,
+                invited_email=email,
+                defaults={
+                    'max_plus_ones': max_plus_ones,
+                    'influencer': None,
+                },
+            )
+            if not created:
+                external_skipped.append(email)
+                continue
+
+            external_created.append(email)
+            frontend_url = getattr(django_settings, 'FRONTEND_URL', '').rstrip('/')
+            rsvp_url = f"{frontend_url}/events/rsvp/{invitation.invite_token}"
+            email_service.send_event_invitation(
+                influencer_email=email,
+                event_title=event.title,
+                event_address=event.address,
+                starts_at_label=timezone.localtime(event.starts_at).strftime('%d/%m/%Y %H:%M'),
+                rsvp_url=rsvp_url,
+                max_plus_ones=max_plus_ones,
+            )
+
+        return Response({
+            "created": created_ids,
+            "skipped": skipped_ids,
+            "external_created": external_created,
+            "external_skipped": external_skipped,
+        }, status=status.HTTP_201_CREATED)
+
+
+class EventInvitationListView(generics.ListAPIView):
+    serializer_class = EventInvitationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        token = (self.request.query_params.get('invitation') or '').strip()
+        if user.user_type == 'influencer':
+            try:
+                influencer = user.influencer_profile
+            except InfluencerProfile.DoesNotExist:
+                return EventInvitation.objects.none()
+            qs = EventInvitation.objects.filter(influencer=influencer).select_related('event', 'event__brand__user', 'influencer__user')
+            if token:
+                qs = qs.filter(invite_token=token)
+            return qs.order_by('-created_at')
+        if user.user_type == 'brand':
+            try:
+                brand = user.brand_profile
+            except BrandProfile.DoesNotExist:
+                return EventInvitation.objects.none()
+            return EventInvitation.objects.filter(event__brand=brand).select_related('event', 'influencer__user', 'checked_in_by').order_by('-created_at')
+        return EventInvitation.objects.none()
+
+
+class EventInvitationRespondView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = (request.data.get('invitation_token') or '').strip()
+        status_value = (request.data.get('status') or '').strip().lower()
+        plus_ones = int(request.data.get('plus_ones', 0) or 0)
+        message = (request.data.get('response_message') or '').strip()
+
+        if status_value not in {'accepted', 'declined'}:
+            return Response({'detail': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not token:
+            return Response({'detail': 'invitation_token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            invitation = EventInvitation.objects.select_related('event', 'event__brand__user', 'influencer__user').get(
+                invite_token=token,
+            )
+        except EventInvitation.DoesNotExist:
+            return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if invitation.influencer_id and getattr(request.user, 'is_authenticated', False):
+            if request.user.user_type == 'influencer':
+                try:
+                    if invitation.influencer_id != request.user.influencer_profile.id:
+                        return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+                except InfluencerProfile.DoesNotExist:
+                    return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if plus_ones < 0:
+            plus_ones = 0
+        if plus_ones > invitation.max_plus_ones:
+            return Response({'detail': f'Maximum +{invitation.max_plus_ones} allowed for this invitation.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        invitation.status = status_value
+        invitation.plus_ones_confirmed = plus_ones if status_value == 'accepted' else 0
+        invitation.response_message = message
+        invitation.responded_at = timezone.now()
+        invitation.save(update_fields=['status', 'plus_ones_confirmed', 'response_message', 'responded_at', 'updated_at'])
+
+        recipient_email = invitation.invited_email or (invitation.influencer.user.email if invitation.influencer_id else '')
+        if recipient_email:
+            status_label = 'Présent' if status_value == 'accepted' else 'Absent'
+            email_service.send_event_rsvp_confirmation(
+                recipient_email=recipient_email,
+                event_title=invitation.event.title,
+                status_label=status_label,
+                plus_ones_confirmed=invitation.plus_ones_confirmed,
+            )
+
+        return Response(EventInvitationSerializer(invitation, context={'request': request}).data, status=status.HTTP_200_OK)
+
+
+class EventInvitationDetailByTokenView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, invite_token):
+        try:
+            invitation = EventInvitation.objects.select_related('event', 'influencer__user', 'checked_in_by').get(invite_token=invite_token)
+        except EventInvitation.DoesNotExist:
+            return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(EventInvitationSerializer(invitation, context={'request': request}).data)
+
+
+class EventCheckInView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.user_type != 'brand':
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        token = str(request.data.get('invitation_token') or '').strip()
+        qr_payload = str(request.data.get('qr_payload') or '').strip()
+
+        if not token and qr_payload.startswith('IC-EVT:'):
+            parts = qr_payload.split(':', 2)
+            if len(parts) == 3:
+                token = parts[2]
+
+        if not token:
+            return Response({'detail': 'invitation_token or qr_payload is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            invitation = EventInvitation.objects.select_related('event__brand', 'influencer__user').get(invite_token=token)
+        except EventInvitation.DoesNotExist:
+            return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            brand = request.user.brand_profile
+        except BrandProfile.DoesNotExist:
+            return Response({'detail': 'Brand profile not found.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if invitation.event.brand_id != brand.id:
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        if invitation.status != 'accepted':
+            return Response({'detail': 'Invitation is not accepted yet.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        already = bool(invitation.checked_in_at)
+        if not already:
+            invitation.checked_in_at = timezone.now()
+            invitation.checked_in_by = request.user
+            invitation.save(update_fields=['checked_in_at', 'checked_in_by', 'updated_at'])
+
+        return Response({
+            'checked_in': True,
+            'already_checked_in': already,
+            'invitation': EventInvitationSerializer(invitation, context={'request': request}).data,
+        })
+
+
 # ---------------------------------------------------------------------------
 # Proposal helpers
 # ---------------------------------------------------------------------------
@@ -1326,7 +1636,7 @@ class ProposalSubmitContentView(APIView):
         serializer = ContentSubmissionSerializer(data=data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        serializer.save()
+        submission = serializer.save()
 
         proposal.status = "content_submitted"
         # Brand has 5 days to validate (CDC §2.2)
@@ -1343,7 +1653,7 @@ class ProposalSubmitContentView(APIView):
             ),
             proposal=proposal,
         )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(ContentSubmissionSerializer(submission, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class ProposalLatestSubmissionView(APIView):
@@ -1358,7 +1668,50 @@ class ProposalLatestSubmissionView(APIView):
         if not submission:
             return Response({"detail": "No submission found."}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response(ContentSubmissionSerializer(submission).data)
+        return Response(ContentSubmissionSerializer(submission, context={"request": request}).data)
+
+
+class ProposalSubmissionAssetView(APIView):
+    """Serve submission files/screenshots only to related brand/influencer participants."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, submission_id, asset):
+        try:
+            submission = ContentSubmission.objects.select_related(
+                'proposal__campaign__brand', 'proposal__influencer',
+            ).get(pk=submission_id)
+        except ContentSubmission.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        proposal = submission.proposal
+        user = request.user
+        is_participant = (
+            (user.user_type == "influencer"
+             and hasattr(user, "influencer_profile")
+             and proposal.influencer == user.influencer_profile)
+            or (user.user_type == "brand"
+                and hasattr(user, "brand_profile")
+                and proposal.campaign.brand == user.brand_profile)
+            or user.is_staff
+        )
+        if not is_participant:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        if asset == 'uploaded_file':
+            file_field = submission.uploaded_file
+        elif asset == 'screenshot':
+            file_field = submission.screenshot
+        else:
+            return Response({"detail": "Invalid asset."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not file_field:
+            return Response({"detail": "File not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return FileResponse(
+            file_field.open('rb'),
+            as_attachment=False,
+            filename=file_field.name.rsplit('/', 1)[-1],
+        )
 
 
 class ProposalValidateContentView(APIView):
@@ -1520,9 +1873,18 @@ class MessageListView(generics.ListAPIView):
 
         return Message.objects.filter(proposal=proposal).order_by("created_at")
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        Message.objects.filter(
+            proposal_id=self.kwargs.get("pk"),
+            read=False,
+        ).exclude(sender=request.user).update(read=True)
+        return response
+
 
 class MessageCreateView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request, pk):
         try:
@@ -1543,8 +1905,17 @@ class MessageCreateView(APIView):
         if not is_participant:
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
+        content = (request.data.get("content") or "").strip()
+        attachment = request.FILES.get("attachments") or request.data.get("attachments")
+        if not content and not attachment:
+            return Response(
+                {"detail": "content or attachments is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         data = request.data.copy()
         data["proposal"] = pk
+        data["content"] = _encrypt_message_text(content)
         serializer = MessageSerializer(data=data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1563,6 +1934,258 @@ class MessageCreateView(APIView):
             proposal=proposal,
         )
         return Response(MessageSerializer(msg, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class ProposalContractDownloadView(APIView):
+    """Serve proposal contract PDF only to the related brand/influencer participants."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            proposal = CampaignProposal.objects.select_related(
+                'campaign__brand', 'influencer',
+            ).get(pk=pk)
+        except CampaignProposal.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not proposal.contract_pdf:
+            return Response({"detail": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        is_participant = (
+            (user.user_type == "influencer"
+             and hasattr(user, "influencer_profile")
+             and proposal.influencer == user.influencer_profile)
+            or (user.user_type == "brand"
+                and hasattr(user, "brand_profile")
+                and proposal.campaign.brand == user.brand_profile)
+            or user.is_staff
+        )
+        if not is_participant:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        return FileResponse(
+            proposal.contract_pdf.open('rb'),
+            as_attachment=False,
+            filename=proposal.contract_pdf.name.rsplit('/', 1)[-1],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Direct message views
+# ---------------------------------------------------------------------------
+
+class ConversationsListView(generics.ListAPIView):
+    """Get all conversations (direct messages + campaign proposals with messages)."""
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request, *args, **kwargs):
+        user = request.user
+        conversations = []
+        
+        # Add direct message conversations
+        dm_users = set()
+        dm_qs = DirectMessage.objects.filter(
+            models.Q(sender=user) | models.Q(recipient=user)
+        ).order_by('-created_at')
+        
+        for dm in dm_qs:
+            other_user = dm.recipient if dm.sender == user else dm.sender
+            if other_user.id not in dm_users:
+                dm_users.add(other_user.id)
+                last_dm = dm_qs.filter(
+                    models.Q(sender=user, recipient=other_user) |
+                    models.Q(sender=other_user, recipient=user)
+                ).first()
+                
+                conversations.append({
+                    'type': 'direct',
+                    'id': f'dm_{other_user.id}',
+                    'other_user': {
+                        'id': other_user.id,
+                        'username': _conversation_display_name(other_user),
+                        'avatar': _abs_media_url(request, getattr(other_user, 'avatar', None))
+                    },
+                    'last_message': _decrypt_message_text(last_dm.content) if last_dm else '',
+                    'created_at': last_dm.created_at if last_dm else None,
+                    'unread_count': DirectMessage.objects.filter(
+                        sender=other_user,
+                        recipient=user,
+                        read=False,
+                    ).count(),
+                })
+        
+        # Add campaign proposal conversations (if has messages)
+        if user.user_type == "brand":
+            try:
+                brand = user.brand_profile
+                proposals = CampaignProposal.objects.filter(campaign__brand=brand, messages__isnull=False).distinct().order_by('-updated_at')
+                for proposal in proposals:
+                    last_msg = proposal.messages.order_by('-created_at').first()
+                    if last_msg:
+                        conversations.append({
+                            'type': 'campaign',
+                            'id': f'campaign_{proposal.id}',
+                            'proposal_id': proposal.id,
+                            'campaign': proposal.campaign.title,
+                            'other_user': {
+                                'id': proposal.influencer.user.id,
+                                'username': _conversation_display_name(proposal.influencer.user),
+                                'avatar': _abs_media_url(request, getattr(proposal.influencer.user, 'avatar', None))
+                            },
+                            'last_message': _decrypt_message_text(last_msg.content),
+                            'created_at': last_msg.created_at,
+                            'unread_count': proposal.messages.filter(read=False).exclude(sender=user).count(),
+                        })
+            except BrandProfile.DoesNotExist:
+                pass
+        elif user.user_type == "influencer":
+            try:
+                influencer = user.influencer_profile
+                proposals = CampaignProposal.objects.filter(influencer=influencer, messages__isnull=False).distinct().order_by('-updated_at')
+                for proposal in proposals:
+                    last_msg = proposal.messages.order_by('-created_at').first()
+                    if last_msg:
+                        conversations.append({
+                            'type': 'campaign',
+                            'id': f'campaign_{proposal.id}',
+                            'proposal_id': proposal.id,
+                            'campaign': proposal.campaign.title,
+                            'other_user': {
+                                'id': proposal.campaign.brand.user.id,
+                                'username': _conversation_display_name(proposal.campaign.brand.user),
+                                'avatar': _abs_media_url(request, getattr(proposal.campaign.brand.user, 'avatar', None))
+                            },
+                            'last_message': _decrypt_message_text(last_msg.content),
+                            'created_at': last_msg.created_at,
+                            'unread_count': proposal.messages.filter(read=False).exclude(sender=user).count(),
+                        })
+            except InfluencerProfile.DoesNotExist:
+                pass
+        
+        # Sort by most recent
+        conversations.sort(key=lambda x: x['created_at'] if x['created_at'] else '', reverse=True)
+        
+        return Response(conversations)
+
+
+class DirectMessageListView(generics.ListAPIView):
+    """Get direct messages with a specific user."""
+    serializer_class = DirectMessageSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        other_user_id = self.kwargs.get('other_user_id')
+        
+        return DirectMessage.objects.filter(
+            models.Q(sender=user, recipient_id=other_user_id) |
+            models.Q(sender_id=other_user_id, recipient=user)
+        ).order_by('created_at')
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        other_user_id = self.kwargs.get('other_user_id')
+        DirectMessage.objects.filter(
+            sender_id=other_user_id,
+            recipient=request.user,
+            read=False,
+        ).update(read=True)
+        return response
+
+
+class DirectMessageCreateView(APIView):
+    """Create a direct message."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    def post(self, request):
+        user = request.user
+        recipient_id = request.data.get('recipient_id')
+        content = (request.data.get('content') or '').strip()
+        attachment = request.FILES.get('attachments') or request.data.get('attachments')
+        
+        if not recipient_id:
+            return Response({'detail': 'recipient_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not content and not attachment:
+            return Response({'detail': 'content or attachments is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            recipient = User.objects.get(pk=recipient_id)
+        except User.DoesNotExist:
+            return Response({'detail': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        dm = DirectMessage.objects.create(
+            sender=user,
+            recipient=recipient,
+            content=_encrypt_message_text(content),
+            attachments=attachment or None,
+        )
+        
+        return Response(
+            DirectMessageSerializer(dm, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
+class CampaignMessageAttachmentView(APIView):
+    """Serve campaign message attachments only to conversation participants."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, message_id):
+        try:
+            msg = Message.objects.select_related(
+                'proposal__campaign__brand', 'proposal__influencer',
+            ).get(pk=message_id)
+        except Message.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not msg.attachments:
+            return Response({"detail": "Attachment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        proposal = msg.proposal
+        is_participant = (
+            (user.user_type == "influencer"
+             and hasattr(user, "influencer_profile")
+             and proposal.influencer == user.influencer_profile)
+            or (user.user_type == "brand"
+                and hasattr(user, "brand_profile")
+                and proposal.campaign.brand == user.brand_profile)
+            or user.is_staff
+        )
+        if not is_participant:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        return FileResponse(
+            msg.attachments.open('rb'),
+            as_attachment=False,
+            filename=msg.attachments.name.rsplit('/', 1)[-1],
+        )
+
+
+class DirectMessageAttachmentView(APIView):
+    """Serve direct message attachments only to sender/recipient."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, message_id):
+        try:
+            dm = DirectMessage.objects.select_related('sender', 'recipient').get(pk=message_id)
+        except DirectMessage.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not dm.attachments:
+            return Response({"detail": "Attachment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        if user != dm.sender and user != dm.recipient and not user.is_staff:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        return FileResponse(
+            dm.attachments.open('rb'),
+            as_attachment=False,
+            filename=dm.attachments.name.rsplit('/', 1)[-1],
+        )
 
 
 # ---------------------------------------------------------------------------

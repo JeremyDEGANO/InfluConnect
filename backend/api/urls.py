@@ -8,6 +8,7 @@ from . import views_auth
 router = DefaultRouter()
 router.register(r"influencers/social-networks", views.SocialNetworkViewSet, basename="social-network")
 router.register(r"campaigns", views.CampaignViewSet, basename="campaign")
+router.register(r"events", views.EventViewSet, basename="event")
 router.register(r"ambassador-programs", views_extra.AmbassadorProgramViewSet, basename="ambassador-program")
 router.register(r"influencers/media-kit-images", views_extra.MediaKitImageViewSet, basename="media-kit-image")
 router.register(r"contract-templates", views_extra.ContractTemplateViewSet, basename="contract-template")
@@ -35,6 +36,7 @@ urlpatterns = [
     path("influencers/pseudo-availability/", views_extra.InfluencerPseudoAvailabilityView.as_view(), name="influencer-pseudo-availability"),
     path("stripe/config/", views_extra.StripeConfigView.as_view(), name="stripe-config"),
     path("public/marketplace/", views_extra.PublicMarketplaceView.as_view(), name="public-marketplace"),
+    path("marketplace/contact/", views_extra.MarketplaceContactInfluencerView.as_view(), name="marketplace-contact-influencer"),
 
     # ---- Influencers ----
     path("influencers/", views.InfluencerListView.as_view(), name="influencer-list"),
@@ -66,6 +68,11 @@ urlpatterns = [
     # ---- Campaigns extra actions ----
     path("campaigns/<int:pk>/target/", views.CampaignTargetView.as_view(), name="campaign-target"),
     path("campaigns/<int:pk>/send-proposals/", views.CampaignSendProposalsView.as_view(), name="campaign-send-proposals"),
+    path("events/<int:pk>/invite/", views.EventInviteView.as_view(), name="event-invite"),
+    path("event-invitations/", views.EventInvitationListView.as_view(), name="event-invitations"),
+    path("event-invitations/<uuid:invite_token>/", views.EventInvitationDetailByTokenView.as_view(), name="event-invitation-detail-token"),
+    path("event-invitations/respond/", views.EventInvitationRespondView.as_view(), name="event-invitation-respond"),
+    path("events/check-in/", views.EventCheckInView.as_view(), name="event-check-in"),
 
     # ---- Casting (CDC §10.5) ----
     path("castings/", views_extra.CastingListView.as_view(), name="casting-list"),
@@ -90,12 +97,21 @@ urlpatterns = [
     path("proposals/<int:pk>/fund-escrow/", views.ProposalFundEscrowView.as_view(), name="proposal-fund-escrow"),
     path("proposals/<int:pk>/submit-content/", views.ProposalSubmitContentView.as_view(), name="proposal-submit-content"),
     path("proposals/<int:pk>/latest-submission/", views.ProposalLatestSubmissionView.as_view(), name="proposal-latest-submission"),
+    path("proposals/submissions/<int:submission_id>/<str:asset>/", views.ProposalSubmissionAssetView.as_view(), name="proposal-submission-asset"),
     path("proposals/<int:pk>/validate-content/", views.ProposalValidateContentView.as_view(), name="proposal-validate-content"),
     path("proposals/<int:pk>/reject-content/", views.ProposalRejectContentView.as_view(), name="proposal-reject-content"),
     path("proposals/<int:pk>/release-payment/", views.ProposalReleasePaymentView.as_view(), name="proposal-release-payment"),
+    path("proposals/<int:pk>/contract/", views.ProposalContractDownloadView.as_view(), name="proposal-contract-download"),
     path("proposals/<int:pk>/messages/", views.MessageListView.as_view(), name="proposal-messages"),
     path("proposals/<int:pk>/messages/send/", views.MessageCreateView.as_view(), name="proposal-messages-send"),
+    path("proposals/messages/<int:message_id>/attachment/", views.CampaignMessageAttachmentView.as_view(), name="proposal-message-attachment"),
     path("proposals/<int:pk>/review/", views.ReviewCreateView.as_view(), name="proposal-review"),
+
+    # ---- Direct messages & conversations ----
+    path("conversations/", views.ConversationsListView.as_view(), name="conversations-list"),
+    path("direct-messages/<int:other_user_id>/", views.DirectMessageListView.as_view(), name="direct-messages"),
+    path("direct-messages/send/", views.DirectMessageCreateView.as_view(), name="direct-messages-send"),
+    path("direct-messages/<int:message_id>/attachment/", views.DirectMessageAttachmentView.as_view(), name="direct-message-attachment"),
 
     # ---- Reviews ----
     path("users/<int:pk>/reviews/", views.UserReviewListView.as_view(), name="user-reviews"),
@@ -108,6 +124,9 @@ urlpatterns = [
     # ---- Support tickets ----
     path("support/tickets/", views_extra.SupportTicketListCreateView.as_view(), name="support-tickets"),
     path("support/tickets/<int:ticket_pk>/images/", views_extra.SupportTicketImageUploadView.as_view(), name="support-ticket-images"),
+    path("support/tickets/images/<int:image_id>/", views_extra.SupportTicketImageDownloadView.as_view(), name="support-ticket-image-download"),
+    path("support/tickets/<int:ticket_pk>/followup/", views_extra.SupportTicketFollowUpView.as_view(), name="support-ticket-followup"),
+    path("support/tickets/<int:ticket_pk>/rate/", views_extra.SupportTicketRatingView.as_view(), name="support-ticket-rate"),
 
     # ---- Admin ----
     path("admin/users/", views.AdminUserListView.as_view(), name="admin-users"),

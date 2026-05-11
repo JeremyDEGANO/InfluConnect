@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
+import { downloadProtectedFile, openProtectedFile } from "@/lib/apiExtra"
 import {
   fetchProposalMessages,
   sendProposalMessage,
@@ -281,23 +282,22 @@ export default function BrandProposalDetail() {
                 </Button>
               )}
               {proposal.contract_pdf && (
-                <a
-                  href={`${proposal.contract_pdf}${proposal.contract_pdf.includes("?") ? "&" : "?"}v=${encodeURIComponent(`${proposal.contract_version ?? ""}-${proposal.brand_signed_at ?? ""}-${proposal.influencer_signed_at ?? ""}`)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block"
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => proposal.contract_pdf && openProtectedFile(proposal.contract_pdf)}
                 >
-                  <Button className="w-full" variant="outline">
-                    <Eye className="h-4 w-4 mr-1" />Voir contrat
-                  </Button>
-                </a>
+                  <Eye className="h-4 w-4 mr-1" />Voir contrat
+                </Button>
               )}
               {proposal.contract_pdf && (
-                <a href={proposal.contract_pdf} target="_blank" rel="noreferrer" className="block">
-                  <Button className="w-full" variant="outline">
-                    <Download className="h-4 w-4 mr-1" />{t("brand_proposal.download_contract")}
-                  </Button>
-                </a>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => proposal.contract_pdf && downloadProtectedFile(proposal.contract_pdf, `contract-${proposal.id}.pdf`)}
+                >
+                  <Download className="h-4 w-4 mr-1" />{t("brand_proposal.download_contract")}
+                </Button>
               )}
               {proposal.status === "content_submitted" && (
                 <Button className="w-full" variant="gradient" onClick={() => navigate(`/brand/campaigns/${proposal.campaign}/validate/${proposal.id}`)}>

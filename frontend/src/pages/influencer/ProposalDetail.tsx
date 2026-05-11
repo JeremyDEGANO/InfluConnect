@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
+import { downloadProtectedFile, openProtectedFile } from "@/lib/apiExtra"
 import { fundEscrow, validateContent, rejectContent, submitContent, acceptCounterOffer } from "@/lib/apiExtra"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -390,12 +391,12 @@ export default function ProposalDetail() {
                 <>
                   {proposal.contract_pdf ? (
                     <div className="flex items-center gap-2">
-                      <a href={proposal.contract_pdf} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm"><Eye className="h-4 w-4 mr-1" />{t("contracts_list.view", "Ouvrir")}</Button>
-                      </a>
-                      <a href={proposal.contract_pdf} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" />{t("proposal_detail.download_contract", "Télécharger contrat")}</Button>
-                      </a>
+                      <Button variant="outline" size="sm" onClick={() => proposal.contract_pdf && openProtectedFile(proposal.contract_pdf)}>
+                        <Eye className="h-4 w-4 mr-1" />{t("contracts_list.view", "Ouvrir")}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => proposal.contract_pdf && downloadProtectedFile(proposal.contract_pdf, `contract-${proposal.id}.pdf`)}>
+                        <Download className="h-4 w-4 mr-1" />{t("proposal_detail.download_contract", "Télécharger contrat")}
+                      </Button>
                     </div>
                   ) : (
                     <div className="text-xs text-gray-500 p-2 rounded bg-gray-50">

@@ -19,7 +19,6 @@ interface InfluencerHoverCardProps {
   contentThemes?: string[]
   children: React.ReactNode
   profileBase?: string // e.g. "/brand/influencers" or "/marketplace"
-  mediaKitPdf?: string | null
 }
 
 const fmt = (n: number) =>
@@ -35,10 +34,9 @@ export function InfluencerHoverCard({
   contentThemes = [],
   children,
   profileBase = "/brand/influencers",
-  mediaKitPdf,
 }: InfluencerHoverCardProps) {
   const profileUrl = influencerPseudo ? `${profileBase}/${encodeURIComponent(influencerPseudo)}` : undefined
-  const mediaKitUrl = mediaKitPdf ? resolveMediaUrl(mediaKitPdf) : undefined
+  const mediaKitUrl = profileUrl ? `${profileUrl}#media-kit` : undefined
   const totalFollowers = socialNetworks.reduce((s, sn) => s + sn.followers_count, 0)
 
   return (

@@ -20,6 +20,7 @@ export function Header() {
   const profileLink = user?.user_type === "brand" ? "/brand/profile/edit" : "/influencer/profile/edit"
   const securityLink = user?.user_type === "brand" ? "/brand/security" : "/influencer/security"
   const canAccessSecurity = user?.user_type === "brand" || user?.user_type === "influencer"
+  const brandApproved = user?.user_type !== "brand" || ((user?.brand_profile as { validation_status?: string } | undefined)?.validation_status === "approved")
 
   return (
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100/80">
@@ -38,30 +39,13 @@ export function Header() {
               <Link to="/pricing" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.compare")}</Link>
             </>
           )}
-          {isAuthenticated && user?.user_type === "influencer" && (
-            <>
-              <Link to="/influencer/dashboard" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.dashboard")}</Link>
-              <Link to="/influencer/proposals" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.proposals")}</Link>
-              <Link to="/influencer/earnings" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.earnings")}</Link>
-            </>
-          )}
-          {isAuthenticated && user?.user_type === "brand" && (
-            <>
-              <Link to="/brand/dashboard" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.dashboard")}</Link>
-              <Link to="/brand/campaigns" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.campaigns")}</Link>
-              <Link to="/brand/subscription" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.subscription")}</Link>
-            </>
-          )}
-          {isAuthenticated && user?.user_type === "admin" && (
-            <Link to="/admin" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.admin")}</Link>
-          )}
         </nav>
 
         <div className="flex items-center gap-2">
           <LanguageSelector />
           {isAuthenticated ? (
             <>
-              <NotificationBell />
+              {brandApproved && <NotificationBell />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2">
@@ -79,18 +63,26 @@ export function Header() {
                     <p className="text-xs text-gray-500 font-normal">{user?.email}</p>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate(dashboardLink)}>
-                    <LayoutDashboard className="h-4 w-4 mr-2" />{t("nav.dashboard")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate(profileLink)}>
-                    <User className="h-4 w-4 mr-2" />{t("nav.profile")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate(profileLink)}>
-                    <Settings className="h-4 w-4 mr-2" />{t("nav.settings")}
-                  </DropdownMenuItem>
-                  {canAccessSecurity && (
-                    <DropdownMenuItem onClick={() => navigate(securityLink)}>
-                      <Shield className="h-4 w-4 mr-2" />{t("nav.security")}
+                  {brandApproved ? (
+                    <>
+                      <DropdownMenuItem onClick={() => navigate(dashboardLink)}>
+                        <LayoutDashboard className="h-4 w-4 mr-2" />{t("nav.dashboard")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(profileLink)}>
+                        <User className="h-4 w-4 mr-2" />{t("nav.profile")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(profileLink)}>
+                        <Settings className="h-4 w-4 mr-2" />{t("nav.settings")}
+                      </DropdownMenuItem>
+                      {canAccessSecurity && (
+                        <DropdownMenuItem onClick={() => navigate(securityLink)}>
+                          <Shield className="h-4 w-4 mr-2" />{t("nav.security")}
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  ) : (
+                    <DropdownMenuItem onClick={() => navigate("/brand/onboarding")}>
+                      <LayoutDashboard className="h-4 w-4 mr-2" />{t("brand_profile.go_to_onboarding", "Voir l'onboarding")}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />

@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+import uuid
 
 
 class User(AbstractUser):
@@ -371,6 +372,66 @@ class CampaignProposal(models.Model):
         return f'Proposal: {self.campaign.title} → {self.influencer.user.username}'
 
 
+class Event(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+
+    brand = models.ForeignKey(BrandProfile, on_delete=models.CASCADE, related_name='events')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    address = models.CharField(max_length=255)
+    city = models.CharField(max_length=120, blank=True)
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    max_invitees = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-starts_at', '-id']
+
+    def __str__(self):
+        return f'Event: {self.title} ({self.brand.company_name})'
+
+
+class EventInvitation(models.Model):
+    RSVP_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+    ]
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='invitations')
+    influencer = models.ForeignKey(InfluencerProfile, null=True, blank=True, on_delete=models.CASCADE, related_name='event_invitations')
+    invited_email = models.EmailField(blank=True)
+    invite_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    status = models.CharField(max_length=20, choices=RSVP_STATUS_CHOICES, default='pending')
+    max_plus_ones = models.PositiveSmallIntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(2)])
+    plus_ones_confirmed = models.PositiveSmallIntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(2)])
+    response_message = models.TextField(blank=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+    checked_in_at = models.DateTimeField(null=True, blank=True)
+    checked_in_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='event_checkins')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(fields=['event', 'influencer'], name='uniq_event_invitation_per_influencer'),
+            models.UniqueConstraint(fields=['event', 'invited_email'], condition=~models.Q(invited_email=''), name='uniq_event_invitation_per_email'),
+        ]
+
+    def __str__(self):
+        target = self.invited_email or (self.influencer.user.username if self.influencer_id else 'external')
+        return f'EventInvitation: {self.event.title} → {target} ({self.status})'
+
+
 class ContentSubmission(models.Model):
     SUBMISSION_TYPE_CHOICES = [
         ('link', 'Link'),
@@ -417,6 +478,22 @@ class Message(models.Model):
 
     def __str__(self):
         return f'Message from {self.sender.username} on {self.proposal}'
+
+
+class DirectMessage(models.Model):
+    """Direct messages between users (not linked to a campaign)."""
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_direct_messages')
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_direct_messages')
+    content = models.TextField()
+    attachments = models.FileField(upload_to='attachments/', null=True, blank=True)
+    read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'DM from {self.sender.username} to {self.recipient.username}'
 
 
 class Review(models.Model):
@@ -487,12 +564,15 @@ class SupportTicket(models.Model):
     ]
 
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_tickets')
+    source_language = models.CharField(max_length=5, blank=True, default='')
     subject = models.CharField(max_length=200)
     message = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='normal')
     admin_note = models.TextField(blank=True)   # note interne (non visible par l'utilisateur)
     admin_reply = models.TextField(blank=True)  # réponse publique visible par l'utilisateur
+    rating = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)])
+    rated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

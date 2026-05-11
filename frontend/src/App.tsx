@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, Outlet } from "react-router-dom"
+import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "@/lib/auth"
 import { Header } from "@/components/layout/Header"
 import { Sidebar } from "@/components/layout/Sidebar"
@@ -30,8 +30,13 @@ import Subscription from "@/pages/brand/Subscription"
 import AmbassadorPrograms from "@/pages/brand/AmbassadorPrograms"
 import ContractTemplates from "@/pages/brand/ContractTemplates"
 import BrandCastings from "@/pages/brand/Castings"
+import BrandEvents from "@/pages/brand/Events"
+import BrandEventDetail from "@/pages/brand/EventDetail"
+import NewEvent from "@/pages/brand/NewEvent"
 import Castings from "@/pages/influencer/Castings"
+import InfluencerEvents from "@/pages/influencer/Events"
 import Notifications from "@/pages/Notifications"
+import Messages from "@/pages/Messages"
 import Marketplace from "@/pages/Marketplace"
 import Contracts from "@/pages/Contracts"
 import InfluencerPublicProfile from "@/pages/InfluencerPublicProfile"
@@ -40,6 +45,7 @@ import BrandPublicProfile from "@/pages/influencer/BrandPublicProfile"
 import Terms from "@/pages/legal/Terms"
 import Privacy from "@/pages/legal/Privacy"
 import LegalNotice from "@/pages/legal/LegalNotice"
+import EventRsvp from "@/pages/EventRsvp"
 import Admin from "@/pages/Admin"
 import AdminBrands from "@/pages/admin/Brands"
 import AdminCompanies from "@/pages/admin/Companies"
@@ -63,11 +69,15 @@ function PublicLayout() {
 }
 
 function DashboardLayout() {
+  const { user } = useAuth()
+  const brandValidationStatus = (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status
+  const hideSidebar = user?.user_type === "brand" && brandValidationStatus !== "approved"
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
       <div className="flex flex-1">
-        <Sidebar />
+        {!hideSidebar && <Sidebar />}
         <main className="flex-1 bg-gray-50 overflow-auto"><Outlet /></main>
       </div>
     </div>
@@ -82,6 +92,23 @@ function ProtectedRoute({ roles }: { roles?: string[] }) {
   return <Outlet />
 }
 
+function BrandValidationRoute() {
+  const { user } = useAuth()
+  const location = useLocation()
+  const status = (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status
+  const allowedBeforeApproval = new Set([
+    "/brand/onboarding",
+    "/brand/profile",
+    "/brand/profile/edit",
+    "/brand/security",
+    "/brand/support",
+  ])
+
+  if (status === "approved") return <Outlet />
+  if (allowedBeforeApproval.has(location.pathname)) return <Outlet />
+  return <Navigate to="/brand/onboarding" replace />
+}
+
 export default function App() {
   return (
     <>
@@ -93,12 +120,12 @@ export default function App() {
           <Route path="/reset-password" element={<PasswordResetRequest />} />
           <Route path="/reset-password/confirm" element={<PasswordResetConfirm />} />
           <Route path="/security/reset-mfa" element={<MfaResetConfirm />} />
-          <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/marketplace/:pseudo" element={<InfluencerPublicProfile />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/notice" element={<LegalNotice />} />
+          <Route path="/events/rsvp/:token" element={<EventRsvp />} />
           <Route path="/sign/mobile/:token" element={<SignMobile />} />
         </Route>
         <Route element={<ProtectedRoute />}>
@@ -115,31 +142,41 @@ export default function App() {
               <Route path="/influencer/castings" element={<Castings />} />
               <Route path="/influencer/contracts" element={<Contracts />} />
               <Route path="/influencer/notifications" element={<Notifications />} />
+              <Route path="/influencer/messages" element={<Messages />} />
+              <Route path="/influencer/messages/:conversation_id" element={<Messages />} />
               <Route path="/influencer/security" element={<SecuritySettings />} />
               <Route path="/influencer/delegations" element={<BrandDelegations />} />
+              <Route path="/influencer/events" element={<InfluencerEvents />} />
               <Route path="/influencer/support" element={<SupportPage />} />
             </Route>
             <Route element={<ProtectedRoute roles={["brand"]} />}>
-              <Route path="/brand/dashboard" element={<BrandDashboard />} />
-              <Route path="/brand/campaigns" element={<BrandCampaigns />} />
-              <Route path="/brand/campaigns/new" element={<NewCampaign />} />
-              <Route path="/brand/campaigns/:id" element={<CampaignDetail />} />
-              <Route path="/brand/campaigns/:id/validate/:proposalId" element={<ValidateContent />} />
-              <Route path="/brand/proposals/:id" element={<BrandProposalDetail />} />
-              <Route path="/brand/influencers/:pseudo" element={<InfluencerPublicProfile />} />
-              <Route path="/brand/profile/edit" element={<BrandEditProfile />} />
-              <Route path="/brand/onboarding" element={<BrandOnboarding />} />
-              <Route path="/brand/profile" element={<BrandEditProfile />} />
-              <Route path="/brand/subscription" element={<Subscription />} />
-              <Route path="/brand/ambassadors" element={<AmbassadorPrograms />} />
-              <Route path="/brand/contract-templates" element={<ContractTemplates />} />
-              <Route path="/brand/castings" element={<BrandCastings />} />
-              <Route path="/brand/team" element={<BrandTeam />} />
-              <Route path="/brand/delegations" element={<BrandDelegations />} />
-              <Route path="/brand/contracts" element={<Contracts />} />
-              <Route path="/brand/notifications" element={<Notifications />} />
-              <Route path="/brand/security" element={<SecuritySettings />} />
-              <Route path="/brand/support" element={<SupportPage />} />
+              <Route element={<BrandValidationRoute />}>
+                <Route path="/marketplace" element={<Marketplace />} />
+                <Route path="/brand/dashboard" element={<BrandDashboard />} />
+                <Route path="/brand/campaigns" element={<BrandCampaigns />} />
+                <Route path="/brand/campaigns/new" element={<NewCampaign />} />
+                <Route path="/brand/campaigns/:id" element={<CampaignDetail />} />
+                <Route path="/brand/campaigns/:id/validate/:proposalId" element={<ValidateContent />} />
+                <Route path="/brand/proposals/:id" element={<BrandProposalDetail />} />
+                <Route path="/brand/influencers/:pseudo" element={<InfluencerPublicProfile />} />
+                <Route path="/brand/profile/edit" element={<BrandEditProfile />} />
+                <Route path="/brand/onboarding" element={<BrandOnboarding />} />
+                <Route path="/brand/profile" element={<BrandEditProfile />} />
+                <Route path="/brand/subscription" element={<Subscription />} />
+                <Route path="/brand/ambassadors" element={<AmbassadorPrograms />} />
+                <Route path="/brand/contract-templates" element={<ContractTemplates />} />
+                <Route path="/brand/castings" element={<BrandCastings />} />
+                <Route path="/brand/events" element={<BrandEvents />} />
+                <Route path="/brand/events/new" element={<NewEvent />} />
+                <Route path="/brand/events/:id" element={<BrandEventDetail />} />
+                <Route path="/brand/team" element={<BrandTeam />} />
+                <Route path="/brand/contracts" element={<Contracts />} />
+                <Route path="/brand/notifications" element={<Notifications />} />
+                <Route path="/brand/messages" element={<Messages />} />
+                <Route path="/brand/messages/:conversation_id" element={<Messages />} />
+                <Route path="/brand/security" element={<SecuritySettings />} />
+                <Route path="/brand/support" element={<SupportPage />} />
+              </Route>
             </Route>
             <Route element={<ProtectedRoute roles={["admin"]} />}>
               <Route path="/admin" element={<Admin />} />

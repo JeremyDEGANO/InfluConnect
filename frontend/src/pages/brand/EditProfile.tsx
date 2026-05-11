@@ -11,6 +11,25 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2, Upload } from "lucide-react"
 import { Link } from "react-router-dom"
 
+const SECTOR_OPTIONS = [
+  "Mode & Beauté",
+  "Luxe",
+  "Cosmétiques",
+  "Santé & Bien-être",
+  "Sport & Fitness",
+  "Food & Boissons",
+  "Voyage & Tourisme",
+  "Tech & Électronique",
+  "Gaming",
+  "Finance & Assurance",
+  "Éducation",
+  "Automobile",
+  "Maison & Décoration",
+  "B2B / Services",
+  "Culture & Divertissement",
+  "Autre",
+]
+
 export default function BrandEditProfile() {
   const { t } = useTranslation()
   const { user } = useAuth()
@@ -30,8 +49,6 @@ export default function BrandEditProfile() {
     sector: "",
     description: "",
     billing_address: "",
-    is_agency: false,
-    agency_default_commission_percent: "20",
   })
 
   const refreshProfile = () => {
@@ -48,8 +65,6 @@ export default function BrandEditProfile() {
           sector: bp.sector ?? "",
           description: bp.description ?? "",
           billing_address: bp.billing_address ?? "",
-          is_agency: Boolean(bp.is_agency),
-          agency_default_commission_percent: String(bp.agency_default_commission_percent ?? "20"),
         }))
         setLogoUrl(bp.logo ?? null)
         setValidationStatus(bp.validation_status ?? "pending")
@@ -97,8 +112,6 @@ export default function BrandEditProfile() {
         sector: form.sector,
         description: form.description,
         billing_address: form.billing_address,
-        is_agency: form.is_agency,
-        agency_default_commission_percent: form.agency_default_commission_percent,
       })
       await refreshProfile()
       toast({ title: t("common.success"), description: t("brand_profile.updated") })
@@ -173,7 +186,20 @@ export default function BrandEditProfile() {
             </div>
             <div><Label>{t("auth.company_name")} *</Label><Input className="mt-1" value={form.company_name} onChange={(e) => update("company_name", e.target.value)} /></div>
             <div><Label>{t("brand_profile.siret", "SIRET")} *</Label><Input className="mt-1" value={form.siret} onChange={(e) => update("siret", e.target.value)} placeholder="14 chiffres" maxLength={14} /></div>
-            <div><Label>{t("brand_profile.industry")} *</Label><Input className="mt-1" value={form.sector} onChange={(e) => update("sector", e.target.value)} placeholder="Mode, Tech..." /></div>
+            <div>
+              <Label>{t("brand_profile.industry")} *</Label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={form.sector}
+                onChange={(e) => update("sector", e.target.value)}
+              >
+                <option value="">{t("brand_profile.select_sector", "Sélectionnez un secteur")}</option>
+                {!SECTOR_OPTIONS.includes(form.sector) && form.sector && <option value={form.sector}>{form.sector}</option>}
+                {SECTOR_OPTIONS.map((sector) => (
+                  <option key={sector} value={sector}>{sector}</option>
+                ))}
+              </select>
+            </div>
             <div><Label>{t("brand_profile.website")} *</Label><Input className="mt-1" type="url" value={form.website} onChange={(e) => update("website", e.target.value)} placeholder="https://..." /></div>
             <div>
               <Label>{t("brand_profile.company_description")} *</Label>
@@ -182,18 +208,6 @@ export default function BrandEditProfile() {
             <div>
               <Label>{t("brand_profile.billing_address", "Adresse de facturation")}</Label>
               <textarea className="mt-1 w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={form.billing_address} onChange={(e) => update("billing_address", e.target.value)} />
-            </div>
-            <div className="border-t pt-4 space-y-3">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" className="mt-1" checked={form.is_agency} onChange={(e) => setForm((p) => ({ ...p, is_agency: e.target.checked }))} />
-                <span className="text-sm">{t("agency.is_agency", "Cette marque est une agence (gère des influenceurs pour leur compte)")}</span>
-              </label>
-              {form.is_agency && (
-                <div>
-                  <Label>{t("agency.default_commission", "Commission agence par défaut %")}</Label>
-                  <Input className="mt-1" type="number" min={0} max={100} step={0.1} value={form.agency_default_commission_percent} onChange={(e) => update("agency_default_commission_percent", e.target.value)} />
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>

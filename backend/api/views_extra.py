@@ -21,6 +21,8 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.shortcuts import get_object_or_404
+from django.http import FileResponse
 from django.db.models import Q, Avg, Count
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
@@ -38,7 +40,7 @@ from .constants import (
 )
 from .models import (
     AmbassadorProgram, AuditLog, BrandProfile, Campaign, CampaignProposal,
-    CastingApplication, ContractTemplate, ContentSubmission, InfluencerProfile,
+    CastingApplication, ContractTemplate, ContentSubmission, DirectMessage, InfluencerProfile,
     MediaKitImage, Notification, PlatformSettings, Review, SocialNetwork, User,
     BrandMembership, AgencyDelegation, SupportTicket, SupportTicketImage,
 )
@@ -306,7 +308,9 @@ class SupportTicketListCreateView(generics.ListCreateAPIView):
         return SupportTicket.objects.select_related("requester").filter(requester=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(requester=self.request.user)
+        accept = self.request.headers.get('Accept-Language', '').lower()
+        source_language = 'EN' if accept.startswith('en') else 'FR' if accept.startswith('fr') else ''
+        serializer.save(requester=self.request.user, source_language=source_language)
 
 
 class SupportTicketImageUploadView(generics.CreateAPIView):
@@ -336,6 +340,71 @@ class SupportTicketImageUploadView(generics.CreateAPIView):
         obj = SupportTicketImage.objects.create(ticket=ticket, image=image_file)
         serializer = SupportTicketImageSerializer(obj, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class SupportTicketImageDownloadView(APIView):
+    """Serve support images only to requester or admins."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, image_id):
+        image = get_object_or_404(SupportTicketImage.objects.select_related('ticket__requester'), pk=image_id)
+        ticket = image.ticket
+        if not (request.user.is_staff or request.user.user_type == 'admin' or ticket.requester_id == request.user.id):
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        if not image.image:
+            return Response({'detail': 'Image not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return FileResponse(
+            image.image.open('rb'),
+            as_attachment=False,
+            filename=image.image.name.rsplit('/', 1)[-1],
+        )
+
+
+class SupportTicketFollowUpView(APIView):
+    """Append a user follow-up note to an existing support ticket."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ticket_pk):
+        ticket = get_object_or_404(
+            SupportTicket,
+            pk=ticket_pk,
+            requester=self.request.user,
+        )
+        message = (request.data.get('message') or '').strip()
+        if not message:
+            return Response({'detail': 'No message provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
+        ticket.message = f"{ticket.message}\n\n[Suivi {timestamp}]\n{message}"
+        if ticket.status == 'closed':
+            ticket.status = 'open'
+        ticket.save(update_fields=['message', 'status', 'updated_at'])
+        return Response(SupportTicketSerializer(ticket, context={'request': request}).data, status=status.HTTP_200_OK)
+
+
+class SupportTicketRatingView(APIView):
+    """Store a final 1-5 rating for a closed support ticket."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ticket_pk):
+        ticket = get_object_or_404(
+            SupportTicket,
+            pk=ticket_pk,
+            requester=self.request.user,
+        )
+        if ticket.status != 'closed':
+            return Response({'detail': 'Ticket must be closed before rating.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            rating = int(request.data.get('rating'))
+        except (TypeError, ValueError):
+            return Response({'detail': 'Invalid rating.'}, status=status.HTTP_400_BAD_REQUEST)
+        if rating < 1 or rating > 5:
+            return Response({'detail': 'Rating must be between 1 and 5.'}, status=status.HTTP_400_BAD_REQUEST)
+        ticket.rating = rating
+        ticket.rated_at = timezone.now()
+        ticket.save(update_fields=['rating', 'rated_at', 'updated_at'])
+        return Response(SupportTicketSerializer(ticket, context={'request': request}).data, status=status.HTTP_200_OK)
 
 
 class AdminSupportTicketUpdateView(generics.RetrieveUpdateAPIView):
@@ -564,6 +633,13 @@ class AdminPendingBrandsView(generics.ListAPIView):
         qs = BrandProfile.objects.select_related("user", "validated_by").order_by("-id")
         if status_filter and status_filter != "all":
             qs = qs.filter(validation_status=status_filter)
+        if status_filter == "pending":
+            # Only expose brands that actually completed onboarding and submitted for review.
+            ready_ids = []
+            for profile in qs:
+                if not _brand_missing_fields(profile):
+                    ready_ids.append(profile.id)
+            return BrandProfile.objects.select_related("user", "validated_by").filter(id__in=ready_ids).order_by("-id")
         return qs
 
 
@@ -575,6 +651,12 @@ class AdminBrandApproveView(APIView):
             profile = BrandProfile.objects.select_related("user").get(pk=pk)
         except BrandProfile.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        missing = _brand_missing_fields(profile)
+        if missing:
+            return Response(
+                {"detail": "Brand onboarding is incomplete.", "missing_fields": missing},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         profile.validation_status = "approved"
         profile.validated_at = timezone.now()
         profile.validated_by = request.user
@@ -660,8 +742,13 @@ class BrandOnboardingStatusView(APIView):
         except BrandProfile.DoesNotExist:
             return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
         missing = _brand_missing_fields(profile)
+        effective_status = profile.validation_status
+        # A newly created brand can start with DB status=pending; expose it as draft
+        # until onboarding is complete and explicitly submitted.
+        if profile.validation_status == "pending" and missing:
+            effective_status = "draft"
         return Response({
-            "validation_status": profile.validation_status,
+            "validation_status": effective_status,
             "validation_notes": profile.validation_notes,
             "missing_fields": missing,
             "ready_to_submit": len(missing) == 0,
@@ -1127,6 +1214,17 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
     def import_document(self, request):
         return self._import(request)
 
+    @action(detail=True, methods=["get"], url_path="source-file")
+    def source_file(self, request, pk=None):
+        template = self.get_object()
+        if not template.source_file:
+            return Response({'detail': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return FileResponse(
+            template.source_file.open('rb'),
+            as_attachment=False,
+            filename=template.source_file.name.rsplit('/', 1)[-1],
+        )
+
 
 # ---------------------------------------------------------------------------
 # Social network OAuth + stats sync (CDC §8)
@@ -1444,8 +1542,74 @@ class PublicMarketplaceView(generics.ListAPIView):
 
     def get_queryset(self):
         return InfluencerProfile.objects.filter(
-            is_verified=True, onboarding_completed=True,
-        ).select_related("user").prefetch_related("social_networks").order_by("-average_rating")
+            user__user_type="influencer",
+        ).select_related("user").prefetch_related("social_networks").order_by("-user__created_at", "-id")
+
+
+class MarketplaceContactInfluencerView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if user.user_type != "brand":
+            return Response({"detail": "Only brands can contact influencers."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            brand = user.brand_profile
+        except BrandProfile.DoesNotExist:
+            return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if brand.validation_status != "approved":
+            return Response(
+                {"detail": "Brand profile must be approved before contacting influencers."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        influencer_id = request.data.get("influencer_id")
+        message = (request.data.get("message") or "").strip()
+        if not influencer_id:
+            return Response({"detail": "influencer_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(message) < 10:
+            return Response({"detail": "Message must contain at least 10 characters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            influencer = InfluencerProfile.objects.select_related("user").get(pk=influencer_id)
+        except InfluencerProfile.DoesNotExist:
+            return Response({"detail": "Influencer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        sender_name = (brand.company_name or user.username).strip()
+        
+        # Create DirectMessage
+        DirectMessage.objects.create(
+            sender=user,
+            recipient=influencer.user,
+            content=message
+        )
+        
+        _notify(
+            influencer.user,
+            "new_message",
+            "Nouveau message marketplace",
+            f"{sender_name} vous a contacté via la marketplace :\n\n{message}",
+            send_email=bool(influencer.user.email),
+            email_subject="InfluConnect — Nouveau contact marque",
+            email_body=(
+                f"Bonjour,\n\n"
+                f"{sender_name} vous a contacté via la marketplace InfluConnect :\n\n"
+                f"{message}\n\n"
+                "Connectez-vous à InfluConnect pour répondre et proposer une collaboration."
+            ),
+        )
+        _audit(
+            user,
+            "marketplace_contact_influencer",
+            "InfluencerProfile",
+            influencer.id,
+            metadata={"brand_id": brand.id},
+            ip=_client_ip(request),
+        )
+
+        return Response({"sent": True}, status=status.HTTP_201_CREATED)
 
 from ._views_team_agency import (
     BrandMembershipListCreateView, BrandMembershipDetailView,

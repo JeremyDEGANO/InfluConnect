@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import api from "@/lib/api"
 import { fetchLatestSubmission, validateContent, rejectContent } from "@/lib/apiExtra"
-import { resolveMediaUrl } from "@/lib/utils"
 import { ArrowLeft, CheckCircle, XCircle, ExternalLink, Loader2 } from "lucide-react"
 
 interface ProposalData {
@@ -76,6 +75,8 @@ export default function ValidateContent() {
   const [acting, setActing] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
   const [feedback, setFeedback] = useState("")
+  const [screenshotBlobUrl, setScreenshotBlobUrl] = useState<string | null>(null)
+  const [fileBlobUrl, setFileBlobUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -100,6 +101,56 @@ export default function ValidateContent() {
     }
     load()
   }, [proposalId, t, toast])
+
+  useEffect(() => {
+    let active = true
+    let screenshotObj: string | null = null
+    let fileObj: string | null = null
+
+    const loadProtectedAssets = async () => {
+      if (!submission) {
+        setScreenshotBlobUrl(null)
+        setFileBlobUrl(null)
+        return
+      }
+
+      try {
+        if (submission.screenshot) {
+          const res = await api.get(submission.screenshot, { responseType: "blob" })
+          if (active) {
+            screenshotObj = window.URL.createObjectURL(res.data)
+            setScreenshotBlobUrl(screenshotObj)
+          }
+        } else {
+          setScreenshotBlobUrl(null)
+        }
+      } catch {
+        if (active) setScreenshotBlobUrl(null)
+      }
+
+      try {
+        if (submission.uploaded_file) {
+          const res = await api.get(submission.uploaded_file, { responseType: "blob" })
+          if (active) {
+            fileObj = window.URL.createObjectURL(res.data)
+            setFileBlobUrl(fileObj)
+          }
+        } else {
+          setFileBlobUrl(null)
+        }
+      } catch {
+        if (active) setFileBlobUrl(null)
+      }
+    }
+
+    loadProtectedAssets()
+
+    return () => {
+      active = false
+      if (screenshotObj) window.URL.revokeObjectURL(screenshotObj)
+      if (fileObj) window.URL.revokeObjectURL(fileObj)
+    }
+  }, [submission])
 
   const handleApprove = async () => {
     if (!proposalId) return
@@ -145,8 +196,8 @@ export default function ValidateContent() {
   }
 
   const publicationUrl = submission.publication_url || ""
-  const screenshotUrl = resolveMediaUrl(submission.screenshot)
-  const fileUrl = resolveMediaUrl(submission.uploaded_file)
+  const screenshotUrl = screenshotBlobUrl
+  const fileUrl = fileBlobUrl
   const submittedAt = submission.publication_date || submission.created_at
   const beforePublish = !publicationUrl
   const uploadedKind = getUploadedKind(submission.uploaded_file)
@@ -235,7 +286,9 @@ export default function ValidateContent() {
             {fileUrl && (
               <div className="p-3 bg-gray-50 rounded-xl text-sm">
                 <p className="font-semibold text-gray-700 mb-1">{t("common.file")}</p>
-                <a href={fileUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline break-all">{fileUrl}</a>
+                <a href={fileUrl} target="_blank" rel="noreferrer" download className="text-indigo-600 hover:underline break-all">
+                  {t("common.view")} →
+                </a>
               </div>
             )}
           </div>

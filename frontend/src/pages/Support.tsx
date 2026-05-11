@@ -4,8 +4,11 @@ import {
   fetchSupportTickets,
   createSupportTicket,
   uploadSupportTicketImage,
+  addSupportTicketFollowUp,
+  rateSupportTicket,
   type SupportTicket,
 } from "@/lib/apiExtra"
+import api from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +27,36 @@ const PRIORITY_COLOR: Record<SupportTicket["priority"], string> = {
   urgent: "bg-red-100 text-red-700",
 }
 
+function ProtectedImageThumb({ imageUrl }: { imageUrl: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    let objectUrl: string | null = null
+
+    api.get(imageUrl, { responseType: "blob" })
+      .then((res) => {
+        if (!active) return
+        objectUrl = window.URL.createObjectURL(res.data)
+        setBlobUrl(objectUrl)
+      })
+      .catch(() => setBlobUrl(null))
+
+    return () => {
+      active = false
+      if (objectUrl) window.URL.revokeObjectURL(objectUrl)
+    }
+  }, [imageUrl])
+
+  if (!blobUrl) return null
+
+  return (
+    <a href={blobUrl} target="_blank" rel="noopener noreferrer">
+      <img src={blobUrl} alt="" className="h-20 w-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
+    </a>
+  )
+}
+
 export default function SupportPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
@@ -40,6 +73,9 @@ export default function SupportPage() {
   const [priority, setPriority] = useState<SupportTicket["priority"]>("normal")
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
+  const [followUps, setFollowUps] = useState<Record<number, string>>({})
+  const [ratingDrafts, setRatingDrafts] = useState<Record<number, string>>({})
+  const imageInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
 
   const load = () => {
     setLoading(true)
@@ -75,15 +111,24 @@ export default function SupportPage() {
     setSubmitting(true)
     try {
       const ticket = await createSupportTicket({ subject: subject.trim(), message: message.trim(), priority })
+      let uploadFailures = 0
       // Upload images sequentially
       for (const file of pendingFiles) {
         try {
           await uploadSupportTicketImage(ticket.id, file)
         } catch {
-          // Non-blocking — ticket was created
+          uploadFailures += 1
         }
       }
-      toast({ title: t("support.submitted") })
+      if (uploadFailures > 0) {
+        toast({
+          variant: "destructive",
+          title: t("support.submitted"),
+          description: t("support.upload_partial_error", { failed: uploadFailures, total: pendingFiles.length }),
+        })
+      } else {
+        toast({ title: t("support.submitted") })
+      }
       setSubject("")
       setMessage("")
       setPriority("normal")
@@ -101,6 +146,49 @@ export default function SupportPage() {
   const toggleExpanded = (ticketId: number) => {
     const nextId = String(ticketId)
     setExpandedId((current) => (current === nextId ? null : nextId))
+  }
+
+  const uploadMoreImages = async (ticketId: number, files: FileList | null) => {
+    if (!files || files.length === 0) return
+    let failures = 0
+    for (const file of Array.from(files)) {
+      try {
+        await uploadSupportTicketImage(ticketId, file)
+      } catch {
+        failures += 1
+      }
+    }
+    if (failures > 0) {
+      toast({ variant: "destructive", title: t("common.error"), description: t("support.upload_partial_error", { failed: failures, total: files.length }) })
+    } else {
+      toast({ title: t("support.images_added", { count: files.length }) })
+    }
+    load()
+  }
+
+  const submitFollowUp = async (ticketId: number) => {
+    const message = (followUps[ticketId] || "").trim()
+    if (!message) return
+    try {
+      await addSupportTicketFollowUp(ticketId, message)
+      setFollowUps((prev) => ({ ...prev, [ticketId]: "" }))
+      toast({ title: t("support.followup_sent") })
+      load()
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    }
+  }
+
+  const submitRating = async (ticketId: number) => {
+    const value = Number(ratingDrafts[ticketId])
+    if (!Number.isInteger(value) || value < 1 || value > 5) return
+    try {
+      await rateSupportTicket(ticketId, value)
+      toast({ title: t("support.rating_saved") })
+      load()
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    }
   }
 
   return (
@@ -266,10 +354,75 @@ export default function SupportPage() {
                   {ticket.images && ticket.images.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {ticket.images.map((img) => (
-                        <a key={img.id} href={img.image_url} target="_blank" rel="noopener noreferrer">
-                          <img src={img.image_url} alt="" className="h-20 w-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
-                        </a>
+                        <ProtectedImageThumb key={img.id} imageUrl={img.image_url} />
                       ))}
+                    </div>
+                  )}
+
+                  {/* Follow-up note + extra images */}
+                  {ticket.status !== "closed" && (
+                    <div className="space-y-3 rounded-lg border border-dashed border-indigo-200 bg-indigo-50/30 p-3">
+                      <div>
+                        <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-1">{t("support.followup_label")}</p>
+                        <textarea
+                          value={followUps[ticket.id] ?? ""}
+                          onChange={(e) => setFollowUps((prev) => ({ ...prev, [ticket.id]: e.target.value }))}
+                          rows={3}
+                          placeholder={t("support.followup_placeholder")}
+                          className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <div className="mt-2 flex justify-end">
+                          <Button size="sm" variant="gradient" onClick={() => submitFollowUp(ticket.id)} disabled={!(followUps[ticket.id] || "").trim()}>
+                            {t("support.followup_send")}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{t("support.extra_images")}</p>
+                        <input
+                          ref={(el) => { imageInputRefs.current[ticket.id] = el }}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => uploadMoreImages(ticket.id, e.target.files)}
+                        />
+                        <Button type="button" variant="outline" size="sm" onClick={() => imageInputRefs.current[ticket.id]?.click()}>
+                          <ImagePlus className="h-4 w-4 mr-1" />
+                          {t("support.add_image")}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Final rating */}
+                  {ticket.status === "closed" && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
+                      <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">{t("support.rating_title")}</p>
+                      {ticket.rating ? (
+                        <p className="text-sm text-gray-700">{t("support.rating_current", { rating: ticket.rating })}</p>
+                      ) : (
+                        <>
+                          <select
+                            className="h-9 rounded-md border border-amber-200 px-2 text-sm bg-white"
+                            value={ratingDrafts[ticket.id] ?? ""}
+                            onChange={(e) => setRatingDrafts((prev) => ({ ...prev, [ticket.id]: e.target.value }))}
+                          >
+                            <option value="">{t("support.rating_select")}</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                          </select>
+                          <div>
+                            <Button size="sm" variant="gradient" onClick={() => submitRating(ticket.id)} disabled={!ratingDrafts[ticket.id]}>
+                              {t("support.rating_send")}
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 

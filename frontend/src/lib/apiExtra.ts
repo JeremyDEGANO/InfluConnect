@@ -38,6 +38,10 @@ export interface BrandPending {
   user_name: string
   company_name: string
   siret: string
+  logo?: string
+  website?: string
+  sector?: string
+  description?: string
   validation_status: "pending" | "approved" | "rejected"
   validation_notes: string
   created_at: string
@@ -122,6 +126,9 @@ export interface SupportTicket {
   id: number
   requester: number
   requester_email: string
+  requester_kind?: "influencer" | "brand" | "agency"
+  requester_display_name?: string
+  source_language?: string
   subject: string
   message: string
   status: "open" | "in_progress" | "closed"
@@ -129,6 +136,8 @@ export interface SupportTicket {
   admin_reply: string
   admin_note?: string  // only visible to admins
   images: SupportTicketImage[]
+  rating?: number | null
+  rated_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -166,6 +175,50 @@ export interface ProposalFull {
   validation_deadline: string | null
 }
 
+export interface EventInvitation {
+  id: number
+  event: number
+  event_title: string
+  event_address: string
+  event_city: string
+  event_starts_at: string
+  event_ends_at: string | null
+  influencer: number
+  influencer_user_id: number | null
+  influencer_display_name: string | null
+  influencer_avatar?: string | null
+  invited_email?: string
+  invitee_label?: string
+  invite_token: string
+  status: "pending" | "accepted" | "declined"
+  max_plus_ones: number
+  plus_ones_confirmed: number
+  response_message: string
+  responded_at: string | null
+  checked_in_at?: string | null
+  checked_in_by?: number | null
+  qr_payload: string
+  created_at: string
+  updated_at: string
+}
+
+export interface EventItem {
+  id: number
+  brand: number
+  brand_name: string
+  title: string
+  description: string
+  address: string
+  city: string
+  starts_at: string
+  ends_at: string | null
+  status: "draft" | "published" | "cancelled" | "completed"
+  max_invitees: number
+  invitations: EventInvitation[]
+  created_at: string
+  updated_at: string
+}
+
 // ====== Public reference ======
 export const fetchPlans = () => api.get<{ plans: Plan[] }>("/reference/plans/").then((r) => r.data.plans)
 export const fetchReference = () => api.get<ReferenceData>("/reference/data/").then((r) => r.data)
@@ -189,7 +242,7 @@ export const rejectBrand = (id: number, reason: string) =>
 
 // ====== Brand onboarding (CDC §5.1) ======
 export interface BrandOnboardingStatus {
-  validation_status: "pending" | "approved" | "rejected"
+  validation_status: "draft" | "pending" | "approved" | "rejected"
   validation_notes: string
   missing_fields: string[]
   ready_to_submit: boolean
@@ -286,6 +339,53 @@ export const sendCampaignProposals = (
     ...(proposed_price != null ? { proposed_price } : {}),
   }).then((r) => r.data)
 
+// ====== Events ======
+export const fetchBrandEvents = () =>
+  api.get<EventItem[] | { results?: EventItem[] }>("/events/").then((r) => {
+    const d = r.data as any
+    return (d.results ?? d) as EventItem[]
+  })
+
+export const fetchBrandEvent = (eventId: number) =>
+  api.get<EventItem>(`/events/${eventId}/`).then((r) => r.data)
+
+export const createBrandEvent = (payload: {
+  title: string
+  description: string
+  address: string
+  city: string
+  starts_at: string
+  ends_at?: string | null
+  status?: "draft" | "published"
+  max_invitees?: number
+}) => api.post<EventItem>("/events/", payload).then((r) => r.data)
+
+export const inviteInfluencersToEvent = (
+  eventId: number,
+  payload: { influencer_ids: number[]; invited_emails?: string[]; max_plus_ones?: number },
+) => api.post<{ created: number[]; skipped: number[]; external_created: string[]; external_skipped: string[] }>(`/events/${eventId}/invite/`, payload).then((r) => r.data)
+
+export const fetchInfluencerEventInvitations = (token?: string) =>
+  api.get<EventInvitation[] | { results?: EventInvitation[] }>("/event-invitations/", {
+    params: token ? { invitation: token } : undefined,
+  }).then((r) => {
+    const d = r.data as any
+    return (d.results ?? d) as EventInvitation[]
+  })
+
+export const respondEventInvitation = (payload: {
+  invitation_token: string
+  status: "accepted" | "declined"
+  plus_ones?: number
+  response_message?: string
+}) => api.post<EventInvitation>("/event-invitations/respond/", payload).then((r) => r.data)
+
+export const fetchEventInvitationByToken = (token: string) =>
+  api.get<EventInvitation>(`/event-invitations/${token}/`).then((r) => r.data)
+
+export const checkInEventInvitation = (payload: { invitation_token?: string; qr_payload?: string }) =>
+  api.post<{ checked_in: boolean; already_checked_in: boolean; invitation: EventInvitation }>("/events/check-in/", payload).then((r) => r.data)
+
 // ====== Contracts (list) ======
 export interface ContractItem {
   id: number
@@ -338,10 +438,12 @@ export const createSupportTicket = (payload: { subject: string; message: string;
 export const uploadSupportTicketImage = (ticketId: number, file: File) => {
   const fd = new FormData()
   fd.append("image", file)
-  return api.post<SupportTicketImage>(`/support/tickets/${ticketId}/images/`, fd, {
-    headers: { "Content-Type": "multipart/form-data" },
-  }).then((r) => r.data)
+  return api.post<SupportTicketImage>(`/support/tickets/${ticketId}/images/`, fd).then((r) => r.data)
 }
+export const addSupportTicketFollowUp = (ticketId: number, message: string) =>
+  api.post<SupportTicket>(`/support/tickets/${ticketId}/followup/`, { message }).then((r) => r.data)
+export const rateSupportTicket = (ticketId: number, rating: number) =>
+  api.post<SupportTicket>(`/support/tickets/${ticketId}/rate/`, { rating }).then((r) => r.data)
 export const updateAdminSupportTicket = (
   id: number,
   payload: { status?: "open" | "in_progress" | "closed"; priority?: "normal" | "high" | "urgent"; admin_note?: string; admin_reply?: string },
@@ -358,6 +460,8 @@ export const markNotificationRead = (id: number) =>
 
 // ====== Public marketplace ======
 export const fetchMarketplace = () => api.get("/public/marketplace/").then((r) => r.data)
+export const contactInfluencerFromMarketplace = (payload: { influencer_id: number; message: string }) =>
+  api.post<{ sent: boolean }>("/marketplace/contact/", payload).then((r) => r.data)
 
 // ====== Ambassador programs ======
 export const fetchAmbassadorPrograms = () => api.get("/ambassador-programs/").then((r) => r.data)
@@ -408,6 +512,25 @@ export const fetchProposalMessages = (proposalId: number) =>
   })
 export const sendProposalMessage = (proposalId: number, content: string) =>
   api.post(`/proposals/${proposalId}/messages/send/`, { content }).then((r) => r.data)
+
+export async function openProtectedFile(url: string) {
+  const res = await api.get(url, { responseType: "blob" })
+  const blobUrl = window.URL.createObjectURL(res.data)
+  window.open(blobUrl, "_blank", "noopener,noreferrer")
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000)
+}
+
+export async function downloadProtectedFile(url: string, filename = "document.pdf") {
+  const res = await api.get(url, { responseType: "blob" })
+  const blobUrl = window.URL.createObjectURL(res.data)
+  const link = document.createElement("a")
+  link.href = blobUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000)
+}
 
 // ====== Social OAuth ======
 export const startSocialOAuth = (socialNetworkId: number) =>

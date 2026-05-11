@@ -227,3 +227,44 @@ def send_mfa_reset(user_email: str, reset_url: str) -> bool:
             "L'équipe InfluConnect"
         ),
     )
+
+
+def send_event_invitation(
+    influencer_email: str,
+    event_title: str,
+    event_address: str,
+    starts_at_label: str,
+    rsvp_url: str,
+    max_plus_ones: int,
+) -> bool:
+    return send(
+        to=influencer_email,
+        subject=f"InfluConnect — Invitation événement : {event_title}",
+        body_text=(
+            "Bonjour,\n\n"
+            f"Vous êtes invité(e) à l'événement « {event_title} ».\n"
+            f"Adresse : {event_address}\n"
+            f"Date : {starts_at_label}\n"
+            f"Accompagnants autorisés : +{max_plus_ones}\n\n"
+            f"Répondre à l'invitation : {rsvp_url}\n\n"
+            "L'équipe InfluConnect"
+        ),
+    )
+
+
+def send_event_rsvp_confirmation(
+    recipient_email: str,
+    event_title: str,
+    status_label: str,
+    plus_ones_confirmed: int,
+) -> bool:
+    return send(
+        to=recipient_email,
+        subject=f"InfluConnect — RSVP confirmé ({event_title})",
+        body_text=(
+            "Bonjour,\n\n"
+            f"Votre réponse à l'événement « {event_title} » a été enregistrée : {status_label}.\n"
+            f"Accompagnants confirmés : +{plus_ones_confirmed}\n\n"
+            "L'équipe InfluConnect"
+        ),
+    )

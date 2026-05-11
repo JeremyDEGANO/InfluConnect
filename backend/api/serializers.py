@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from rest_framework import serializers
 from cryptography.fernet import Fernet, InvalidToken
+from django.urls import reverse
 import base64
 import hashlib
 import re
@@ -11,8 +12,8 @@ from .services.translation_service import translate as _translate
 
 from .models import (
     User, InfluencerProfile, SocialNetwork, BrandProfile,
-    Campaign, CampaignProposal, ContentSubmission,
-    Message, Review, Notification, PlatformSettings,
+    Campaign, CampaignProposal, Event, EventInvitation, ContentSubmission,
+    Message, DirectMessage, Review, Notification, PlatformSettings,
     ContractTemplate, CastingApplication, AmbassadorProgram, AuditLog,
     MediaKitImage, BrandMembership, AgencyDelegation, SupportTicket,
     SupportTicketImage, TranslationCache,
@@ -37,6 +38,17 @@ def get_fernet():
     elif isinstance(key, str):
         key = key.encode()
     return Fernet(key)
+
+
+def _decrypt_message_text(value: str) -> str:
+    raw = value or ''
+    if not raw.startswith('enc:v1:'):
+        return raw
+    token = raw[len('enc:v1:'):]
+    try:
+        return get_fernet().decrypt(token.encode('utf-8')).decode('utf-8')
+    except (InvalidToken, ValueError):
+        return ''
 
 
 def encrypt_value(value: str) -> str:
@@ -523,6 +535,60 @@ class CampaignSerializer(serializers.ModelSerializer):
         return _abs_media_url(request, getattr(obj.brand, 'logo', None))
 
 
+class EventInvitationSerializer(serializers.ModelSerializer):
+    influencer_display_name = serializers.CharField(source='influencer.display_name', read_only=True)
+    influencer_user_id = serializers.IntegerField(source='influencer.user_id', read_only=True)
+    influencer_avatar = serializers.SerializerMethodField()
+    invitee_label = serializers.SerializerMethodField()
+    event_title = serializers.CharField(source='event.title', read_only=True)
+    event_address = serializers.CharField(source='event.address', read_only=True)
+    event_city = serializers.CharField(source='event.city', read_only=True)
+    event_starts_at = serializers.DateTimeField(source='event.starts_at', read_only=True)
+    event_ends_at = serializers.DateTimeField(source='event.ends_at', read_only=True)
+    qr_payload = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EventInvitation
+        fields = [
+            'id', 'event', 'event_title', 'event_address', 'event_city', 'event_starts_at', 'event_ends_at',
+            'influencer', 'influencer_user_id', 'influencer_display_name', 'influencer_avatar',
+            'invited_email', 'invitee_label',
+            'invite_token', 'status', 'max_plus_ones', 'plus_ones_confirmed', 'response_message',
+            'responded_at', 'checked_in_at', 'checked_in_by', 'created_at', 'updated_at', 'qr_payload',
+        ]
+        read_only_fields = [
+            'responded_at', 'checked_in_at', 'checked_in_by', 'created_at', 'updated_at',
+            'invite_token', 'influencer_avatar', 'qr_payload',
+        ]
+
+    def get_influencer_avatar(self, obj):
+        if not obj.influencer_id:
+            return None
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj.influencer.user, 'avatar', None))
+
+    def get_invitee_label(self, obj):
+        if obj.influencer_id:
+            return (obj.influencer.display_name or '').strip() or obj.influencer.user.username
+        return obj.invited_email
+
+    def get_qr_payload(self, obj):
+        return f"IC-EVT:{obj.event_id}:{obj.invite_token}"
+
+
+class EventSerializer(serializers.ModelSerializer):
+    brand_name = serializers.CharField(source='brand.company_name', read_only=True)
+    invitations = EventInvitationSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Event
+        fields = [
+            'id', 'brand', 'brand_name', 'title', 'description', 'address', 'city',
+            'starts_at', 'ends_at', 'status', 'max_invitees', 'invitations', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['brand', 'created_at', 'updated_at']
+
+
 class ContractTemplateSerializer(serializers.ModelSerializer):
     source_file_url = serializers.SerializerMethodField()
 
@@ -536,7 +602,7 @@ class ContractTemplateSerializer(serializers.ModelSerializer):
         if not obj.source_file:
             return None
         request = self.context.get('request')
-        url = obj.source_file.url
+        url = reverse('contract-template-source-file', kwargs={'pk': obj.pk})
         return request.build_absolute_uri(url) if request else url
 
 
@@ -632,6 +698,16 @@ class CampaignProposalSerializer(serializers.ModelSerializer):
             return None
         return submission.rejection_comment or None
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if instance.contract_pdf:
+            url = reverse('proposal-contract-download', kwargs={'pk': instance.id})
+            data['contract_pdf'] = request.build_absolute_uri(url) if request else url
+        else:
+            data['contract_pdf'] = None
+        return data
+
 
 class ContentSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -649,11 +725,28 @@ class ContentSubmissionSerializer(serializers.ModelSerializer):
             'admin_validated', 'admin_notes', 'created_at',
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if instance.uploaded_file:
+            url = reverse('proposal-submission-asset', kwargs={'submission_id': instance.id, 'asset': 'uploaded_file'})
+            data['uploaded_file'] = request.build_absolute_uri(url) if request else url
+        else:
+            data['uploaded_file'] = None
+
+        if instance.screenshot:
+            url = reverse('proposal-submission-asset', kwargs={'submission_id': instance.id, 'asset': 'screenshot'})
+            data['screenshot'] = request.build_absolute_uri(url) if request else url
+        else:
+            data['screenshot'] = None
+        return data
+
 
 # ---------------------------------------------------------------------------
 # Message / Review / Notification
 # ---------------------------------------------------------------------------
 class MessageSerializer(serializers.ModelSerializer):
+    content = serializers.CharField(required=False, allow_blank=True)
     sender_username = serializers.CharField(source='sender.username', read_only=True)
     sender_avatar = serializers.SerializerMethodField()
 
@@ -666,6 +759,45 @@ class MessageSerializer(serializers.ModelSerializer):
     def get_sender_avatar(self, obj):
         request = self.context.get('request')
         return _abs_media_url(request, getattr(obj.sender, 'avatar', None))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['content'] = _decrypt_message_text(instance.content)
+        request = self.context.get('request')
+        if instance.attachments:
+            url = reverse('proposal-message-attachment', kwargs={'message_id': instance.id})
+            data['attachments'] = request.build_absolute_uri(url) if request else url
+        else:
+            data['attachments'] = None
+        return data
+
+
+class DirectMessageSerializer(serializers.ModelSerializer):
+    content = serializers.CharField(required=False, allow_blank=True)
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+    sender_avatar = serializers.SerializerMethodField()
+    recipient_username = serializers.CharField(source='recipient.username', read_only=True)
+
+    class Meta:
+        model = DirectMessage
+        fields = ['id', 'sender', 'sender_username', 'sender_avatar', 'recipient', 
+                  'recipient_username', 'content', 'attachments', 'read', 'created_at']
+        read_only_fields = ['sender', 'read', 'created_at']
+
+    def get_sender_avatar(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj.sender, 'avatar', None))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['content'] = _decrypt_message_text(instance.content)
+        request = self.context.get('request')
+        if instance.attachments:
+            url = reverse('direct-message-attachment', kwargs={'message_id': instance.id})
+            data['attachments'] = request.build_absolute_uri(url) if request else url
+        else:
+            data['attachments'] = None
+        return data
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -702,64 +834,104 @@ class SupportTicketImageSerializer(serializers.ModelSerializer):
 
     def get_image_url(self, obj):
         request = self.context.get('request')
-        return _abs_media_url(request, obj.image)
+        url = reverse('support-ticket-image-download', kwargs={'image_id': obj.id})
+        return request.build_absolute_uri(url) if request else url
+
+
+def _support_requester_kind(user: User) -> str:
+    if user.user_type != 'brand':
+        return user.user_type
+    brand = getattr(user, 'brand_profile', None)
+    if brand and getattr(brand, 'is_agency', False):
+        return 'agency'
+    return 'brand'
+
+
+def _support_requester_display_name(user: User) -> str:
+    if user.user_type == 'influencer' and hasattr(user, 'influencer_profile'):
+        profile = user.influencer_profile
+        return (profile.display_name or '').strip() or user.get_full_name().strip() or user.username
+    if user.user_type == 'brand' and hasattr(user, 'brand_profile'):
+        return user.brand_profile.company_name or user.get_full_name().strip() or user.username
+    return user.get_full_name().strip() or user.username
+
+
+def _translate_support_ticket_payload(data: dict, source_lang: str, target_lang: str) -> dict:
+    source = (source_lang or '').strip().upper()
+    target = (target_lang or '').strip().upper()
+    if not source or not target or source == target:
+        return data
+    data = dict(data)
+    data['subject'] = _translate(data.get('subject', ''), target)
+    data['message'] = _translate(data.get('message', ''), target)
+    if data.get('admin_reply'):
+        data['admin_reply'] = _translate(data['admin_reply'], target)
+    return data
 
 
 class SupportTicketSerializer(serializers.ModelSerializer):
     """Serializer for users — admin_note (internal) is NOT exposed."""
     requester_email = serializers.CharField(source='requester.email', read_only=True)
     images = SupportTicketImageSerializer(many=True, read_only=True)
+    requester_kind = serializers.SerializerMethodField()
+    requester_display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = SupportTicket
         fields = [
-            'id', 'requester', 'requester_email',
+            'id', 'requester', 'requester_email', 'requester_kind', 'requester_display_name', 'source_language',
             'subject', 'message', 'status', 'priority',
             'admin_reply',
             'images',
+            'rating', 'rated_at',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'requester', 'requester_email', 'status', 'admin_reply',
-            'images', 'created_at', 'updated_at',
+            'requester', 'requester_email', 'requester_kind', 'requester_display_name', 'source_language',
+            'status', 'admin_reply', 'images', 'rating', 'rated_at', 'created_at', 'updated_at',
         ]
+
+    def get_requester_kind(self, obj):
+        return _support_requester_kind(obj.requester)
+
+    def get_requester_display_name(self, obj):
+        return _support_requester_display_name(obj.requester)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         target_lang = self.context.get('translate_to', '')
-        if target_lang:
-            data['subject'] = _translate(data['subject'], target_lang)
-            data['message'] = _translate(data['message'], target_lang)
-            if data.get('admin_reply'):
-                data['admin_reply'] = _translate(data['admin_reply'], target_lang)
-        return data
+        return _translate_support_ticket_payload(data, getattr(instance, 'source_language', ''), target_lang)
 
 
 class SupportTicketAdminUpdateSerializer(serializers.ModelSerializer):
     """Serializer for admins — exposes both admin_reply (public) and admin_note (internal)."""
     requester_email = serializers.CharField(source='requester.email', read_only=True)
     images = SupportTicketImageSerializer(many=True, read_only=True)
+    requester_kind = serializers.SerializerMethodField()
+    requester_display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = SupportTicket
         fields = [
-            'id', 'requester', 'requester_email',
+            'id', 'requester', 'requester_email', 'requester_kind', 'requester_display_name', 'source_language',
             'subject', 'message', 'status', 'priority',
             'admin_reply', 'admin_note',
             'images',
+            'rating', 'rated_at',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['requester', 'requester_email', 'subject', 'message', 'images', 'created_at', 'updated_at']
+        read_only_fields = ['requester', 'requester_email', 'requester_kind', 'requester_display_name', 'source_language', 'subject', 'message', 'images', 'rating', 'rated_at', 'created_at', 'updated_at']
+
+    def get_requester_kind(self, obj):
+        return _support_requester_kind(obj.requester)
+
+    def get_requester_display_name(self, obj):
+        return _support_requester_display_name(obj.requester)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         target_lang = self.context.get('translate_to', '')
-        if target_lang:
-            data['subject'] = _translate(data['subject'], target_lang)
-            data['message'] = _translate(data['message'], target_lang)
-            if data.get('admin_reply'):
-                data['admin_reply'] = _translate(data['admin_reply'], target_lang)
-        return data
+        return _translate_support_ticket_payload(data, getattr(instance, 'source_language', ''), target_lang)
 
 
 # ---------------------------------------------------------------------------
