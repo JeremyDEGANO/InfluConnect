@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, X, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Info } from "lucide-react"
+import { Loader2, X, Plus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Info, Link2 } from "lucide-react"
 import { fetchPseudoAvailability, type PseudoAvailability } from "@/lib/apiExtra"
 
 // Fallback labels FR if backend reference is unavailable
@@ -460,6 +460,43 @@ export default function InfluencerEditProfile() {
     }
   }
 
+  const OAUTH_PLATFORMS = new Set(["tiktok", "youtube", "instagram", "facebook", "twitch"])
+
+  const saveAndConnectOAuth = async (idx: number) => {
+    const s = socials[idx]
+    if (!s) return
+    if (!s.profile_url?.trim()) {
+      toast({
+        title: t("influencer_profile.profile_url"),
+        description: t("influencer_profile.oauth_need_url", "Renseignez l’URL de votre profil avant de connecter."),
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      let id = s.id
+      if (!id) {
+        const r = await api.post(`/influencers/social-networks/`, {
+          platform: s.platform,
+          profile_url: s.profile_url,
+          followers_count: 0,
+          avg_views: 0,
+          engagement_rate: 0,
+        })
+        id = r.data?.id
+        setSocials((arr) => arr.map((row, i) => i === idx ? { ...row, id } : row))
+      }
+      if (!id) throw new Error("missing id")
+      await connectOAuth(id)
+    } catch (e: any) {
+      toast({
+        title: t("common.error"),
+        description: e?.response?.data?.detail ?? t("oauth_social.unavailable"),
+        variant: "destructive",
+      })
+    }
+  }
+
   const disconnectOAuth = async (id: number) => {
     if (!window.confirm(t("influencer_profile.oauth_disconnect_confirm"))) return
     try {
@@ -897,6 +934,23 @@ export default function InfluencerEditProfile() {
                   </div>
                   <Button type="button" variant="ghost" size="sm" onClick={() => removeSocial(i)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                 </div>
+                {OAUTH_PLATFORMS.has(s.platform) && !s.verified_via_api && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 p-2 text-xs text-indigo-900">
+                    <span className="flex items-center gap-1.5">
+                      <Info className="h-3.5 w-3.5" />
+                      {t("influencer_profile.oauth_cta_hint", "Connectez votre compte via OAuth pour récupérer automatiquement vos statistiques.")}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => saveAndConnectOAuth(i)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      <Link2 className="h-3.5 w-3.5 mr-1" />
+                      {t("influencer_profile.oauth_connect_cta", "Se connecter via {{platform}}", { platform: (platformOptions.find((p) => p.code === s.platform)?.label) ?? s.platform })}
+                    </Button>
+                  </div>
+                )}
                 <div className="grid sm:grid-cols-3 gap-2">
                   <div>
                     <Label className="text-xs">{t("influencer_profile.avg_views")}</Label>
@@ -921,7 +975,7 @@ export default function InfluencerEditProfile() {
                         onClick={() => connectOAuth(s.id!)}
                         title={t("influencer_profile.oauth_connect_title")}
                       >
-                        ðŸ”— OAuth
+                        <Link2 className="h-3.5 w-3.5 mr-1" /> OAuth
                       </Button>
                       <Button
                         type="button" variant="outline" size="sm"
