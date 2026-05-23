@@ -212,6 +212,7 @@ export default function InfluencerPublicProfile() {
                 </div>
                 <p className="text-sm text-aurora-ink-3">{t("influencer_public.stats_subtitle")}</p>
               </div>
+              <p className="text-[11px] text-aurora-ink-3 -mt-1">{t("influencer_public.stats_note")}</p>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-aurora-line bg-white p-4">
