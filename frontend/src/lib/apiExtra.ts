@@ -673,19 +673,28 @@ export interface SocialFraudFlag {
   influencer_pseudo?: string | null
   influencer_id?: number
 }
+// DRF global pagination wraps list endpoints as { count, results: [...] }.
+// Unwrap to a plain array so callers can safely .map() the response.
+const unwrapList = <T>(data: unknown): T[] => {
+  if (Array.isArray(data)) return data as T[]
+  if (data && typeof data === "object" && Array.isArray((data as { results?: unknown }).results)) {
+    return (data as { results: T[] }).results
+  }
+  return []
+}
 export const fetchSocialVideos = (socialNetworkId: number, limit = 12) =>
-  api.get<SocialVideo[]>(`/social-networks/${socialNetworkId}/videos/?limit=${limit}`).then((r) => r.data)
+  api.get(`/social-networks/${socialNetworkId}/videos/?limit=${limit}`).then((r) => unwrapList<SocialVideo>(r.data))
 export const fetchSocialSnapshots = (socialNetworkId: number, range: "30" | "90" | "365" = "30") =>
-  api.get<SocialStatsSnapshot[]>(`/social-networks/${socialNetworkId}/snapshots/?range=${range}`).then((r) => r.data)
+  api.get(`/social-networks/${socialNetworkId}/snapshots/?range=${range}`).then((r) => unwrapList<SocialStatsSnapshot>(r.data))
 export const fetchSocialFraudFlags = (socialNetworkId: number) =>
-  api.get<SocialFraudFlag[]>(`/social-networks/${socialNetworkId}/fraud-flags/`).then((r) => r.data)
+  api.get(`/social-networks/${socialNetworkId}/fraud-flags/`).then((r) => unwrapList<SocialFraudFlag>(r.data))
 
 // ====== Admin fraud-flag moderation ======
 export interface AdminFraudFlag extends SocialFraudFlag {
   social_network: number
 }
 export const fetchAdminFraudFlags = (severity?: "low" | "medium" | "high") =>
-  api.get<AdminFraudFlag[]>(`/admin/fraud-flags/${severity ? `?severity=${severity}` : ""}`).then((r) => r.data)
+  api.get(`/admin/fraud-flags/${severity ? `?severity=${severity}` : ""}`).then((r) => unwrapList<AdminFraudFlag>(r.data))
 export const resolveAdminFraudFlag = (id: number) =>
   api.post<AdminFraudFlag>(`/admin/fraud-flags/${id}/resolve/`).then((r) => r.data)
 
@@ -717,7 +726,7 @@ export interface CampaignVideoTracking {
   latest_stats: CampaignVideoDailyStat | null
 }
 export const fetchTrackedVideos = (proposalId: number) =>
-  api.get<CampaignVideoTracking[]>(`/proposals/${proposalId}/tracked-videos/`).then((r) => r.data)
+  api.get(`/proposals/${proposalId}/tracked-videos/`).then((r) => unwrapList<CampaignVideoTracking>(r.data))
 export const attachTrackedVideo = (proposalId: number, videoUrl: string, platform: string = "tiktok") =>
   api.post<CampaignVideoTracking>(`/proposals/${proposalId}/tracked-videos/`, { video_url: videoUrl, platform }).then((r) => r.data)
 export const removeTrackedVideo = (trackingId: number) =>
