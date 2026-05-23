@@ -185,7 +185,7 @@ const resources = {
         videos: { title: "Recent TikTok videos", empty: "No videos found yet.", no_thumbnail: "No preview" },
         freshness: { fresh: "Fresh", stale: "Stale (>7d)", outdated: "Outdated (>30d)", unknown: "Never synced" },
         chart: {
-          not_enough_data: "Growth chart will appear after a few days of data.",,
+          not_enough_data: "Growth chart will appear after a few days of data.",
           metric: {
             followers_count: "Followers growth",
             avg_views: "Average views",
@@ -1408,7 +1408,7 @@ const resources = {
         videos: { title: "Vidéos TikTok récentes", empty: "Aucune vidéo trouvée pour l'instant.", no_thumbnail: "Pas d'aperçu" },
         freshness: { fresh: "Frais", stale: "À actualiser (>7j)", outdated: "Obsolète (>30j)", unknown: "Jamais synchronisé" },
         chart: {
-          not_enough_data: "Le graphique d'évolution apparaîtra après quelques jours de données.",,
+          not_enough_data: "Le graphique d'évolution apparaîtra après quelques jours de données.",
           metric: {
             followers_count: "Évolution des abonnés",
             avg_views: "Vues moyennes",
