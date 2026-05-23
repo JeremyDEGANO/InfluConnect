@@ -34,14 +34,14 @@ export default function TikTokVideosGrid({ socialNetworkId, limit = 12, title }:
   }, [socialNetworkId, limit])
 
   if (error) {
-    return <div className="text-sm text-red-400">{error}</div>
+    return <div className="text-sm text-red-600">{error}</div>
   }
   if (videos === null) {
-    return <div className="text-sm text-slate-400">{t("common.loading")}</div>
+    return <div className="text-sm text-slate-500">{t("common.loading")}</div>
   }
   if (videos.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-700/60 bg-slate-900/30 p-6 text-center text-sm text-slate-400">
+      <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
         {t("tiktok.videos.empty")}
       </div>
     )
@@ -49,7 +49,7 @@ export default function TikTokVideosGrid({ socialNetworkId, limit = 12, title }:
 
   return (
     <section>
-      {title && <h3 className="mb-3 text-sm font-semibold text-slate-200">{title}</h3>}
+      {title && <h3 className="mb-3 text-sm font-semibold text-slate-700">{title}</h3>}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
         {videos.map((v) => (
           <a
@@ -57,7 +57,7 @@ export default function TikTokVideosGrid({ socialNetworkId, limit = 12, title }:
             href={v.video_url || "#"}
             target="_blank"
             rel="noreferrer noopener"
-            className="group relative aspect-[9/16] overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900"
+            className="group relative aspect-[9/16] overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
           >
             {v.thumbnail_url ? (
               <img

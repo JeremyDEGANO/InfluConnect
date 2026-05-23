@@ -39,11 +39,11 @@ export default function GrowthChart({
     }))
   }, [snapshots, metric])
 
-  if (error) return <div className="text-xs text-red-400">{error}</div>
-  if (snapshots === null) return <div className="text-xs text-slate-400">{t("common.loading")}</div>
+  if (error) return <div className="text-xs text-red-600">{error}</div>
+  if (snapshots === null) return <div className="text-xs text-slate-500">{t("common.loading")}</div>
   if (points.length < 2) {
     return (
-      <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 p-3 text-xs text-slate-400">
+      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-600">
         {t("tiktok.chart.not_enough_data")}
       </div>
     )
@@ -71,17 +71,17 @@ export default function GrowthChart({
   const metricLabel = t(`tiktok.chart.metric.${metric}`)
 
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="mb-2 flex items-center justify-between text-xs">
-        <span className="font-semibold text-slate-200">{metricLabel}</span>
+        <span className="font-semibold text-slate-700">{metricLabel}</span>
         <div className="flex items-center gap-2">
-          <span className={isUp ? "text-emerald-400" : "text-red-400"}>
+          <span className={isUp ? "text-emerald-600" : "text-red-600"}>
             {isUp ? "▲" : "▼"} {Math.abs(deltaPct).toFixed(1)}%
           </span>
           <select
             value={currentRange}
             onChange={(e) => setCurrentRange(e.target.value as "30" | "90" | "365")}
-            className="rounded border border-slate-600 bg-slate-800 px-1 py-0.5 text-xs text-slate-200"
+            className="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs text-slate-700"
           >
             <option value="30">{t("tiktok.chart.range.30")}</option>
             <option value="90">{t("tiktok.chart.range.90")}</option>
@@ -92,7 +92,7 @@ export default function GrowthChart({
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="none">
         <path d={path} stroke="rgb(59, 130, 246)" strokeWidth="2" fill="none" />
       </svg>
-      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
         <span>{points[0].date}</span>
         <span>{points[points.length - 1].date}</span>
       </div>

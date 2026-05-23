@@ -167,7 +167,7 @@ class TikTokProvider(BaseSocialProvider):
             followers_count=followers,
             avg_views=avg_views,
             engagement_rate=engagement_rate,
-            profile_url=user.get("profile_deep_link") or (f"https://www.tiktok.com/@{username}" if username else ""),
+            profile_url=(f"https://www.tiktok.com/@{username}" if username else user.get("profile_deep_link", "")),
             extra={
                 "open_id": user.get("open_id", ""),
                 "username": username,

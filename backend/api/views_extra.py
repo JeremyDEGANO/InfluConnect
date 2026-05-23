@@ -1558,7 +1558,7 @@ def _apply_stats(sn: SocialNetwork, stats):
     sn.followers_count = stats.followers_count
     sn.avg_views = stats.avg_views
     sn.engagement_rate = Decimal(str(stats.engagement_rate))
-    if stats.profile_url:
+    if stats.profile_url and (not sn.profile_url or "vm.tiktok.com" in sn.profile_url):
         sn.profile_url = stats.profile_url
     extra = getattr(stats, "extra", {}) or {}
     if extra.get("open_id"):
