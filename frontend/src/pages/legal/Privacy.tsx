@@ -1,4 +1,104 @@
+import { useTranslation } from "react-i18next"
+
 export default function Privacy() {
+  const { i18n } = useTranslation()
+  const isEn = (i18n.language || "fr").toLowerCase().startsWith("en")
+
+  if (isEn) {
+    return (
+      <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
+        <h1>Privacy Policy</h1>
+        <p className="text-sm text-aurora-ink-3">Last updated: April 21, 2026</p>
+
+        <p>
+          InfluConnect SAS ("we", "us", "our", "Platform") takes personal data protection
+          seriously. This policy explains what data we collect, why we collect it, how long we
+          keep it, and the rights you have under GDPR and applicable French law.
+        </p>
+
+        <h2>1. Data Controller</h2>
+        <p>
+          InfluConnect SAS - France.<br />
+          Data Protection Officer: <a href="mailto:dpo@InfluConnect.fr">dpo@InfluConnect.fr</a>
+        </p>
+
+        <h2>2. Data We Collect and Why</h2>
+
+        <h3>2.1 Account Data</h3>
+        <ul>
+          <li>Name, email, phone, location, date of birth;</li>
+          <li>For brands: company details, SIRET, billing data;</li>
+          <li>Password (stored as secure non-reversible hash).</li>
+        </ul>
+        <p>Purpose: account creation and service operation. Legal basis: contract performance.</p>
+
+        <h3>2.2 Social Data via OAuth</h3>
+        <p>When you connect TikTok, YouTube, Instagram, Facebook, or Twitch, we may collect:</p>
+        <ul>
+          <li>TikTok username and account ID;</li>
+          <li>Public account stats (followers, likes, video counts);</li>
+          <li>Public videos and related public engagement metrics.</li>
+        </ul>
+        <p>
+          Purpose: displaying creator profiles in InfluConnect, enabling creator-brand matching,
+          and computing campaign analytics metrics (including EMV).
+        </p>
+        <p>
+          Access tokens are encrypted at rest and never shared with brands. InfluConnect does not
+          publish on your social accounts without explicit action.
+        </p>
+
+        <h3>2.3 Payments</h3>
+        <p>
+          Payment data is processed by Stripe. InfluConnect does not store full card numbers.
+        </p>
+
+        <h2>3. Data Sharing</h2>
+        <p>We share data only with:</p>
+        <ul>
+          <li>Authorized InfluConnect staff (support/moderation);</li>
+          <li>Brands actively collaborating with the influencer on the Platform;</li>
+          <li>Technical processors (hosting, payment, transactional email);</li>
+          <li>Authorities when legally required.</li>
+        </ul>
+        <p>We do not sell personal data.</p>
+
+        <h2>4. Retention Periods</h2>
+        <ul>
+          <li>While account is active;</li>
+          <li>Up to 12 months after account deletion, then deleted or anonymized;</li>
+          <li>Technical logs: up to 12 months;</li>
+          <li>Accounting data: legal retention period.</li>
+        </ul>
+
+        <h2>5. GDPR Rights</h2>
+        <p>You can request access, rectification, deletion, portability, restriction, and objection.</p>
+        <p>
+          To exercise your rights: <a href="mailto:dpo@InfluConnect.fr">dpo@InfluConnect.fr</a>
+        </p>
+
+        <h2>6. Revoking Social Access</h2>
+        <p>You can revoke access at any time:</p>
+        <ul>
+          <li>From your InfluConnect profile (disconnect social account);</li>
+          <li>Directly from the connected platform settings (TikTok, Google/YouTube, Meta, Twitch).</li>
+        </ul>
+
+        <h2>7. GDPR/EEA Compliance</h2>
+        <p>
+          InfluConnect is established in France (European Union) and processes personal data
+          in compliance with GDPR requirements.
+        </p>
+
+        <h2>8. Contact</h2>
+        <p>
+          DPO: <a href="mailto:dpo@InfluConnect.fr">dpo@InfluConnect.fr</a><br />
+          General support: <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
       <h1>Politique de Confidentialité</h1>
