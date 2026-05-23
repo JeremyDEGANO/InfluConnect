@@ -57,7 +57,15 @@ export default function AdminBrands() {
       await approveBrand(id)
       toast({ title: t("admin_brands.approved", "Marque approuvée") })
       setItems((prev) => prev.filter((it) => it.id !== id))
-    } catch { toast({ variant: "destructive", title: t("common.error") }) }
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail
+      const missing = Array.isArray(e?.response?.data?.missing_fields) ? e.response.data.missing_fields.join(", ") : ""
+      toast({
+        variant: "destructive",
+        title: t("common.error"),
+        description: detail ? `${detail}${missing ? ` (${missing})` : ""}` : undefined,
+      })
+    }
     finally { setBusy(null) }
   }
   const reject = async (id: number) => {

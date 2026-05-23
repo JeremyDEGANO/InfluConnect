@@ -904,14 +904,6 @@ export default function InfluencerEditProfile() {
               <CardTitle className="text-base">{t("influencer_profile.social_networks", "Réseaux sociaux")}</CardTitle>
               <Button type="button" variant="outline" size="sm" onClick={addSocial}><Plus className="h-3.5 w-3.5 mr-1" />{t("common.add", "Ajouter")}</Button>
             </div>
-            <div className="flex items-start gap-2 mt-2 text-xs text-aurora-ink-3">
-              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-indigo-500" />
-              <p>
-                La synchronisation automatique nécessite une connexion OAuth officielle
-                (Instagram Graph, TikTok Display API, YouTube Data API). En attendant,
-                saisissez vos statistiques manuellement.
-              </p>
-            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {socials.length === 0 && <p className="text-sm text-aurora-ink-3">{t("influencer_profile.no_socials", "Ajoutez au moins un réseau social")}</p>}

@@ -821,6 +821,8 @@ class AdminBrandApproveView(APIView):
             profile = BrandProfile.objects.select_related("user").get(pk=pk)
         except BrandProfile.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if profile.validation_status == "approved":
+            return Response(BrandAdminSerializer(profile).data)
         missing = _brand_missing_fields(profile)
         if missing:
             return Response(

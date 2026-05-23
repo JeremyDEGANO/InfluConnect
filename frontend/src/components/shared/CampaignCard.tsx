@@ -1,10 +1,10 @@
 import { Calendar, DollarSign, Users } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { StatusBadge } from "./StatusBadge"
+import { CampaignPhaseBadge, StatusBadge } from "./StatusBadge"
 import { useTranslation } from "react-i18next"
 
-type CampaignStatus = "pending" | "active" | "completed" | "cancelled" | "accepted" | "declined" | "draft" | "published"
+type CampaignStatus = "pending" | "active" | "paused" | "completed" | "cancelled" | "accepted" | "declined" | "draft" | "published"
 
 interface CampaignCardProps {
   id: number
@@ -23,8 +23,13 @@ export function CampaignCard({ id, title, budget, deadline, status, themes, prop
     <Card className="card-base hover:shadow-md transition-shadow">
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
-          <h3 className="font-semibold text-aurora-ink text-base">{title}</h3>
-          <StatusBadge status={status} />
+          <div className="min-w-0 pr-3">
+            <h3 className="font-semibold text-aurora-ink text-base">{title}</h3>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <StatusBadge status={status} />
+              <CampaignPhaseBadge status={status} deadline={deadline} />
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap gap-1.5 mt-2">
           {themes.slice(0, 3).map((theme) => (
@@ -43,7 +48,7 @@ export function CampaignCard({ id, title, budget, deadline, status, themes, prop
           {proposals_count !== undefined && (
             <div className="flex items-center gap-1 text-sm text-aurora-ink-3">
               <Users className="h-4 w-4 text-indigo-500" />
-              <span>{proposals_count} proposals</span>
+              <span>{proposals_count} {t("proposals.title")}</span>
             </div>
           )}
         </div>

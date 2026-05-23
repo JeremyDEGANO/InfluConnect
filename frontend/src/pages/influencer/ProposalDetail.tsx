@@ -7,7 +7,7 @@ import { fundEscrow, validateContent, rejectContent, submitContent, acceptCounte
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { StatusBadge } from "@/components/shared/StatusBadge"
+import { CampaignPhaseBadge, StatusBadge } from "@/components/shared/StatusBadge"
 import { MessageThread } from "@/components/shared/MessageThread"
 import { CounterOfferDialog } from "@/components/shared/CounterOfferDialog"
 import { ReviewDialog } from "@/components/shared/ReviewDialog"
@@ -136,11 +136,22 @@ export default function ProposalDetail() {
   const handleAction = async (action: "accept" | "decline") => {
     setActionLoading(true)
     try {
-      const res = await api.post(`/proposals/${id}/${action}/`)
+      const payload = action === "decline"
+        ? {
+            decline_reason:
+              (prompt(t("proposal_detail.reject_reason", "Raison du refus ?")) ?? "").trim(),
+          }
+        : undefined
+      if (action === "decline" && !payload?.decline_reason) {
+        return
+      }
+      const res = await api.post(`/proposals/${id}/${action}/`, payload)
       setProposal((prev) => prev ? { ...prev, status: res.data.status ?? prev.status } : prev)
       toast({ title: action === "accept" ? t("proposals.accept") + "!" : t("proposals.decline") })
       await reload()
-    } catch { toast({ title: t("common.error"), variant: "destructive" }) }
+    } catch (e: any) {
+      toast({ title: t("common.error"), description: getApiErrorMessage(e), variant: "destructive" })
+    }
     finally { setActionLoading(false) }
   }
 
@@ -258,7 +269,7 @@ export default function ProposalDetail() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
                   <div className="p-3 bg-aurora-surface rounded-xl">
                     <p className="text-aurora-ink-3 text-xs">{t("campaigns.budget")}</p>
                     <p className="font-semibold mt-1 text-green-700">€{proposal.proposed_price}</p>
@@ -267,6 +278,21 @@ export default function ProposalDetail() {
                     <p className="text-aurora-ink-3 text-xs">{t("common.status", "Statut")}</p>
                     <p className="font-semibold mt-1">{t(`status.${proposal.status}`, { defaultValue: formatStatusLabel(proposal.status) })}</p>
                   </div>
+                  {proposal.campaign_status && (
+                    <div className="p-3 bg-aurora-surface rounded-xl">
+                      <p className="text-aurora-ink-3 text-xs">{t("campaigns.stage", "Étape campagne")}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <StatusBadge status={proposal.campaign_status} />
+                        <CampaignPhaseBadge status={proposal.campaign_status} deadline={proposal.campaign_deadline} />
+                      </div>
+                    </div>
+                  )}
+                  {proposal.campaign_deadline && (
+                    <div className="p-3 bg-yellow-50 rounded-xl text-sm">
+                      <p className="text-aurora-ink-3 text-xs uppercase font-medium">{t("campaigns.deadline")}</p>
+                      <p className="font-semibold text-aurora-ink mt-1">{new Date(proposal.campaign_deadline).toLocaleDateString()}</p>
+                    </div>
+                  )}
                 </div>
 
                 {proposal.campaign_description && (
@@ -311,14 +337,6 @@ export default function ProposalDetail() {
                     </div>
                   </div>
                 )}
-
-                {proposal.campaign_deadline && (
-                  <div className="p-3 bg-yellow-50 rounded-xl text-sm">
-                    <p className="text-aurora-ink-3 text-xs uppercase font-medium">{t("campaigns.deadline")}</p>
-                    <p className="font-semibold text-aurora-ink mt-1">{new Date(proposal.campaign_deadline).toLocaleDateString()}</p>
-                  </div>
-                )}
-
                 {!isBrand && proposal.status === "in_progress" && (proposal.latest_submission_rejection_reason || proposal.latest_submission_rejection_comment) && (
                   <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm space-y-2">
                     <p className="font-semibold text-amber-900">{t("proposal_detail.correction_requested_title")}</p>

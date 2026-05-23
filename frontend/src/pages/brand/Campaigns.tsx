@@ -17,10 +17,13 @@ interface Campaign {
   target_networks: string[]
 }
 
+const STATUS_TABS = ["all", "active", "draft", "paused", "completed", "cancelled"] as const
+type StatusTab = typeof STATUS_TABS[number]
+
 export default function BrandCampaigns() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [tab, setTab] = useState("all")
+  const [tab, setTab] = useState<StatusTab>("all")
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -47,10 +50,11 @@ export default function BrandCampaigns() {
       />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="all">{t("campaigns_page.all")}</TabsTrigger>
-          <TabsTrigger value="active">{t("campaigns.active")}</TabsTrigger>
-          <TabsTrigger value="draft">{t("campaigns.draft")}</TabsTrigger>
-          <TabsTrigger value="completed">{t("campaigns.completed")}</TabsTrigger>
+          {STATUS_TABS.map((value) => (
+            <TabsTrigger key={value} value={value}>
+              {value === "all" ? t("campaigns_page.all") : t(`campaigns.${value}`)}
+            </TabsTrigger>
+          ))}
         </TabsList>
         <TabsContent value={tab} className="mt-4">
           {filtered.length === 0 ? (

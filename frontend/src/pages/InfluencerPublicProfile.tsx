@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Loader2, Star, Users, MapPin } from "lucide-react"
+import { ArrowLeft, BarChart3, CheckCircle2, Gauge, Loader2, MapPin, Star, Users } from "lucide-react"
 import TikTokVideosGrid from "@/components/social/TikTokVideosGrid"
 import GrowthChart from "@/components/social/GrowthChart"
 import { FreshnessBadge, VerifiedBadge } from "@/components/social/SocialStatusBadges"
@@ -17,6 +17,7 @@ interface SocialNetwork {
   id?: number
   platform: string
   followers_count: number
+  avg_views?: number
   handle?: string
   engagement_rate?: number
   verified_via_api?: boolean
@@ -54,6 +55,7 @@ function normalizeProfile(raw: any): InfluencerProfile {
         id: Number.isFinite(Number(sn.id)) ? Number(sn.id) : undefined,
         platform: typeof sn.platform === "string" ? sn.platform : "",
         followers_count: Number.isFinite(Number(sn.followers_count)) ? Number(sn.followers_count) : 0,
+        avg_views: Number.isFinite(Number(sn.avg_views)) ? Number(sn.avg_views) : undefined,
         handle: typeof sn.handle === "string" ? sn.handle : undefined,
         engagement_rate: Number.isFinite(Number(sn.engagement_rate)) ? Number(sn.engagement_rate) : undefined,
         verified_via_api: Boolean(sn.verified_via_api),
@@ -109,6 +111,7 @@ export default function InfluencerPublicProfile() {
 
   const fmt = (n: number) =>
     n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
+  const fmtPct = (n?: number) => (typeof n === "number" && Number.isFinite(n) ? `${n.toFixed(2)}%` : t("influencer_public.no_data"))
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
@@ -116,6 +119,24 @@ export default function InfluencerPublicProfile() {
   if (!inf) return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
 
   const totalFollowers = inf.social_networks?.reduce((s, sn) => s + sn.followers_count, 0) ?? 0
+  const avgEngagementValues = inf.social_networks
+    .map((sn) => sn.engagement_rate)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+  const avgEngagement = avgEngagementValues.length
+    ? avgEngagementValues.reduce((sum, value) => sum + value, 0) / avgEngagementValues.length
+    : null
+  const avgViewsValues = inf.social_networks
+    .map((sn) => sn.avg_views)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+  const avgViews = avgViewsValues.length
+    ? Math.round(avgViewsValues.reduce((sum, value) => sum + value, 0) / avgViewsValues.length)
+    : null
+  const verifiedPlatforms = inf.social_networks.filter((sn) => sn.verified_via_api || sn.is_verified_external).length
+  const latestSyncedAt = inf.social_networks
+    .map((sn) => sn.last_synced_at)
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null
+  const tiktokNetworks = inf.social_networks?.filter((sn) => sn.platform === "tiktok" && sn.id && sn.verified_via_api) ?? []
   const focus = (searchParams.get("focus") || "").toLowerCase()
   const hashFocus = (location.hash || "").replace("#", "").toLowerCase()
   const rating = typeof inf.average_rating === "number"
@@ -183,24 +204,88 @@ export default function InfluencerPublicProfile() {
             </div>
           )}
           {inf.social_networks?.length > 0 && (
-            <div>
-              <p className="text-sm font-medium text-aurora-ink-3 mb-2">{t("influencer_public.networks")}</p>
-              <div className="grid sm:grid-cols-2 gap-2">
+            <section className="space-y-4 rounded-2xl border border-aurora-line bg-aurora-surface/40 p-4 sm:p-5">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-aurora-ink-3">{t("influencer_public.networks")}</p>
+                  <h3 className="text-lg font-semibold tracking-tight text-aurora-ink">{t("influencer_public.stats_title")}</h3>
+                </div>
+                <p className="text-sm text-aurora-ink-3">{t("influencer_public.stats_subtitle")}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-aurora-line bg-white p-4">
+                  <div className="flex items-center gap-2 text-aurora-ink-3">
+                    <Users className="h-4 w-4 text-indigo-500" />
+                    <span className="text-xs font-medium uppercase tracking-wide">{t("influencer_public.total_followers")}</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold text-aurora-ink">{fmt(totalFollowers)}</p>
+                </div>
+                <div className="rounded-2xl border border-aurora-line bg-white p-4">
+                  <div className="flex items-center gap-2 text-aurora-ink-3">
+                    <Gauge className="h-4 w-4 text-emerald-500" />
+                    <span className="text-xs font-medium uppercase tracking-wide">{t("influencer_public.avg_engagement")}</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold text-aurora-ink">{avgEngagement !== null ? `${avgEngagement.toFixed(2)}%` : t("influencer_public.no_data")}</p>
+                </div>
+                <div className="rounded-2xl border border-aurora-line bg-white p-4">
+                  <div className="flex items-center gap-2 text-aurora-ink-3">
+                    <BarChart3 className="h-4 w-4 text-sky-500" />
+                    <span className="text-xs font-medium uppercase tracking-wide">{t("influencer_public.avg_views")}</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold text-aurora-ink">{avgViews !== null ? fmt(avgViews) : t("influencer_public.no_data")}</p>
+                </div>
+                <div className="rounded-2xl border border-aurora-line bg-white p-4">
+                  <div className="flex items-center gap-2 text-aurora-ink-3">
+                    <CheckCircle2 className="h-4 w-4 text-amber-500" />
+                    <span className="text-xs font-medium uppercase tracking-wide">{t("influencer_public.verified_platforms")}</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold text-aurora-ink">{verifiedPlatforms}</p>
+                  <p className="mt-1 text-xs text-aurora-ink-3">
+                    {latestSyncedAt ? t("tiktok.freshness.last_sync", { when: new Date(latestSyncedAt).toLocaleString() }) : t("influencer_public.no_sync")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
                 {inf.social_networks.map((sn) => (
-                  <div key={sn.platform} className="p-3 bg-aurora-surface rounded-xl flex items-center justify-between text-sm">
-                    <span className="font-medium capitalize">{sn.platform}</span>
-                    <div className="flex items-center gap-2">
-                      {sn.is_verified_external && <VerifiedBadge />}
-                      <FreshnessBadge lastSyncedAt={sn.last_synced_at} />
-                      <span className="text-aurora-ink-3">{fmt(sn.followers_count)}</span>
+                  <div key={sn.platform} className="rounded-2xl border border-aurora-line bg-white p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold capitalize text-aurora-ink">{sn.platform}</span>
+                          {sn.is_verified_external && <VerifiedBadge />}
+                        </div>
+                        <div className="mt-1 text-sm text-aurora-ink-3">
+                          <FreshnessBadge lastSyncedAt={sn.last_synced_at} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:min-w-[320px] sm:grid-cols-3">
+                        <div>
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-aurora-ink-3">{t("influencer_public.total_followers")}</p>
+                          <p className="mt-1 text-base font-semibold text-aurora-ink">{fmt(sn.followers_count)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-aurora-ink-3">{t("influencer_public.avg_engagement")}</p>
+                          <p className="mt-1 text-base font-semibold text-aurora-ink">{fmtPct(sn.engagement_rate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-aurora-ink-3">{t("influencer_public.avg_views")}</p>
+                          <p className="mt-1 text-base font-semibold text-aurora-ink">{typeof sn.avg_views === "number" ? fmt(sn.avg_views) : t("influencer_public.no_data")}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
-          {inf.social_networks?.filter((sn) => sn.platform === "tiktok" && sn.id && sn.verified_via_api).map((sn) => (
+          {tiktokNetworks.map((sn) => (
             <div key={`tt-${sn.id}`} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold tracking-tight text-aurora-ink">{t("influencer_public.tiktok_insights")}</h3>
+                <Badge variant="outline">TikTok</Badge>
+              </div>
               <GrowthChart socialNetworkId={sn.id!} metric="followers_count" range="30" />
               <TikTokVideosGrid socialNetworkId={sn.id!} limit={12} title={t("tiktok.videos.title")} />
             </div>
