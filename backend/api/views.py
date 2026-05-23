@@ -131,6 +131,11 @@ def create_notification(user, notification_type, title, message, proposal=None):
     )
 
 
+def _notif_text(user, fr: str, en: str) -> str:
+    lang = str(getattr(user, "language_preference", "") or "").lower()
+    return fr if lang.startswith("fr") else en
+
+
 def _conversation_display_name(user):
     if getattr(user, "user_type", "") == "influencer":
         try:
@@ -292,8 +297,12 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
             create_notification(
                 user=recipient,
                 notification_type="contract_signed",
-                title="Contract fully signed",
-                message=f'The contract for "{proposal.campaign.title}" has been signed by both parties.',
+                title=_notif_text(recipient, "Contrat signe par les deux parties", "Contract fully signed"),
+                message=_notif_text(
+                    recipient,
+                    f'Le contrat pour "{proposal.campaign.title}" a ete signe par les deux parties.',
+                    f'The contract for "{proposal.campaign.title}" has been signed by both parties.',
+                ),
                 proposal=proposal,
             )
     elif brand_just_signed:
@@ -950,8 +959,12 @@ class CampaignSendProposalsView(APIView):
             create_notification(
                 user=influencer.user,
                 notification_type="new_proposal",
-                title=f"New proposal: {campaign.title}",
-                message=f'{campaign.brand.company_name} sent you a proposal for "{campaign.title}".',
+                title=_notif_text(influencer.user, f"Nouvelle proposition : {campaign.title}", f"New proposal: {campaign.title}"),
+                message=_notif_text(
+                    influencer.user,
+                    f'{campaign.brand.company_name} vous a envoye une proposition pour "{campaign.title}".',
+                    f'{campaign.brand.company_name} sent you a proposal for "{campaign.title}".',
+                ),
                 proposal=proposal,
             )
             if influencer.user.email:
@@ -1331,10 +1344,13 @@ class ProposalAcceptView(APIView):
         create_notification(
             user=proposal.campaign.brand.user,
             notification_type="proposal_accepted",
-            title="Proposal accepted",
-            message=(
+            title=_notif_text(proposal.campaign.brand.user, "Proposition acceptee", "Proposal accepted"),
+            message=_notif_text(
+                proposal.campaign.brand.user,
                 f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'accepted your proposal for "{proposal.campaign.title}".'
+                f'a accepte votre proposition pour "{proposal.campaign.title}".',
+                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                f'accepted your proposal for "{proposal.campaign.title}".',
             ),
             proposal=proposal,
         )
@@ -1357,10 +1373,13 @@ class ProposalDeclineView(APIView):
         create_notification(
             user=proposal.campaign.brand.user,
             notification_type="proposal_declined",
-            title="Proposal declined",
-            message=(
+            title=_notif_text(proposal.campaign.brand.user, "Proposition refusee", "Proposal declined"),
+            message=_notif_text(
+                proposal.campaign.brand.user,
                 f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'declined your proposal for "{proposal.campaign.title}".'
+                f'a refuse votre proposition pour "{proposal.campaign.title}".',
+                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                f'declined your proposal for "{proposal.campaign.title}".',
             ),
             proposal=proposal,
         )
@@ -1384,10 +1403,13 @@ class ProposalCounterOfferView(APIView):
         create_notification(
             user=proposal.campaign.brand.user,
             notification_type="counter_offer",
-            title="Counter offer received",
-            message=(
+            title=_notif_text(proposal.campaign.brand.user, "Contre-offre recue", "Counter offer received"),
+            message=_notif_text(
+                proposal.campaign.brand.user,
                 f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'sent a counter offer for "{proposal.campaign.title}".'
+                f'vous a envoye une contre-offre pour "{proposal.campaign.title}".',
+                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                f'sent a counter offer for "{proposal.campaign.title}".',
             ),
             proposal=proposal,
         )
@@ -1409,8 +1431,12 @@ class ProposalAcceptCounterView(APIView):
         create_notification(
             user=proposal.influencer.user,
             notification_type="proposal_accepted",
-            title="Counter offer accepted",
-            message=f'Your counter offer for "{proposal.campaign.title}" was accepted.',
+            title=_notif_text(proposal.influencer.user, "Contre-offre acceptee", "Counter offer accepted"),
+            message=_notif_text(
+                proposal.influencer.user,
+                f'Votre contre-offre pour "{proposal.campaign.title}" a ete acceptee.',
+                f'Your counter offer for "{proposal.campaign.title}" was accepted.',
+            ),
             proposal=proposal,
         )
         return Response(CampaignProposalSerializer(proposal).data)
@@ -1435,8 +1461,12 @@ class ProposalCancelView(APIView):
         create_notification(
             user=proposal.influencer.user,
             notification_type="proposal_declined",
-            title="Proposal cancelled",
-            message=f'The brand cancelled the proposal for "{proposal.campaign.title}".',
+            title=_notif_text(proposal.influencer.user, "Proposition annulee", "Proposal cancelled"),
+            message=_notif_text(
+                proposal.influencer.user,
+                f'La marque a annule la proposition pour "{proposal.campaign.title}".',
+                f'The brand cancelled the proposal for "{proposal.campaign.title}".',
+            ),
             proposal=proposal,
         )
         return Response(CampaignProposalSerializer(proposal).data)
@@ -1648,8 +1678,12 @@ class ProposalFundEscrowView(APIView):
         create_notification(
             user=proposal.influencer.user,
             notification_type="escrow_funded",
-            title="Escrow funded",
-            message=f'The brand has funded the escrow for "{proposal.campaign.title}". You can start working!',
+            title=_notif_text(proposal.influencer.user, "Escrow approvisionne", "Escrow funded"),
+            message=_notif_text(
+                proposal.influencer.user,
+                f'La marque a approvisionne l\'escrow pour "{proposal.campaign.title}". Vous pouvez commencer.',
+                f'The brand has funded the escrow for "{proposal.campaign.title}". You can start working!',
+            ),
             proposal=proposal,
         )
         return Response(CampaignProposalSerializer(proposal).data)
@@ -1696,10 +1730,13 @@ class ProposalSubmitContentView(APIView):
         create_notification(
             user=proposal.campaign.brand.user,
             notification_type="content_submitted",
-            title="Content submitted",
-            message=(
+            title=_notif_text(proposal.campaign.brand.user, "Contenu soumis", "Content submitted"),
+            message=_notif_text(
+                proposal.campaign.brand.user,
                 f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'submitted content for "{proposal.campaign.title}".'
+                f'a soumis du contenu pour "{proposal.campaign.title}".',
+                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                f'submitted content for "{proposal.campaign.title}".',
             ),
             proposal=proposal,
         )
@@ -1825,8 +1862,12 @@ class ProposalValidateContentView(APIView):
                 create_notification(
                     user=proposal.influencer.user,
                     notification_type="payment_released",
-                    title="Payment released",
-                    message=f'Payment for "{proposal.campaign.title}" has been released.',
+                    title=_notif_text(proposal.influencer.user, "Paiement libere", "Payment released"),
+                    message=_notif_text(
+                        proposal.influencer.user,
+                        f'Le paiement pour "{proposal.campaign.title}" a ete libere.',
+                        f'Payment for "{proposal.campaign.title}" has been released.',
+                    ),
                     proposal=proposal,
                 )
             except Exception:
@@ -1834,8 +1875,12 @@ class ProposalValidateContentView(APIView):
         create_notification(
             user=proposal.influencer.user,
             notification_type="content_validated",
-            title="Content validated",
-            message=f'Your content for "{proposal.campaign.title}" was validated by the brand.',
+            title=_notif_text(proposal.influencer.user, "Contenu valide", "Content validated"),
+            message=_notif_text(
+                proposal.influencer.user,
+                f'Votre contenu pour "{proposal.campaign.title}" a ete valide par la marque.',
+                f'Your content for "{proposal.campaign.title}" was validated by the brand.',
+            ),
             proposal=proposal,
         )
         return Response(CampaignProposalSerializer(proposal).data)
@@ -1870,8 +1915,12 @@ class ProposalRejectContentView(APIView):
         create_notification(
             user=proposal.influencer.user,
             notification_type="content_rejected",
-            title="Content rejected",
-            message=f'Your content for "{proposal.campaign.title}" was rejected. Reason: {rejection_reason}.',
+            title=_notif_text(proposal.influencer.user, "Contenu refuse", "Content rejected"),
+            message=_notif_text(
+                proposal.influencer.user,
+                f'Votre contenu pour "{proposal.campaign.title}" a ete refuse. Motif : {rejection_reason}.',
+                f'Your content for "{proposal.campaign.title}" was rejected. Reason: {rejection_reason}.',
+            ),
             proposal=proposal,
         )
         return Response(CampaignProposalSerializer(proposal).data)
@@ -1896,8 +1945,12 @@ class ProposalReleasePaymentView(APIView):
         create_notification(
             user=proposal.influencer.user,
             notification_type="payment_released",
-            title="Payment released",
-            message=f'Payment for "{proposal.campaign.title}" has been released to you.',
+            title=_notif_text(proposal.influencer.user, "Paiement libere", "Payment released"),
+            message=_notif_text(
+                proposal.influencer.user,
+                f'Le paiement pour "{proposal.campaign.title}" vous a ete libere.',
+                f'Payment for "{proposal.campaign.title}" has been released to you.',
+            ),
             proposal=proposal,
         )
         return Response(CampaignProposalSerializer(proposal).data)

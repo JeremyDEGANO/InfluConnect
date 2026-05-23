@@ -327,54 +327,154 @@ def build_campaign_report_payload(campaign: Campaign) -> dict[str, Any]:
 
 def render_report_pdf(report: dict[str, Any]) -> bytes:
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
     from reportlab.pdfgen import canvas
+
+    def fmt_currency(value: Any) -> str:
+        return f"EUR {float(value or 0):,.2f}".replace(",", " ")
+
+    def fmt_ratio(value: Any) -> str:
+        if value is None:
+            return "-"
+        return f"{float(value):.2f}x"
+
+    def status_label(raw: str) -> str:
+        return str(raw or "-").replace("_", " ").title()
 
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    y = height - 60
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(40, y, "InfluConnect Campaign Report")
-    y -= 28
-
     campaign = report["campaign"]
     emv = report["emv"]
+    proposals = report.get("proposals", {})
 
+    # Background inspired by transactional email template.
+    c.setFillColor(colors.HexColor("#EEF2FF"))
+    c.rect(0, 0, width, height, stroke=0, fill=1)
+
+    card_x, card_y = 24, 24
+    card_w, card_h = width - 48, height - 48
+    c.setFillColor(colors.white)
+    c.roundRect(card_x, card_y, card_w, card_h, 16, stroke=0, fill=1)
+
+    # Header band
+    header_h = 94
+    c.setFillColor(colors.HexColor("#2563EB"))
+    c.roundRect(card_x, card_y + card_h - header_h, card_w, header_h, 16, stroke=0, fill=1)
+    # Square-off lower corners visually.
+    c.rect(card_x, card_y + card_h - header_h, card_w, 20, stroke=0, fill=1)
+
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(card_x + 20, card_y + card_h - 22, "INFLUCONNECT")
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(card_x + 20, card_y + card_h - 44, "Campaign Performance Report")
     c.setFont("Helvetica", 11)
-    c.drawString(40, y, f"Campaign: {campaign['title']} (#{campaign['id']})")
-    y -= 18
-    c.drawString(40, y, f"Status: {campaign['status']}   Deadline: {campaign['deadline'] or '-'}")
-    y -= 18
-    c.drawString(40, y, f"Budget per influencer: EUR {campaign['budget_per_influencer']:.2f}")
+    c.drawString(card_x + 20, card_y + card_h - 62, f"{campaign['title']}  |  #{campaign['id']}")
+
+    y = card_y + card_h - header_h - 24
+
+    # Meta line.
+    c.setFillColor(colors.HexColor("#334155"))
+    c.setFont("Helvetica", 10)
+    c.drawString(card_x + 20, y, f"Status: {status_label(campaign.get('status'))}")
+    c.drawString(card_x + 190, y, f"Deadline: {campaign.get('deadline') or '-'}")
+    c.drawString(card_x + 360, y, f"Budget / influencer: {fmt_currency(campaign.get('budget_per_influencer'))}")
     y -= 30
 
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(40, y, "EMV")
-    y -= 20
-    c.setFont("Helvetica", 11)
-    c.drawString(40, y, f"Total EMV: EUR {emv['emv_total_eur']:.2f}")
-    y -= 16
-    c.drawString(40, y, f"Budget spent: EUR {emv['budget_spent_eur']:.2f}")
-    y -= 16
-    ratio = emv.get("emv_vs_spend_ratio")
-    c.drawString(40, y, f"EMV/Spend ratio: {ratio if ratio is not None else '-'}")
-    y -= 24
+    # KPI cards.
+    kpi_labels = [
+        ("Total EMV", fmt_currency(emv.get("emv_total_eur"))),
+        ("Budget spent", fmt_currency(emv.get("budget_spent_eur"))),
+        ("EMV / Spend", fmt_ratio(emv.get("emv_vs_spend_ratio"))),
+        ("Confidence", f"{float(emv.get('confidence_score') or 0):.2f}"),
+    ]
+    kpi_w = (card_w - 40 - 30) / 4
+    kpi_h = 62
+    for idx, (label, value) in enumerate(kpi_labels):
+        x = card_x + 20 + idx * (kpi_w + 10)
+        c.setFillColor(colors.HexColor("#F8FAFC"))
+        c.roundRect(x, y - kpi_h, kpi_w, kpi_h, 9, stroke=0, fill=1)
+        c.setFillColor(colors.HexColor("#64748B"))
+        c.setFont("Helvetica", 9)
+        c.drawString(x + 10, y - 18, label)
+        c.setFillColor(colors.HexColor("#0F172A"))
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(x + 10, y - 38, value)
+    y -= kpi_h + 24
 
+    # Status distribution
+    c.setFillColor(colors.HexColor("#0F172A"))
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Top influencers by EMV")
-    y -= 18
+    c.drawString(card_x + 20, y, "Proposal pipeline")
+    y -= 16
     c.setFont("Helvetica", 10)
+    status_counts = proposals.get("status_counts", {}) or {}
+    ordered_status = [
+        "pending", "counter_offer", "accepted", "contract_signed", "in_progress",
+        "content_submitted", "validated", "paid", "declined", "disputed",
+    ]
+    left_x = card_x + 20
+    right_x = card_x + card_w / 2 + 10
+    row_h = 14
+    row_idx = 0
+    for key in ordered_status:
+        count = int(status_counts.get(key, 0) or 0)
+        target_x = left_x if row_idx < 5 else right_x
+        target_y = y - (row_idx % 5) * row_h
+        c.setFillColor(colors.HexColor("#334155"))
+        c.drawString(target_x, target_y, f"{status_label(key)}")
+        c.setFillColor(colors.HexColor("#0F172A"))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawRightString(target_x + 170, target_y, str(count))
+        c.setFont("Helvetica", 10)
+        row_idx += 1
 
-    for idx, row in enumerate(emv.get("by_influencer", [])[:8], start=1):
-        c.drawString(40, y, f"{idx}. {row['influencer_name']} - EUR {row['emv_eur']:.2f} ({int(row['submissions'])} submissions)")
-        y -= 14
-        if y < 80:
+    y -= 84
+
+    # Top influencers table.
+    c.setFillColor(colors.HexColor("#0F172A"))
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(card_x + 20, y, "Top influencers by EMV")
+    y -= 16
+
+    rows = emv.get("by_influencer", [])[:8]
+    table_x = card_x + 20
+    table_w = card_w - 40
+    header_y = y
+    c.setFillColor(colors.HexColor("#E2E8F0"))
+    c.roundRect(table_x, header_y - 16, table_w, 16, 4, stroke=0, fill=1)
+    c.setFillColor(colors.HexColor("#0F172A"))
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(table_x + 8, header_y - 11, "Influencer")
+    c.drawString(table_x + 250, header_y - 11, "Submissions")
+    c.drawString(table_x + 340, header_y - 11, "Impressions")
+    c.drawString(table_x + 450, header_y - 11, "EMV")
+
+    row_y = header_y - 24
+    c.setFont("Helvetica", 9)
+    for r in rows:
+        if row_y < card_y + 24:
             c.showPage()
-            y = height - 60
-            c.setFont("Helvetica", 10)
+            c.setFillColor(colors.HexColor("#EEF2FF"))
+            c.rect(0, 0, width, height, stroke=0, fill=1)
+            c.setFillColor(colors.white)
+            c.roundRect(card_x, card_y, card_w, card_h, 16, stroke=0, fill=1)
+            row_y = card_y + card_h - 40
+        c.setFillColor(colors.HexColor("#334155"))
+        c.drawString(table_x + 8, row_y, str(r.get("influencer_name") or "-"))
+        c.drawRightString(table_x + 322, row_y, str(int(r.get("submissions") or 0)))
+        c.drawRightString(table_x + 432, row_y, f"{float(r.get('impressions') or 0):,.0f}".replace(",", " "))
+        c.drawRightString(table_x + 540, row_y, fmt_currency(r.get("emv_eur")))
+        c.setStrokeColor(colors.HexColor("#E2E8F0"))
+        c.line(table_x, row_y - 4, table_x + table_w, row_y - 4)
+        row_y -= 16
 
-    c.showPage()
+    c.setFillColor(colors.HexColor("#64748B"))
+    c.setFont("Helvetica", 8)
+    c.drawString(card_x + 20, card_y + 12, "Generated by InfluConnect reporting")
+
     c.save()
     buffer.seek(0)
     return buffer.read()
@@ -382,50 +482,167 @@ def render_report_pdf(report: dict[str, Any]) -> bytes:
 
 def render_report_pptx(report: dict[str, Any]) -> bytes:
     from pptx import Presentation
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    from pptx.util import Inches, Pt
+
+    def fmt_currency(value: Any) -> str:
+        return f"EUR {float(value or 0):,.2f}".replace(",", " ")
+
+    def status_label(raw: str) -> str:
+        return str(raw or "-").replace("_", " ").title()
+
+    def add_bg(slide, color_hex: str):
+        bg = slide.background
+        fill = bg.fill
+        fill.solid()
+        fill.fore_color.rgb = RGBColor.from_string(color_hex)
+
+    def add_header(slide, title: str, subtitle: str):
+        bar = slide.shapes.add_shape(1, Inches(0.3), Inches(0.2), Inches(12.7), Inches(1.0))
+        bar.fill.solid()
+        bar.fill.fore_color.rgb = RGBColor.from_string("2563EB")
+        bar.line.fill.background()
+        tf = bar.text_frame
+        tf.clear()
+        p = tf.paragraphs[0]
+        p.text = title
+        p.font.bold = True
+        p.font.size = Pt(24)
+        p.font.color.rgb = RGBColor.from_string("FFFFFF")
+        p2 = tf.add_paragraph()
+        p2.text = subtitle
+        p2.font.size = Pt(12)
+        p2.font.color.rgb = RGBColor.from_string("DBEAFE")
+
+    def add_kpi_box(slide, x: float, y: float, title: str, value: str):
+        box = slide.shapes.add_shape(1, Inches(x), Inches(y), Inches(2.95), Inches(1.4))
+        box.fill.solid()
+        box.fill.fore_color.rgb = RGBColor.from_string("F8FAFC")
+        box.line.color.rgb = RGBColor.from_string("E2E8F0")
+        tf = box.text_frame
+        tf.clear()
+        p = tf.paragraphs[0]
+        p.text = title
+        p.font.size = Pt(11)
+        p.font.color.rgb = RGBColor.from_string("64748B")
+        p2 = tf.add_paragraph()
+        p2.text = value
+        p2.font.bold = True
+        p2.font.size = Pt(20)
+        p2.font.color.rgb = RGBColor.from_string("0F172A")
 
     prs = Presentation()
+    campaign = report["campaign"]
+    proposals = report["proposals"]
+    emv = report["emv"]
 
-    # Slide 1 - title
+    # Slide 1 - cover
     slide = prs.slides.add_slide(prs.slide_layouts[0])
-    slide.shapes.title.text = "InfluConnect Campaign Report"
-    slide.placeholders[1].text = report["campaign"]["title"]
+    add_bg(slide, "EEF2FF")
+    slide.shapes.title.text = "Campaign Performance Report"
+    slide.placeholders[1].text = f"{campaign['title']}  |  #{campaign['id']}"
+    slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = RGBColor.from_string("1E3A8A")
+    slide.shapes.title.text_frame.paragraphs[0].font.size = Pt(40)
 
     # Slide 2 - KPI overview
     slide = prs.slides.add_slide(prs.slide_layouts[1])
-    slide.shapes.title.text = "Campaign KPI Overview"
-    body = slide.shapes.placeholders[1].text_frame
-    campaign = report["campaign"]
-    proposals = report["proposals"]
-    body.text = f"Campaign ID: {campaign['id']}"
-    body.add_paragraph().text = f"Status: {campaign['status']}"
-    body.add_paragraph().text = f"Deadline: {campaign['deadline'] or '-'}"
-    body.add_paragraph().text = f"Total proposals: {proposals['total']}"
+    add_bg(slide, "EEF2FF")
+    add_header(slide, "Campaign KPI overview", f"Status: {status_label(campaign['status'])}   Deadline: {campaign['deadline'] or '-'}")
+    slide.shapes.placeholders[1].text_frame.clear()
+    add_kpi_box(slide, 0.6, 1.6, "Total proposals", str(proposals["total"]))
+    add_kpi_box(slide, 3.8, 1.6, "Budget / influencer", fmt_currency(campaign.get("budget_per_influencer")))
+    add_kpi_box(slide, 7.0, 1.6, "Max influencers", str(campaign.get("max_influencers") or 0))
+    add_kpi_box(slide, 10.2, 1.6, "Campaign ID", f"#{campaign['id']}")
+
+    status_box = slide.shapes.add_textbox(Inches(0.8), Inches(3.35), Inches(12.0), Inches(2.9))
+    tf = status_box.text_frame
+    tf.clear()
+    title_p = tf.paragraphs[0]
+    title_p.text = "Pipeline distribution"
+    title_p.font.bold = True
+    title_p.font.size = Pt(16)
+    title_p.font.color.rgb = RGBColor.from_string("0F172A")
+
+    status_counts = proposals.get("status_counts", {}) or {}
+    ordered_status = [
+        "pending", "counter_offer", "accepted", "contract_signed", "in_progress",
+        "content_submitted", "validated", "paid", "declined", "disputed",
+    ]
+    for key in ordered_status:
+        p = tf.add_paragraph()
+        p.text = f"{status_label(key)}: {int(status_counts.get(key, 0) or 0)}"
+        p.font.size = Pt(12)
+        p.level = 1
 
     # Slide 3 - EMV summary
     slide = prs.slides.add_slide(prs.slide_layouts[1])
-    slide.shapes.title.text = "Earned Media Value"
-    body = slide.shapes.placeholders[1].text_frame
-    emv = report["emv"]
-    body.text = f"Total EMV: EUR {emv['emv_total_eur']:.2f}"
-    body.add_paragraph().text = f"Budget spent: EUR {emv['budget_spent_eur']:.2f}"
+    add_bg(slide, "EEF2FF")
+    add_header(slide, "Earned Media Value", "Estimated value and campaign efficiency")
+    slide.shapes.placeholders[1].text_frame.clear()
+    add_kpi_box(slide, 0.6, 1.6, "Total EMV", fmt_currency(emv["emv_total_eur"]))
+    add_kpi_box(slide, 3.8, 1.6, "Budget spent", fmt_currency(emv["budget_spent_eur"]))
     ratio = emv.get("emv_vs_spend_ratio")
-    body.add_paragraph().text = f"EMV/Spend ratio: {ratio if ratio is not None else '-'}"
-    body.add_paragraph().text = f"Confidence score: {emv.get('confidence_score', 0):.3f}"
+    add_kpi_box(slide, 7.0, 1.6, "EMV / Spend", (f"{float(ratio):.2f}x" if ratio is not None else "-"))
+    add_kpi_box(slide, 10.2, 1.6, "Confidence", f"{float(emv.get('confidence_score', 0)):.2f}")
+
+    note = slide.shapes.add_textbox(Inches(0.8), Inches(3.55), Inches(12.0), Inches(2.6))
+    nt = note.text_frame
+    nt.clear()
+    p = nt.paragraphs[0]
+    p.text = "Method"
+    p.font.bold = True
+    p.font.size = Pt(14)
+    p.font.color.rgb = RGBColor.from_string("0F172A")
+    p2 = nt.add_paragraph()
+    p2.text = "EMV combines impressions (CPM-based) and engagement interactions with format multipliers."
+    p2.font.size = Pt(12)
+    p2.font.color.rgb = RGBColor.from_string("334155")
+    p3 = nt.add_paragraph()
+    p3.text = "Confidence decreases when performance metrics are inferred from fallback social averages."
+    p3.font.size = Pt(12)
+    p3.font.color.rgb = RGBColor.from_string("334155")
 
     # Slide 4 - top influencers
     slide = prs.slides.add_slide(prs.slide_layouts[5])
+    add_bg(slide, "EEF2FF")
     slide.shapes.title.text = "Top influencers by EMV"
+    slide.shapes.title.text_frame.paragraphs[0].font.color.rgb = RGBColor.from_string("1E293B")
+    slide.shapes.title.text_frame.paragraphs[0].font.size = Pt(30)
     rows = emv.get("by_influencer", [])[:8]
 
     if rows:
-        table = slide.shapes.add_table(len(rows) + 1, 3, left=400000, top=1300000, width=8200000, height=3500000).table
+        table = slide.shapes.add_table(len(rows) + 1, 4, left=Inches(0.7), top=Inches(1.5), width=Inches(12.0), height=Inches(4.7)).table
         table.cell(0, 0).text = "Influencer"
-        table.cell(0, 1).text = "EMV (EUR)"
-        table.cell(0, 2).text = "Submissions"
+        table.cell(0, 1).text = "Submissions"
+        table.cell(0, 2).text = "Impressions"
+        table.cell(0, 3).text = "EMV (EUR)"
+
+        for col in range(4):
+            cell = table.cell(0, col)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = RGBColor.from_string("DBEAFE")
+            run = cell.text_frame.paragraphs[0].runs[0]
+            run.font.bold = True
+            run.font.size = Pt(11)
+            run.font.color.rgb = RGBColor.from_string("1E3A8A")
+            cell.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+
         for idx, row in enumerate(rows, start=1):
             table.cell(idx, 0).text = str(row.get("influencer_name", "-"))
-            table.cell(idx, 1).text = f"{float(row.get('emv_eur', 0)):.2f}"
-            table.cell(idx, 2).text = str(row.get("submissions", 0))
+            table.cell(idx, 1).text = str(row.get("submissions", 0))
+            table.cell(idx, 2).text = f"{float(row.get('impressions', 0)):.0f}"
+            table.cell(idx, 3).text = f"{float(row.get('emv_eur', 0)):.2f}"
+            for col in range(4):
+                run = table.cell(idx, col).text_frame.paragraphs[0].runs[0]
+                run.font.size = Pt(10)
+                run.font.color.rgb = RGBColor.from_string("0F172A")
+
+    footer = slide.shapes.add_textbox(Inches(0.7), Inches(6.75), Inches(8.0), Inches(0.4))
+    fp = footer.text_frame.paragraphs[0]
+    fp.text = "Generated by InfluConnect reporting"
+    fp.font.size = Pt(10)
+    fp.font.color.rgb = RGBColor.from_string("64748B")
 
     out = BytesIO()
     prs.save(out)
