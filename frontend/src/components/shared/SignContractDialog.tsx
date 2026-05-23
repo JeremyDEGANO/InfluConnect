@@ -180,7 +180,7 @@ export function SignContractDialog({ proposalId, open, onClose, onSuccess }: Pro
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <PenTool className="h-5 w-5 text-indigo-600" />
+            <PenTool className="h-5 w-5 text-aurora-blue" />
             {t("signature.title")}
           </DialogTitle>
         </DialogHeader>
@@ -191,25 +191,25 @@ export function SignContractDialog({ proposalId, open, onClose, onSuccess }: Pro
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-gray-700">Mode de signature</p>
+            <p className="text-xs font-medium text-aurora-ink-2">Mode de signature</p>
             <div className="grid grid-cols-1 gap-2">
               <button
                 type="button"
-                className={`text-left p-2 rounded-lg border ${signatureMode === "draw" ? "border-indigo-500 bg-indigo-50" : "border-gray-200"}`}
+                className={`text-left p-2 rounded-lg border ${signatureMode === "draw" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line"}`}
                 onClick={() => setSignatureMode("draw")}
               >
                 Signature manuscrite
               </button>
               <button
                 type="button"
-                className={`text-left p-2 rounded-lg border ${signatureMode === "brand_name" ? "border-indigo-500 bg-indigo-50" : "border-gray-200"}`}
+                className={`text-left p-2 rounded-lg border ${signatureMode === "brand_name" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line"}`}
                 onClick={() => setSignatureMode("brand_name")}
               >
                 Signer avec {signAsLabel || "le nom affiché"}
               </button>
               <button
                 type="button"
-                className={`text-left p-2 rounded-lg border ${signatureMode === "person_name" ? "border-indigo-500 bg-indigo-50" : "border-gray-200"}`}
+                className={`text-left p-2 rounded-lg border ${signatureMode === "person_name" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line"}`}
                 onClick={() => setSignatureMode("person_name")}
               >
                 Signer avec {personLabel}
@@ -220,20 +220,20 @@ export function SignContractDialog({ proposalId, open, onClose, onSuccess }: Pro
           {signatureMode === "draw" ? (
             <SignaturePad onChange={setSignature} />
           ) : (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-700">
+            <div className="rounded-xl border border-aurora-line bg-aurora-surface px-3 py-4 text-sm text-aurora-ink-2">
               La signature textuelle sera enregistrée comme :
-              <div className="mt-2 font-semibold text-gray-900">
+              <div className="mt-2 font-semibold text-aurora-ink">
                 {signatureMode === "brand_name" ? signAsLabel : personLabel}
               </div>
             </div>
           )}
 
-          <div className="rounded-xl border border-gray-200 p-3 space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+          <div className="rounded-xl border border-aurora-line p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-aurora-ink">
               <QrCode className="h-4 w-4" />
               Signer depuis le téléphone
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-aurora-ink-3">
               Scannez ce QR code pour ouvrir un lien unique de signature sur mobile. Une fois signé, ce popup se met à jour automatiquement.
             </p>
             {sessionReady && sessionUrl ? (
@@ -243,17 +243,17 @@ export function SignContractDialog({ proposalId, open, onClose, onSuccess }: Pro
                   className="h-24 w-24 rounded border"
                   src={qrDataUrl || ""}
                 />
-                <a href={sessionUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 break-all inline-flex items-center gap-1">
+                <a href={sessionUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-aurora-blue break-all inline-flex items-center gap-1">
                   <Smartphone className="h-3.5 w-3.5" />
                   Ouvrir le lien mobile
                 </a>
               </div>
             ) : (
-              <div className="text-xs text-gray-500">Génération du lien de signature…</div>
+              <div className="text-xs text-aurora-ink-3">Génération du lien de signature…</div>
             )}
           </div>
 
-          <label className="flex items-start gap-2 text-sm text-gray-700">
+          <label className="flex items-start gap-2 text-sm text-aurora-ink-2">
             <input
               type="checkbox"
               className="mt-1"

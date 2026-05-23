@@ -1,38 +1,43 @@
 import { LucideIcon, TrendingUp, TrendingDown } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 interface StatsCardProps {
   title: string
   value: string | number
-  icon: LucideIcon
+  /** Optional, kept for backward-compat. Not rendered in the Aurora style. */
+  icon?: LucideIcon
   trend?: number
   trendLabel?: string
   iconBg?: string
+  /** Progress bar fill 0..100 (mockup-style hairline bar) */
+  progress?: number
+  /** Tailwind class for the progress fill, e.g. "bg-aurora-blue" */
+  progressColor?: string
+  /** Subtle line below the number, e.g. "2 expirent demain" */
+  hint?: string
 }
 
-export function StatsCard({ title, value, icon: Icon, trend, trendLabel, iconBg = "" }: StatsCardProps) {
+export function StatsCard({ title, value, trend, trendLabel, progress, progressColor, hint }: StatsCardProps) {
   const isPositive = (trend ?? 0) >= 0
+  const fill = progressColor ?? "bg-aurora-blue"
+  const pct = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : 60
 
   return (
-    <Card className="card-base border border-slate-200/80 shadow-sm">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
-            {trend !== undefined && (
-              <div className={cn("mt-2 flex items-center gap-1 text-xs font-medium", isPositive ? "text-emerald-600" : "text-rose-600")}>
-                {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {isPositive ? "+" : ""}{trend}% {trendLabel}
-              </div>
-            )}
-          </div>
-          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50", iconBg)}>
-            <Icon className="h-4.5 w-4.5 text-slate-600" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl bg-white border border-aurora-line p-5 shadow-soft">
+      <div className="text-xs text-aurora-ink-3">{title}</div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="num text-3xl font-semibold text-aurora-ink">{value}</span>
+        {trend !== undefined && (
+          <span className={cn("text-xs font-medium inline-flex items-center gap-0.5", isPositive ? "text-emerald-600" : "text-rose-600")}>
+            {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {isPositive ? "+" : ""}{trend}{trendLabel ? ` ${trendLabel}` : "%"}
+          </span>
+        )}
+      </div>
+      {hint && <div className="text-xs text-aurora-ink-3 mt-1">{hint}</div>}
+      <div className="mt-3 h-1 rounded-full bg-aurora-line/60 overflow-hidden">
+        <div className={cn("h-full rounded-full", fill)} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   )
 }

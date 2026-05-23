@@ -49,8 +49,8 @@ export default function BrandOnboarding() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
-  if (!status) return <div className="p-6 text-center text-gray-500">{t("common.error")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (!status) return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
 
   const missing = new Set(status.missing_fields)
   const statusColor = status.validation_status === "approved" ? "purple" : status.validation_status === "rejected" ? "destructive" : "outline"
@@ -58,7 +58,8 @@ export default function BrandOnboarding() {
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{t("brand_onboarding.title", "Onboarding marque")}</h1>
+        <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("brand_onboarding.title", "Onboarding marque")}</h1>
         <Badge variant={statusColor}>{t(`brand_profile.status_${status.validation_status}`, status.validation_status)}</Badge>
       </div>
 
@@ -67,8 +68,8 @@ export default function BrandOnboarding() {
           <CardContent className="py-6 flex items-center gap-3">
             <CheckCircle2 className="h-8 w-8 text-green-600" />
             <div>
-              <p className="font-semibold text-gray-900">{t("brand_onboarding.approved_title", "Compte validé")}</p>
-              <p className="text-sm text-gray-600">{t("brand_onboarding.approved_desc", "Vous pouvez créer vos campagnes et lancer vos collaborations.")}</p>
+              <p className="font-semibold text-aurora-ink">{t("brand_onboarding.approved_title", "Compte validé")}</p>
+              <p className="text-sm text-aurora-ink-2">{t("brand_onboarding.approved_desc", "Vous pouvez créer vos campagnes et lancer vos collaborations.")}</p>
             </div>
             <Button className="ml-auto" variant="gradient" onClick={() => navigate("/brand/campaigns/new")}>{t("brand_onboarding.create_campaign", "Créer une campagne")}</Button>
           </CardContent>
@@ -78,28 +79,28 @@ export default function BrandOnboarding() {
           <CardContent className="py-6">
             <div className="flex items-center gap-3 mb-2">
               <AlertTriangle className="h-6 w-6 text-red-600" />
-              <p className="font-semibold text-gray-900">{t("brand_onboarding.rejected_title", "Inscription refusée")}</p>
+              <p className="font-semibold text-aurora-ink">{t("brand_onboarding.rejected_title", "Inscription refusée")}</p>
             </div>
             {status.validation_notes && (
-              <p className="text-sm text-gray-700 bg-red-50 border border-red-100 rounded-lg p-3 mt-2">
+              <p className="text-sm text-aurora-ink-2 bg-red-50 border border-red-100 rounded-lg p-3 mt-2">
                 <span className="font-semibold">{t("brand_onboarding.reason", "Motif")} : </span>{status.validation_notes}
               </p>
             )}
-            <p className="text-sm text-gray-600 mt-3">{t("brand_onboarding.rejected_desc", "Corrigez les éléments puis soumettez à nouveau votre profil.")}</p>
+            <p className="text-sm text-aurora-ink-2 mt-3">{t("brand_onboarding.rejected_desc", "Corrigez les éléments puis soumettez à nouveau votre profil.")}</p>
           </CardContent>
         </Card>
       ) : status.validation_status === "pending" ? (
         <Card className="card-base border-l-4 border-l-purple-500">
           <CardContent className="py-6">
-            <p className="font-semibold text-gray-900">{t("brand_onboarding.pending_title", "Validation en cours")}</p>
-            <p className="text-sm text-gray-600 mt-1">{t("brand_onboarding.pending_desc", "Votre profil est en attente de validation par notre équipe (48h ouvrées max).")}</p>
+            <p className="font-semibold text-aurora-ink">{t("brand_onboarding.pending_title", "Validation en cours")}</p>
+            <p className="text-sm text-aurora-ink-2 mt-1">{t("brand_onboarding.pending_desc", "Votre profil est en attente de validation par notre équipe (48h ouvrées max).")}</p>
           </CardContent>
         </Card>
       ) : (
         <Card className="card-base border-l-4 border-l-slate-400">
           <CardContent className="py-6">
-            <p className="font-semibold text-gray-900">{t("brand_onboarding.draft_title", "Profil à compléter")}</p>
-            <p className="text-sm text-gray-600 mt-1">{t("brand_onboarding.draft_desc", "Complétez les informations requises puis soumettez votre dossier à validation.")}</p>
+            <p className="font-semibold text-aurora-ink">{t("brand_onboarding.draft_title", "Profil à compléter")}</p>
+            <p className="text-sm text-aurora-ink-2 mt-1">{t("brand_onboarding.draft_desc", "Complétez les informations requises puis soumettez votre dossier à validation.")}</p>
           </CardContent>
         </Card>
       )}
@@ -114,7 +115,7 @@ export default function BrandOnboarding() {
             return (
               <div key={f} className="flex items-center gap-2 text-sm">
                 {ok ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : <Circle className="h-5 w-5 text-gray-300" />}
-                <span className={ok ? "text-gray-700" : "text-gray-500"}>{t(FIELD_LABELS[f], f)}</span>
+                <span className={ok ? "text-aurora-ink-2" : "text-aurora-ink-3"}>{t(FIELD_LABELS[f], f)}</span>
               </div>
             )
           })}

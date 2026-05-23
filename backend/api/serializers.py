@@ -438,9 +438,11 @@ class RegisterSerializer(serializers.Serializer):
         if attrs['user_type'] == 'brand':
             if not attrs.get('company_name'):
                 raise serializers.ValidationError({'company_name': 'Required for brand registration.'})
-            # CDC §5.1 — choosing a subscription plan is mandatory for brands
+            # CDC §5.1 — choosing a subscription plan is mandatory for all brand accounts.
             if not attrs.get('subscription_plan'):
                 raise serializers.ValidationError({'subscription_plan': 'Required for brand registration.'})
+            if attrs.get('is_agency') and attrs.get('subscription_plan') == 'starter':
+                raise serializers.ValidationError({'subscription_plan': 'Agency accounts require Growth or Pro.'})
         if not attrs.get('username'):
             base = attrs['email'].split('@')[0]
             username = base

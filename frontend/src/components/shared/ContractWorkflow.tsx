@@ -105,19 +105,19 @@ export function ContractWorkflow({ proposal, className, actions, extraContent }:
       <CardContent className="space-y-4">
         <div className="space-y-2">
           {steps.map(({ label, detail, done, icon: Icon }) => (
-            <div key={label} className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+            <div key={label} className="flex items-start gap-3 rounded-xl border border-aurora-line bg-aurora-surface/70 p-3">
               <div className={cn(
                 "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                done ? "bg-emerald-100 text-emerald-700" : "bg-white text-gray-400 border border-gray-200"
+                done ? "bg-emerald-100 text-emerald-700" : "bg-white text-aurora-ink-3 border border-aurora-line"
               )}>
                 {done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <Icon className="h-3.5 w-3.5 text-gray-400" />
-                  <p className="text-sm font-semibold text-gray-900">{label}</p>
+                  <Icon className="h-3.5 w-3.5 text-aurora-ink-3" />
+                  <p className="text-sm font-semibold text-aurora-ink">{label}</p>
                 </div>
-                <p className="mt-0.5 text-xs text-gray-500">{detail}</p>
+                <p className="mt-0.5 text-xs text-aurora-ink-3">{detail}</p>
               </div>
               <Badge variant={done ? "success" : "warning"}>{done ? t("workflow.done") : t("workflow.todo")}</Badge>
             </div>
@@ -127,7 +127,7 @@ export function ContractWorkflow({ proposal, className, actions, extraContent }:
         {(proposal.submission_deadline || proposal.validation_deadline) && (
           <div className="grid gap-2 sm:grid-cols-2">
             {proposal.submission_deadline && (
-              <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-900">
+              <div className="rounded-xl border border-aurora-blue/15 bg-indigo-50 p-3 text-xs text-indigo-900">
                 <div className="flex items-center gap-2 font-semibold">
                   <Calendar className="h-3.5 w-3.5" />
                   {t("workflow.submit_before")}

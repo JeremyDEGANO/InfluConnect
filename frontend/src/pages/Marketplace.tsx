@@ -210,11 +210,11 @@ export default function Marketplace() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-50">
+    <div className="min-h-screen bg-aurora-surface">
       <div className="max-w-6xl mx-auto px-4 py-12">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">{t("marketplace.title")}</h1>
-          <p className="text-gray-600">{t("marketplace.subtitle")}</p>
+          <h1 className="text-4xl font-semibold text-aurora-ink mb-3">{t("marketplace.title")}</h1>
+          <p className="text-aurora-ink-2">{t("marketplace.subtitle")}</p>
         </div>
 
         <Card className="card-base mb-6">
@@ -222,7 +222,7 @@ export default function Marketplace() {
             {/* Row 1: search + filter toggle + sort */}
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-aurora-ink-3" />
                 <Input className="pl-10" placeholder={t("marketplace.search_placeholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <Button
@@ -251,10 +251,10 @@ export default function Marketplace() {
 
             {/* Expandable filters panel */}
             {showFilters && (
-              <div className="border-t border-gray-100 pt-4 space-y-4">
+              <div className="border-t border-aurora-line pt-4 space-y-4">
                 {/* Themes */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{t("marketplace.filter_theme", "Thème")}</p>
+                  <p className="text-xs font-semibold text-aurora-ink-3 uppercase tracking-wide mb-2">{t("marketplace.filter_theme", "Thème")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant={theme === "" ? "info" : "outline"} className="cursor-pointer" onClick={() => setTheme("")}>{t("marketplace.filter_all")}</Badge>
                     {ALL_THEMES.map((th) => (
@@ -265,7 +265,7 @@ export default function Marketplace() {
 
                 {/* Platforms */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{t("marketplace.filter_platform", "Plateforme")}</p>
+                  <p className="text-xs font-semibold text-aurora-ink-3 uppercase tracking-wide mb-2">{t("marketplace.filter_platform", "Plateforme")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {ALL_PLATFORMS.map((p) => {
                       const active = platforms.includes(p.value)
@@ -285,7 +285,7 @@ export default function Marketplace() {
 
                 {/* Follower range */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{t("marketplace.filter_followers", "Nombre de followers")}</p>
+                  <p className="text-xs font-semibold text-aurora-ink-3 uppercase tracking-wide mb-2">{t("marketplace.filter_followers", "Nombre de followers")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant={followerRangeIdx === null ? "info" : "outline"} className="cursor-pointer" onClick={() => setFollowerRangeIdx(null)}>{t("marketplace.filter_all")}</Badge>
                     {FOLLOWER_RANGES.map((r, idx) => (
@@ -296,7 +296,7 @@ export default function Marketplace() {
 
                 {/* Clear */}
                 {activeFilterCount > 0 && (
-                  <button onClick={clearFilters} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+                  <button onClick={clearFilters} className="inline-flex items-center gap-1 text-xs text-aurora-ink-3 hover:text-aurora-ink-2">
                     <X className="h-3 w-3" />{t("marketplace.clear_filters", "Effacer les filtres")}
                   </button>
                 )}
@@ -309,17 +309,17 @@ export default function Marketplace() {
                 {theme && <Badge variant="info" className="cursor-pointer gap-1" onClick={() => setTheme("")}>{theme} <X className="h-2.5 w-2.5" /></Badge>}
                 {platforms.map(p => <Badge key={p} variant="info" className="cursor-pointer gap-1" onClick={() => setPlatforms(prev => prev.filter(x => x !== p))}>{ALL_PLATFORMS.find(x => x.value === p)?.label} <X className="h-2.5 w-2.5" /></Badge>)}
                 {followerRangeIdx !== null && <Badge variant="info" className="cursor-pointer gap-1" onClick={() => setFollowerRangeIdx(null)}>{FOLLOWER_RANGES[followerRangeIdx].label} <X className="h-2.5 w-2.5" /></Badge>}
-                <button onClick={clearFilters} className="text-xs text-gray-400 hover:text-gray-600 underline">{t("marketplace.clear_filters", "Effacer")}</button>
+                <button onClick={clearFilters} className="text-xs text-aurora-ink-3 hover:text-aurora-ink-2 underline">{t("marketplace.clear_filters", "Effacer")}</button>
               </div>
             )}
           </CardContent>
         </Card>
 
         {loading && items.length === 0 ? (
-          <div className="flex items-center justify-center py-20 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("marketplace.loading")}</div>
+          <div className="flex items-center justify-center py-20 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("marketplace.loading")}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-400 mb-3">{t("marketplace.no_results")}</p>
+            <p className="text-aurora-ink-3 mb-3">{t("marketplace.no_results")}</p>
             {activeFilterCount > 0 && <Button variant="outline" size="sm" onClick={clearFilters}>{t("marketplace.clear_filters", "Effacer les filtres")}</Button>}
           </div>
         ) : (
@@ -334,24 +334,24 @@ export default function Marketplace() {
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar className="h-14 w-14">
                           {inf.avatar && <AvatarImage src={inf.avatar} />}
-                          <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white font-semibold">
+                          <AvatarFallback className="bg-aurora-ink text-white font-semibold">
                             {(inf.display_name || "??").slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{inf.display_name || `Influencer #${inf.id}`}</p>
-                          {inf.city && <p className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="h-3 w-3" />{inf.city}</p>}
+                          <p className="font-semibold text-aurora-ink truncate">{inf.display_name || `Influencer #${inf.id}`}</p>
+                          {inf.city && <p className="text-xs text-aurora-ink-3 flex items-center gap-1"><MapPin className="h-3 w-3" />{inf.city}</p>}
                         </div>
                       </div>
                       {isBrand && (
-                        <button onClick={() => openContact(inf)} className="flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-colors" title={t("marketplace.send_message", "Message")}>
-                          <Send className="h-5 w-5 text-indigo-600" />
+                        <button onClick={() => openContact(inf)} className="flex-shrink-0 p-2 hover:bg-aurora-surface rounded-lg transition-colors" title={t("marketplace.send_message", "Message")}>
+                          <Send className="h-5 w-5 text-aurora-blue" />
                         </button>
                       )}
                     </div>
                     <div className="flex-1">
-                      {inf.bio && <p className="text-xs text-gray-600 line-clamp-2 mb-3">{inf.bio}</p>}
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
+                      {inf.bio && <p className="text-xs text-aurora-ink-2 line-clamp-2 mb-3">{inf.bio}</p>}
+                      <div className="flex items-center gap-3 text-xs text-aurora-ink-3 mb-3">
                         <span className="flex items-center gap-1"><Users className="h-3 w-3" />{fmt(totalFollowers)}</span>
                         {inf.average_rating != null && (
                           <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-400 fill-amber-400" />{Number(inf.average_rating).toFixed(1)}</span>
@@ -393,7 +393,7 @@ export default function Marketplace() {
             {hasMore && (
               <div ref={loadMoreRef} className="py-8 flex items-center justify-center">
                 {loadingMore ? (
-                  <span className="inline-flex items-center text-sm text-gray-500"><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("marketplace.loading_more", "Chargement...")}</span>
+                  <span className="inline-flex items-center text-sm text-aurora-ink-3"><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("marketplace.loading_more", "Chargement...")}</span>
                 ) : (
                   <Button variant="outline" size="sm" onClick={loadMore}>{t("marketplace.load_more", "Charger plus")}</Button>
                 )}

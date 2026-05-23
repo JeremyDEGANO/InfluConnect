@@ -31,6 +31,7 @@ from .serializers import (
     MessageSerializer, DirectMessageSerializer, ReviewSerializer, NotificationSerializer, PlatformSettingsSerializer,
     RegisterSerializer, LoginSerializer, _abs_media_url,
 )
+from .throttling import LoginRateThrottle
 from .services import email_service, stripe_service
 from .services.pdf_service import generate_contract_pdf
 from .constants import CONTENT_THEMES
@@ -307,6 +308,13 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
             ),
             proposal=proposal,
         )
+        if proposal.influencer.user.email:
+            email_service.send_contract_ready_for_signature(
+                proposal.influencer.user.email,
+                "influencer",
+                proposal.campaign.title,
+                language=proposal.influencer.user.language_preference,
+            )
 
     proposal.save()
     try:
@@ -317,6 +325,23 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
             {"detail": "Signature saved, but signed contract PDF refresh failed."},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+    if proposal.contract_signed_brand and proposal.contract_signed_influencer:
+        pdf_url = _abs_media_url(None, proposal.contract_pdf)
+        if proposal.influencer.user.email:
+            email_service.send_contract_signed_both(
+                proposal.influencer.user.email,
+                proposal.campaign.title,
+                pdf_url=pdf_url,
+                language=proposal.influencer.user.language_preference,
+            )
+        if proposal.campaign.brand.user.email:
+            email_service.send_contract_signed_both(
+                proposal.campaign.brand.user.email,
+                proposal.campaign.title,
+                pdf_url=pdf_url,
+                language=proposal.campaign.brand.user.language_preference,
+            )
     return None
 
 
@@ -351,7 +376,11 @@ class RegisterView(APIView):
             # CDC §5.1 — brand registration kicks off the validation workflow
             if user.user_type == "brand":
                 profile = user.brand_profile
-                email_service.send_brand_registration_received(user.email, profile.company_name)
+                email_service.send_brand_registration_received(
+                    user.email,
+                    profile.company_name,
+                    language=user.language_preference,
+                )
                 admin_emails = list(getattr(django_settings, "ADMIN_NOTIFICATION_EMAILS", []) or [])
                 if not admin_emails:
                     admin_emails = list(
@@ -370,6 +399,7 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -924,6 +954,12 @@ class CampaignSendProposalsView(APIView):
                 message=f'{campaign.brand.company_name} sent you a proposal for "{campaign.title}".',
                 proposal=proposal,
             )
+            if influencer.user.email:
+                email_service.send_proposal_received(
+                    influencer.user.email,
+                    campaign.title,
+                    language=influencer.user.language_preference,
+                )
             created.append(proposal.id)
 
         return Response({"created": created, "skipped": skipped}, status=status.HTTP_201_CREATED)
@@ -1017,6 +1053,7 @@ class EventInviteView(APIView):
                     starts_at_label=timezone.localtime(event.starts_at).strftime('%d/%m/%Y %H:%M'),
                     rsvp_url=rsvp_url,
                     max_plus_ones=max_plus_ones,
+                    language=influencer.user.language_preference,
                 )
 
         for raw_email in invited_emails:
@@ -1122,12 +1159,22 @@ class EventInvitationRespondView(APIView):
 
         recipient_email = invitation.invited_email or (invitation.influencer.user.email if invitation.influencer_id else '')
         if recipient_email:
-            status_label = 'Présent' if status_value == 'accepted' else 'Absent'
+            lang = (
+                invitation.influencer.user.language_preference
+                if invitation.influencer_id and invitation.influencer and invitation.influencer.user
+                else 'en'
+            )
+            status_label = (
+                ('Présent' if status_value == 'accepted' else 'Absent')
+                if (lang or '').lower().startswith('fr')
+                else ('Attending' if status_value == 'accepted' else 'Not attending')
+            )
             email_service.send_event_rsvp_confirmation(
                 recipient_email=recipient_email,
                 event_title=invitation.event.title,
                 status_label=status_label,
                 plus_ones_confirmed=invitation.plus_ones_confirmed,
+                language=lang,
             )
 
         return Response(EventInvitationSerializer(invitation, context={'request': request}).data, status=status.HTTP_200_OK)
@@ -1593,7 +1640,10 @@ class ProposalFundEscrowView(APIView):
         _audit(request.user, "escrow_funded", "CampaignProposal", proposal.id,
                metadata={"amount": str(amount)}, ip=_client_ip(request))
         email_service.send_escrow_funded(
-            proposal.influencer.user.email, str(amount), proposal.campaign.title,
+            proposal.influencer.user.email,
+            str(amount),
+            proposal.campaign.title,
+            language=proposal.influencer.user.language_preference,
         )
         create_notification(
             user=proposal.influencer.user,
@@ -1653,6 +1703,13 @@ class ProposalSubmitContentView(APIView):
             ),
             proposal=proposal,
         )
+        if proposal.campaign.brand.user.email:
+            email_service.send_content_submitted_to_brand(
+                proposal.campaign.brand.user.email,
+                proposal.campaign.title,
+                proposal.influencer.display_name or proposal.influencer.user.username,
+                language=proposal.campaign.brand.user.language_preference,
+            )
         return Response(ContentSubmissionSerializer(submission, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -1735,6 +1792,12 @@ class ProposalValidateContentView(APIView):
         proposal.save()
         _audit(request.user, "content_validated", "CampaignProposal", proposal.id,
                ip=_client_ip(request))
+        if proposal.influencer.user.email:
+            email_service.send_content_validated(
+                proposal.influencer.user.email,
+                proposal.campaign.title,
+                language=proposal.influencer.user.language_preference,
+            )
         # Auto-release escrow after validation (CDC §2.1)
         if proposal.escrow_funded and not proposal.escrow_released:
             settings_obj = PlatformSettings.get_instance()
@@ -1755,7 +1818,9 @@ class ProposalValidateContentView(APIView):
                        metadata=release, ip=_client_ip(request))
                 email_service.send_payment_released(
                     proposal.influencer.user.email,
-                    release["net_amount_eur"], proposal.campaign.title,
+                    release["net_amount_eur"],
+                    proposal.campaign.title,
+                    language=proposal.influencer.user.language_preference,
                 )
                 create_notification(
                     user=proposal.influencer.user,

@@ -21,13 +21,14 @@ export default function BrandEvents() {
   }, [])
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+    return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
   }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{t("events.title", "Événements")}</h1>
+        <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("events.title", "Événements")}</h1>
         <Button variant="gradient" onClick={() => navigate("/brand/events/new")}>
           <Plus className="h-4 w-4 mr-2" />{t("events.new_event", "Créer un événement")}
         </Button>
@@ -35,7 +36,7 @@ export default function BrandEvents() {
 
       {items.length === 0 ? (
         <Card className="card-base">
-          <CardContent className="py-12 text-center text-gray-500">
+          <CardContent className="py-12 text-center text-aurora-ink-3">
             <p className="mb-4">{t("events.empty", "Aucun événement pour le moment")}</p>
             <Button variant="outline" onClick={() => navigate("/brand/events/new")}>{t("events.new_event", "Créer un événement")}</Button>
           </CardContent>
@@ -48,12 +49,12 @@ export default function BrandEvents() {
               <Card key={ev.id} className="card-base">
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold text-gray-900 line-clamp-2">{ev.title}</p>
+                    <p className="font-semibold text-aurora-ink line-clamp-2">{ev.title}</p>
                     <Badge variant="outline">{ev.status}</Badge>
                   </div>
-                  <p className="text-xs text-gray-500 flex items-center gap-1"><CalendarDays className="h-3 w-3" />{new Date(ev.starts_at).toLocaleString()}</p>
-                  <p className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="h-3 w-3" />{ev.address}</p>
-                  <p className="text-xs text-gray-500 flex items-center gap-1"><Users className="h-3 w-3" />{accepted}/{ev.invitations?.length ?? 0} {t("events.accepted", "présences")}</p>
+                  <p className="text-xs text-aurora-ink-3 flex items-center gap-1"><CalendarDays className="h-3 w-3" />{new Date(ev.starts_at).toLocaleString()}</p>
+                  <p className="text-xs text-aurora-ink-3 flex items-center gap-1"><MapPin className="h-3 w-3" />{ev.address}</p>
+                  <p className="text-xs text-aurora-ink-3 flex items-center gap-1"><Users className="h-3 w-3" />{accepted}/{ev.invitations?.length ?? 0} {t("events.accepted", "présences")}</p>
                   <Button variant="outline" className="w-full" onClick={() => navigate(`/brand/events/${ev.id}`)}>
                     {t("events.view", "Voir")}
                   </Button>

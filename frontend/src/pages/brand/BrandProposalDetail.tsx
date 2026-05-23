@@ -184,10 +184,10 @@ export default function BrandProposalDetail() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+    return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
   }
   if (!proposal) {
-    return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
+    return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
   }
 
   return (
@@ -196,8 +196,8 @@ export default function BrandProposalDetail() {
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}
         </Button>
-        <h1 className="text-xl font-bold text-gray-900 flex-1">
-          {t("brand_proposal.title")} — <InfluencerHoverCard influencerId={proposal.influencer} influencerPseudo={proposal.influencer_pseudo} displayName={proposal.influencer_display_name}>{proposal.influencer_pseudo ? <a href={`/brand/influencers/${encodeURIComponent(proposal.influencer_pseudo)}`} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition-colors">{proposal.influencer_display_name}</a> : <span>{proposal.influencer_display_name}</span>}</InfluencerHoverCard>
+        <h1 className="text-xl font-semibold tracking-tight text-aurora-ink flex-1">
+          {t("brand_proposal.title")} — <InfluencerHoverCard influencerId={proposal.influencer} influencerPseudo={proposal.influencer_pseudo} displayName={proposal.influencer_display_name}>{proposal.influencer_pseudo ? <a href={`/brand/influencers/${encodeURIComponent(proposal.influencer_pseudo)}`} target="_blank" rel="noopener noreferrer" className="hover:text-aurora-blue transition-colors">{proposal.influencer_display_name}</a> : <span>{proposal.influencer_display_name}</span>}</InfluencerHoverCard>
         </h1>
         <StatusBadge status={proposal.status as any} />
       </div>
@@ -210,13 +210,13 @@ export default function BrandProposalDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">{t("brand_proposal.campaign_name")}</span>
+                <span className="text-sm text-aurora-ink-3">{t("brand_proposal.campaign_name")}</span>
                 <Button variant="link" size="sm" onClick={() => navigate(`/brand/campaigns/${proposal.campaign}`)}>
                   {proposal.campaign_title}<ExternalLink className="h-3.5 w-3.5 ml-1" />
                 </Button>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">{t("brand_proposal.proposed_price")}</span>
+                <span className="text-sm text-aurora-ink-3">{t("brand_proposal.proposed_price")}</span>
                 <span className="font-semibold">€{proposal.proposed_price}</span>
               </div>
               {proposal.counter_price && (
@@ -331,13 +331,13 @@ export default function BrandProposalDetail() {
                 className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
                   selectedTemplate === template.id 
                     ? 'border-indigo-500 bg-indigo-50' 
-                    : 'border-gray-200 hover:border-indigo-300'
+                    : 'border-aurora-line hover:border-indigo-300'
                 }`}
                 onClick={() => setSelectedTemplate(template.id)}
               >
                 <div className="font-medium text-sm">{template.name}</div>
                 {template.description && (
-                  <div className="text-xs text-gray-500 mt-1">{template.description}</div>
+                  <div className="text-xs text-aurora-ink-3 mt-1">{template.description}</div>
                 )}
               </div>
             ))}

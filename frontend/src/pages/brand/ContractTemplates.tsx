@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+﻿import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
 import { fetchContractTemplates } from "@/lib/apiExtra"
@@ -141,10 +141,11 @@ export default function ContractTemplates() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5 flex items-center gap-2">
             <ScrollText className="h-6 w-6 text-indigo-500" />{t("contracts.title")}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">{t("contracts.subtitle")}</p>
+          <p className="text-sm text-aurora-ink-3 mt-1">{t("contracts.subtitle")}</p>
         </div>
         <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm() }}>
           <DialogTrigger asChild>
@@ -190,7 +191,7 @@ export default function ContractTemplates() {
                   placeholder={t("contracts.editor_placeholder")}
                   minHeight="280px"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">{t("contracts.body_hint")} <code>{"{{brand_name}}"}</code>, <code>{"{{influencer_name}}"}</code>, <code>{"{{campaign_title}}"}</code>, <code>{"{{price}}"}</code>, <code>{"{{deadline}}"}</code>, <code>{"{{deliverables}}"}</code>, <code>{"{{rights}}"}</code>, <code>{"{{proposal_reference}}"}</code>, <code>{"{{signature1}}"}</code> marque, <code>{"{{signature2}}"}</code> influenceur.</p>
+                <p className="text-[11px] text-aurora-ink-3 mt-1">{t("contracts.body_hint")} <code>{"{{brand_name}}"}</code>, <code>{"{{influencer_name}}"}</code>, <code>{"{{campaign_title}}"}</code>, <code>{"{{price}}"}</code>, <code>{"{{deadline}}"}</code>, <code>{"{{deliverables}}"}</code>, <code>{"{{rights}}"}</code>, <code>{"{{proposal_reference}}"}</code>, <code>{"{{signature1}}"}</code> marque, <code>{"{{signature2}}"}</code> influenceur.</p>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />
@@ -208,9 +209,9 @@ export default function ContractTemplates() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("contracts.loading")}</div>
+        <div className="flex items-center justify-center py-20 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("contracts.loading")}</div>
       ) : items.length === 0 ? (
-        <Card className="card-base"><CardContent className="py-16 text-center text-gray-400">{t("contracts.empty")}</CardContent></Card>
+        <Card className="card-base"><CardContent className="py-16 text-center text-aurora-ink-3">{t("contracts.empty")}</CardContent></Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {items.map((tpl) => (
@@ -220,10 +221,10 @@ export default function ContractTemplates() {
                   <CardTitle className="text-base">{tpl.name}</CardTitle>
                   {tpl.is_default && <Badge variant="success">{t("contracts.default_badge")}</Badge>}
                 </div>
-                {tpl.description && <p className="text-xs text-gray-500">{tpl.description}</p>}
+                {tpl.description && <p className="text-xs text-aurora-ink-3">{tpl.description}</p>}
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-xs text-gray-400">{t("contracts.created_at")} {new Date(tpl.created_at).toLocaleDateString(i18n.language)}</p>
+                <p className="text-xs text-aurora-ink-3">{t("contracts.created_at")} {new Date(tpl.created_at).toLocaleDateString(i18n.language)}</p>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" className="flex-1" onClick={() => setPreview(tpl)}>{t("contracts.preview")}</Button>
                   <Button size="sm" variant="outline" onClick={() => openEdit(tpl)} title={t("contracts.edit")}>

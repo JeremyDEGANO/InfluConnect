@@ -49,8 +49,12 @@ export interface BrandPending {
 export interface AuditEntry {
   id: number
   action: string
+  actor: number | null
+  actor_username?: string
   actor_email: string
-  ip_address: string
+  target_type?: string
+  target_id?: number | null
+  ip_address: string | null
   metadata: Record<string, unknown>
   created_at: string
 }
@@ -90,6 +94,18 @@ export interface AdminOverviewUser {
   subscription_plan: "starter" | "growth" | "pro" | ""
   subscription_active: boolean
 }
+export interface AdminOverviewLiveCampaign {
+  id: number
+  title: string
+  brand_company_name: string
+  status: "draft" | "active" | "paused" | "completed" | "cancelled" | string
+  deadline: string | null
+  price_per_influencer: number | null
+  max_influencers: number
+  proposals_total: number
+  proposals_in_progress: number
+  created_at: string
+}
 export interface AdminOverview {
   kpis: {
     users_total: number
@@ -116,6 +132,7 @@ export interface AdminOverview {
   proposal_status_counts: Record<string, number>
   brands: AdminOverviewBrand[]
   users: AdminOverviewUser[]
+  live_campaigns: AdminOverviewLiveCampaign[]
 }
 export interface SupportTicketImage {
   id: number
@@ -175,6 +192,49 @@ export interface ProposalFull {
   validation_deadline: string | null
 }
 
+export interface CampaignLookalikeResult {
+  influencer_id: number
+  display_name: string
+  pseudo: string
+  avatar: string | null
+  location: string
+  themes: string[]
+  platforms: string[]
+  followers_avg: number
+  engagement_rate_avg: number
+  rating: number
+  score: number
+  reasons: string[]
+}
+
+export interface CampaignLookalikeResponse {
+  campaign_id: number
+  reference_influencer_id: number
+  count: number
+  results: CampaignLookalikeResult[]
+}
+
+export interface CampaignEmvBreakdown {
+  influencer_id: number
+  influencer_name: string
+  submissions: number
+  impressions: number
+  engagement: number
+  emv_eur: number
+}
+
+export interface CampaignEmv {
+  campaign_id: number
+  campaign_title: string
+  currency: string
+  submissions_count: number
+  emv_total_eur: number
+  budget_spent_eur: number
+  emv_vs_spend_ratio: number | null
+  confidence_score: number
+  by_influencer: CampaignEmvBreakdown[]
+}
+
 export interface EventInvitation {
   id: number
   event: number
@@ -230,8 +290,8 @@ export const cancelSubscription = () =>
   api.post("/brands/subscription/cancel/").then((r) => r.data)
 
 // ====== Admin brand validation ======
-export const fetchPendingBrands = () =>
-  api.get<{ results?: BrandPending[] } | BrandPending[]>("/admin/brands/").then((r) => {
+export const fetchPendingBrands = (status = "all") =>
+  api.get<{ results?: BrandPending[] } | BrandPending[]>(`/admin/brands/?status=${encodeURIComponent(status)}`).then((r) => {
     const d = r.data as any
     return (d.results ?? d) as BrandPending[]
   })
@@ -418,14 +478,52 @@ export const rejectReview = (id: number, reason: string) =>
   api.post(`/admin/reviews/${id}/reject/`, { reason }).then((r) => r.data)
 
 // ====== Audit log ======
-export const fetchAuditLog = (page = 1) =>
-  api.get<{ results: AuditEntry[]; count?: number }>(`/admin/audit-log/?page=${page}`).then((r) => r.data)
+export const fetchAuditLog = (page = 1, action?: string) => {
+  const qs = new URLSearchParams({ page: String(page) })
+  if (action && action !== "all") qs.set("action", action)
+  return api.get<{ results: AuditEntry[]; count?: number }>(`/admin/audit-log/?${qs.toString()}`).then((r) => r.data)
+}
 
 // ====== Admin overview ======
 export const fetchAdminOverview = () =>
   api.get<AdminOverview>("/admin/overview/").then((r) => r.data)
+
+export const fetchCampaignEmv = (campaignId: number) =>
+  api.get<CampaignEmv>(`/campaigns/${campaignId}/emv/`).then((r) => r.data)
+
+export const fetchCampaignLookalikes = (
+  campaignId: number,
+  payload: { reference_influencer_id: number; limit?: number; min_score?: number },
+) => api.post<CampaignLookalikeResponse>(`/campaigns/${campaignId}/lookalikes/`, payload).then((r) => r.data)
+
+export const exportCampaignReport = async (
+  campaignId: number,
+  format: "pdf" | "pptx" | "google_slides" = "pptx",
+) => {
+  const res = await api.post(`/campaigns/${campaignId}/export-report/`, { format }, { responseType: "blob" })
+  const disposition = String(res.headers?.["content-disposition"] || "")
+  const filenameMatch = disposition.match(/filename="?([^";]+)"?/i)
+  const filename = filenameMatch?.[1] || `campaign_${campaignId}_report.${format === "pdf" ? "pdf" : "pptx"}`
+  const blobUrl = window.URL.createObjectURL(res.data)
+  const link = document.createElement("a")
+  link.href = blobUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000)
+}
+
 export const updateAdminUserStatus = (id: number, is_active: boolean) =>
   api.patch<{ id: number; is_active: boolean }>(`/admin/users/${id}/status/`, { is_active }).then((r) => r.data)
+export const updateAdminUser = (
+  id: number,
+  payload: Partial<Pick<AdminOverviewUser, "email" | "phone" | "location" | "language_preference" | "is_active">>,
+) => api.patch(`/admin/users/${id}/`, payload).then((r) => r.data)
+export const updateAdminBrand = (
+  id: number,
+  payload: Partial<Pick<BrandPending, "company_name" | "website" | "sector" | "description" | "validation_notes" | "validation_status">>,
+) => api.patch(`/admin/brands/${id}/`, payload).then((r) => r.data)
 
 // ====== Support tickets ======
 export const fetchSupportTickets = () =>

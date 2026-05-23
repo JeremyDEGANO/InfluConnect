@@ -23,25 +23,25 @@ export function CampaignCard({ id, title, budget, deadline, status, themes, prop
     <Card className="card-base hover:shadow-md transition-shadow">
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
-          <h3 className="font-semibold text-gray-900 text-base">{title}</h3>
+          <h3 className="font-semibold text-aurora-ink text-base">{title}</h3>
           <StatusBadge status={status} />
         </div>
         <div className="flex flex-wrap gap-1.5 mt-2">
           {themes.slice(0, 3).map((theme) => (
-            <span key={theme} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{theme}</span>
+            <span key={theme} className="text-xs bg-indigo-50 text-aurora-blue-deep px-2 py-0.5 rounded-full">{theme}</span>
           ))}
         </div>
         <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="flex items-center gap-1 text-sm text-gray-500">
+          <div className="flex items-center gap-1 text-sm text-aurora-ink-3">
             <DollarSign className="h-4 w-4 text-green-500" />
-            <span className="font-medium text-gray-900">€{budget.toLocaleString()}</span>
+            <span className="font-medium text-aurora-ink">€{budget.toLocaleString()}</span>
           </div>
-          <div className="flex items-center gap-1 text-sm text-gray-500">
+          <div className="flex items-center gap-1 text-sm text-aurora-ink-3">
             <Calendar className="h-4 w-4 text-blue-500" />
             <span>{new Date(deadline).toLocaleDateString()}</span>
           </div>
           {proposals_count !== undefined && (
-            <div className="flex items-center gap-1 text-sm text-gray-500">
+            <div className="flex items-center gap-1 text-sm text-aurora-ink-3">
               <Users className="h-4 w-4 text-indigo-500" />
               <span>{proposals_count} proposals</span>
             </div>

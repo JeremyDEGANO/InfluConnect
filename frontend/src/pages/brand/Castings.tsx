@@ -74,16 +74,17 @@ export default function BrandCastings() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Megaphone className="h-6 w-6 text-indigo-600" />
+        <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5 flex items-center gap-2">
+          <Megaphone className="h-6 w-6 text-aurora-blue" />
           {t("castings_brand.title")}
         </h1>
-        <p className="text-gray-500 mt-1 text-sm">{t("castings_brand.subtitle")}</p>
+        <p className="text-aurora-ink-3 mt-1 text-sm">{t("castings_brand.subtitle")}</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -92,20 +93,20 @@ export default function BrandCastings() {
           <CardHeader><CardTitle className="text-base">{t("castings_brand.your_castings")}</CardTitle></CardHeader>
           <CardContent className="space-y-2 max-h-[600px] overflow-y-auto">
             {campaigns.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">{t("castings_brand.empty_castings")}</p>
+              <p className="text-sm text-aurora-ink-3 text-center py-6">{t("castings_brand.empty_castings")}</p>
             ) : campaigns.map((c) => (
               <button
                 key={c.id}
                 onClick={() => openCampaign(c)}
                 className={`w-full text-left p-3 rounded-xl border transition-all ${selected?.id === c.id
                   ? "border-indigo-300 bg-indigo-50"
-                  : "border-gray-200 hover:bg-gray-50"
+                  : "border-aurora-line hover:bg-aurora-surface"
                 }`}
               >
-                <div className="font-semibold text-sm text-gray-900 truncate">{c.title}</div>
+                <div className="font-semibold text-sm text-aurora-ink truncate">{c.title}</div>
                 <div className="flex gap-2 mt-1">
                   <Badge variant="info" className="text-xs">{c.status}</Badge>
-                  {c.deadline && <span className="text-xs text-gray-400">{t("castings_brand.until")} {new Date(c.deadline).toLocaleDateString(i18n.language)}</span>}
+                  {c.deadline && <span className="text-xs text-aurora-ink-3">{t("castings_brand.until")} {new Date(c.deadline).toLocaleDateString(i18n.language)}</span>}
                 </div>
               </button>
             ))}
@@ -122,15 +123,15 @@ export default function BrandCastings() {
           </CardHeader>
           <CardContent>
             {!selected ? (
-              <p className="text-sm text-gray-400 text-center py-12">{t("castings_brand.pick_prompt")}</p>
+              <p className="text-sm text-aurora-ink-3 text-center py-12">{t("castings_brand.pick_prompt")}</p>
             ) : appsLoading ? (
-              <div className="flex items-center justify-center py-8 text-gray-400"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              <div className="flex items-center justify-center py-8 text-aurora-ink-3"><Loader2 className="h-5 w-5 animate-spin" /></div>
             ) : apps.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">{t("castings_brand.no_applications")}</p>
+              <p className="text-sm text-aurora-ink-3 text-center py-8">{t("castings_brand.no_applications")}</p>
             ) : (
               <div className="space-y-3">
                 {apps.map((a) => (
-                  <div key={a.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
+                  <div key={a.id} className="border border-aurora-line rounded-xl p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                         <InfluencerHoverCard
                           influencerId={a.influencer}
@@ -141,13 +142,13 @@ export default function BrandCastings() {
                           <a href={`/brand/influencers/${encodeURIComponent(a.influencer_pseudo)}`} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 min-w-0 group cursor-pointer">
                             <Avatar className="h-10 w-10 shrink-0">
                               <AvatarImage src={resolveMediaUrl(a.influencer_avatar)} alt={a.influencer_display_name} />
-                              <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
+                              <AvatarFallback className="bg-aurora-ink text-white text-sm font-semibold">
                                 {(a.influencer_display_name || "?")[0].toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <p className="font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{a.influencer_display_name}</p>
-                              <p className="text-xs text-gray-400">{t("castings_brand.applied_on")} {new Date(a.created_at).toLocaleDateString(i18n.language)}</p>
+                              <p className="font-semibold text-aurora-ink truncate group-hover:text-aurora-blue transition-colors">{a.influencer_display_name}</p>
+                              <p className="text-xs text-aurora-ink-3">{t("castings_brand.applied_on")} {new Date(a.created_at).toLocaleDateString(i18n.language)}</p>
                             </div>
                           </a>
                         </InfluencerHoverCard>
@@ -157,7 +158,7 @@ export default function BrandCastings() {
                     </div>
 
                     {a.motivation && (
-                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 italic">« {a.motivation} »</p>
+                      <p className="text-sm text-aurora-ink-2 bg-aurora-surface rounded-lg p-3 italic">« {a.motivation} »</p>
                     )}
 
                     <div className="flex gap-2 pt-1 flex-wrap">

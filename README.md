@@ -68,6 +68,30 @@ npm run dev
 
 The REST API is available at `http://localhost:8000/api/`.
 
+## Security Scanning
+
+This repository includes a baseline security pipeline and local scanning script for white-box, grey-box, and black-box checks.
+
+- CI workflow: `.github/workflows/security.yml`
+- Local script: `scripts/run-security-local.ps1`
+- Report template: `docs/security/SCAN_REPORT_TEMPLATE.md`
+
+### Run local security scans (PowerShell)
+
+```powershell
+./scripts/run-security-local.ps1
+```
+
+Optional ZAP baseline against a public environment:
+
+```powershell
+./scripts/run-security-local.ps1 -IncludeZap -ZapTargetUrl https://staging.example.com
+```
+
+### CI usage
+
+The security workflow runs automatically on push and pull request. You can also run a manual black-box ZAP baseline via `workflow_dispatch` by providing `zap_target_url`.
+
 ## License
 
 MIT

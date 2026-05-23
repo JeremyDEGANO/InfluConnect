@@ -7,7 +7,8 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { SimpleLineChart } from "@/components/shared/Charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProfileCompletionBanner } from "@/components/shared/ProfileCompletionBanner"
-import { DollarSign, Briefcase, FileText, Star, Loader2 } from "lucide-react"
+import { PageHeader } from "@/components/shared/PageHeader"
+import { Loader2 } from "lucide-react"
 
 interface DashboardData {
   total_proposals: number
@@ -52,28 +53,32 @@ export default function InfluencerDashboard() {
     localStorage.setItem(storageKey, "1")
   }, [user?.id])
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t(isFirstWelcome ? "dashboard.welcome_first" : "dashboard.welcome_back")}, {user?.first_name}! 👋</h1>
-        <p className="text-gray-500 mt-1">{t("influencer_dashboard.subtitle")}</p>
-      </div>
+    <div className="px-6 sm:px-8 py-8 max-w-7xl mx-auto space-y-8">
+      <PageHeader
+        eyebrow={<>Bienvenue {user?.first_name},</>}
+        title={
+          (data?.pending_proposals ?? 0) > 0
+            ? t("influencer_dashboard.headline_pending", { count: data?.pending_proposals ?? 0, defaultValue: `Vous avez ${data?.pending_proposals} nouvelles propositions.` })
+            : t("influencer_dashboard.headline_idle", "Prêt à collaborer ?")
+        }
+      />
 
       <ProfileCompletionBanner />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title={t("dashboard.earnings")} value={`€${data?.total_earnings ?? 0}`} icon={DollarSign} />
-        <StatsCard title={t("dashboard.active_campaigns")} value={data?.active_proposals ?? 0} icon={Briefcase} />
-        <StatsCard title={t("dashboard.pending_proposals")} value={data?.pending_proposals ?? 0} icon={FileText} />
-        <StatsCard title={t("dashboard.avg_rating")} value="—" icon={Star} />
+        <StatsCard title={t("dashboard.earnings")} value={`€${Number(data?.total_earnings ?? 0).toLocaleString("fr-FR")}`} progress={70} progressColor="bg-emerald-500" />
+        <StatsCard title={t("dashboard.active_campaigns")} value={data?.active_proposals ?? 0} progress={Math.min(100, ((data?.active_proposals ?? 0) / 5) * 100)} progressColor="bg-aurora-blue" hint={(data?.active_proposals ?? 0) > 0 ? t("influencer_dashboard.active_hint", { count: data?.active_proposals, defaultValue: `${data?.active_proposals} en cours` }) : undefined} />
+        <StatsCard title={t("dashboard.pending_proposals")} value={data?.pending_proposals ?? 0} progress={Math.min(100, ((data?.pending_proposals ?? 0) / 5) * 100)} progressColor="bg-amber-500" hint={(data?.pending_proposals ?? 0) > 0 ? t("influencer_dashboard.pending_hint", "à traiter") : undefined} />
+        <StatsCard title={t("dashboard.avg_rating")} value="—" progress={0} progressColor="bg-aurora-blue-deep" />
       </div>
 
       {data?.timeseries && data.timeseries.length > 0 && (
         <div className="grid md:grid-cols-2 gap-4">
           <Card className="card-base">
-            <CardHeader><CardTitle className="text-base">{t("influencer_dashboard.monthly_earnings")}</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base font-semibold tracking-tight">{t("influencer_dashboard.monthly_earnings")}</CardTitle></CardHeader>
             <CardContent>
               <SimpleLineChart
                 data={data.timeseries.map((m) => ({ label: m.label, value: m.earnings }))}
@@ -84,12 +89,12 @@ export default function InfluencerDashboard() {
             </CardContent>
           </Card>
           <Card className="card-base">
-            <CardHeader><CardTitle className="text-base">{t("influencer_dashboard.new_proposals")}</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base font-semibold tracking-tight">{t("influencer_dashboard.new_proposals")}</CardTitle></CardHeader>
             <CardContent>
               <SimpleLineChart
                 data={data.timeseries.map((m) => ({ label: m.label, value: m.proposals }))}
                 height={160}
-                stroke="#4f46e5"
+                stroke="hsl(var(--aurora-blue))"
               />
             </CardContent>
           </Card>
@@ -98,21 +103,21 @@ export default function InfluencerDashboard() {
 
       <Card className="card-base">
         <CardHeader>
-          <CardTitle className="text-lg">{t("dashboard.recent_proposals")}</CardTitle>
+          <CardTitle className="text-lg font-semibold tracking-tight">{t("dashboard.recent_proposals")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {(data?.recent_proposals ?? []).length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">{t("proposals_page.no_proposals")}</p>
+              <p className="text-sm text-aurora-ink-3 text-center py-6">{t("proposals_page.no_proposals")}</p>
             )}
             {(data?.recent_proposals ?? []).map((p) => (
-              <div key={p.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors">
+              <div key={p.id} className="flex items-center justify-between p-4 rounded-xl border border-transparent hover:border-aurora-line hover:bg-aurora-surface ease-aurora">
                 <div>
-                  <p className="font-medium text-gray-900 text-sm">{p.campaign_title}</p>
-                  <p className="text-xs text-gray-500">{p.brand_company_name} · {new Date(p.created_at).toLocaleDateString()}</p>
+                  <p className="font-medium text-aurora-ink text-sm">{p.campaign_title}</p>
+                  <p className="text-xs text-aurora-ink-3 mt-0.5">{p.brand_company_name} · {new Date(p.created_at).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-semibold text-sm text-gray-900">€{p.proposed_price}</span>
+                  <span className="num font-semibold text-sm text-aurora-ink">€{p.proposed_price}</span>
                   <StatusBadge status={p.status as any} />
                 </div>
               </div>

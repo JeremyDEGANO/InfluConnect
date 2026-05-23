@@ -447,7 +447,7 @@ export default function InfluencerEditProfile() {
           })
           return
         }
-        // Real OAuth — redirect the full page so the provider can bring the
+        // Real OAuth – redirect the full page so the provider can bring the
         // user back to /influencer/profile?social_connected=<platform>.
         window.location.href = r.data.oauth_url
       }
@@ -563,7 +563,8 @@ export default function InfluencerEditProfile() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{t("influencer_profile.title")}</h1>
+        <p className="text-sm text-aurora-ink-3">{t("influencer_dashboard.eyebrow", "Espace créateur")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("influencer_profile.title")}</h1>
         {status && (
           <div className="flex items-center gap-2">
             {status.completion_percent >= 100
@@ -574,10 +575,10 @@ export default function InfluencerEditProfile() {
         )}
       </div>
       {status && status.completion_percent < 100 && (
-        <Card className="card-base bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-100">
+        <Card className="card-base bg-aurora-blue/5 border-aurora-blue/15">
           <CardContent className="p-4 space-y-2">
             <Progress value={status.completion_percent} />
-            <div className="text-xs text-gray-700">
+            <div className="text-xs text-aurora-ink-2">
               <strong>{t("influencer_profile.missing", "À compléter")} :</strong>
               <div className="inline-flex flex-wrap gap-1.5 mt-1 ml-1">
                 {friendlyMissing.map((m, i) => (
@@ -610,7 +611,7 @@ export default function InfluencerEditProfile() {
               <Label>{t("influencer_profile.display_name", "Pseudo / nom public")}</Label>
               <Input className="mt-1" placeholder="mon.pseudo" value={profile_form.display_name} onChange={(e) => setProfileForm({ ...profile_form, display_name: e.target.value })} />
               {pseudoChecking ? (
-                <p className="mt-1 text-[11px] text-gray-400">{t("influencer_profile.pseudo_checking", "Vérification de disponibilité...")}</p>
+                <p className="mt-1 text-[11px] text-aurora-ink-3">{t("influencer_profile.pseudo_checking", "Vérification de disponibilité...")}</p>
               ) : null}
               {!pseudoChecking && displayNameChanged && pseudoAvailability && !pseudoAvailability.available ? (
                 <div className="mt-2 space-y-2">
@@ -621,7 +622,7 @@ export default function InfluencerEditProfile() {
                         <button
                           type="button"
                           key={suggestion}
-                          className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                          className="rounded-full border border-aurora-blue/20 bg-indigo-50 px-3 py-1 text-[11px] font-medium text-aurora-blue-deep hover:bg-indigo-100 transition-colors"
                           onClick={() => setProfileForm({ ...profile_form, display_name: suggestion })}
                         >
                           {suggestion}
@@ -631,7 +632,7 @@ export default function InfluencerEditProfile() {
                   ) : null}
                 </div>
               ) : null}
-              <p className={`mt-1 text-[11px] ${displayNameChanged && !displayNameIsValid ? "text-red-500" : "text-gray-400"}`}>
+              <p className={`mt-1 text-[11px] ${displayNameChanged && !displayNameIsValid ? "text-red-500" : "text-aurora-ink-3"}`}>
                 {displayNameChanged && !displayNameIsValid
                   ? t("influencer_profile.pseudo_invalid_desc")
                   : t("influencer_profile.pseudo_hint")}
@@ -672,7 +673,7 @@ export default function InfluencerEditProfile() {
                   inputMode="tel"
                 />
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">{t("influencer_profile.phone_prefix_hint", { dial: selectedDialCode })}</p>
+              <p className="text-[11px] text-aurora-ink-3 mt-1">{t("influencer_profile.phone_prefix_hint", { dial: selectedDialCode })}</p>
             </div>
             <div>
               <Label>{t("influencer_profile.country", "Pays")}</Label>
@@ -698,7 +699,7 @@ export default function InfluencerEditProfile() {
             <div className="sm:col-span-2">
               <Label>{t("influencer_profile.avatar", "Photo de profil")}</Label>
               <div className="mt-1 flex items-center gap-4">
-                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-100 to-violet-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                <div className="h-20 w-20 rounded-full bg-aurora-blue/10 border border-aurora-line overflow-hidden flex items-center justify-center shrink-0">
                   {avatarPreview ? (
                     <img src={avatarPreview} alt={t("influencer_profile.avatar_preview_alt")} className="h-full w-full object-cover" />
                   ) : currentAvatarUrl ? (
@@ -714,14 +715,14 @@ export default function InfluencerEditProfile() {
                   <input
                     type="file" accept="image/*"
                     onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
-                    className="text-sm block w-full file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 file:cursor-pointer"
+                    className="text-sm block w-full file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-indigo-50 file:text-aurora-blue-deep hover:file:bg-indigo-100 file:cursor-pointer"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-aurora-ink-3 mt-1">
                     {avatarFile
                       ? t("influencer_profile.avatar_pending", "Sera enregistrée à la sauvegarde")
                       : user?.avatar
-                        ? t("influencer_profile.avatar_current", "Photo actuelle — sélectionnez un fichier pour la remplacer")
-                        : t("influencer_profile.avatar_hint", "JPG ou PNG, carré recommandé (≥ 400 px)")}
+                        ? t("influencer_profile.avatar_current", "Photo actuelle – sélectionnez un fichier pour la remplacer")
+                        : t("influencer_profile.avatar_hint", "JPG ou PNG, carré recommandé (â‰¥ 400 px)")}
                   </p>
                 </div>
               </div>
@@ -733,7 +734,7 @@ export default function InfluencerEditProfile() {
                 placeholder={t("influencer_profile.bio_placeholder", "Présentez-vous en quelques mots (10 caractères minimum)")}
                 value={profile_form.bio} onChange={(e) => setProfileForm({ ...profile_form, bio: e.target.value })}
               />
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-[11px] text-aurora-ink-3 mt-1">
                 {profile_form.bio.length === 1
                   ? t("influencer_profile.bio_char_count", { count: profile_form.bio.length })
                   : t("influencer_profile.bio_char_count_plural", { count: profile_form.bio.length })}
@@ -747,7 +748,7 @@ export default function InfluencerEditProfile() {
                 value={profile_form.collaboration_pitch}
                 onChange={(e) => setProfileForm({ ...profile_form, collaboration_pitch: e.target.value })}
               />
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-[11px] text-aurora-ink-3 mt-1">
                 {t("influencer_profile.collaboration_pitch_hint", "Cette case alimente directement la dernière page “Pourquoi collaborer avec vous ?”. Elle est requise pour un profil à 100%.")}
               </p>
               <p className={`text-[11px] mt-1 ${collaborationPitchLength < 20 ? "text-amber-600" : "text-emerald-600"}`}>
@@ -777,7 +778,7 @@ export default function InfluencerEditProfile() {
         <Card className="card-base">
           <CardHeader>
             <CardTitle className="text-base">{t("influencer_profile.themes", "Thématiques")}</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">{t("influencer_profile.themes_hint")}</p>
+            <p className="text-xs text-aurora-ink-3 mt-1">{t("influencer_profile.themes_hint")}</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -794,7 +795,7 @@ export default function InfluencerEditProfile() {
         <Card className="card-base">
           <CardHeader>
             <CardTitle className="text-base">{t("influencer_profile.content_types", "Types de contenu proposés")}</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">{t("influencer_profile.content_types_hint")}</p>
+            <p className="text-xs text-aurora-ink-3 mt-1">{t("influencer_profile.content_types_hint")}</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -811,11 +812,11 @@ export default function InfluencerEditProfile() {
         <Card className="card-base">
           <CardHeader>
             <CardTitle className="text-base">{t("influencer_profile.pricing", "Grille tarifaire")}</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">{t("influencer_profile.pricing_hint")}</p>
+            <p className="text-xs text-aurora-ink-3 mt-1">{t("influencer_profile.pricing_hint")}</p>
           </CardHeader>
           <CardContent className="space-y-2">
             {contentTypes.length === 0 && (
-              <p className="text-sm text-gray-400">{t("influencer_profile.pricing_empty")}</p>
+              <p className="text-sm text-aurora-ink-3">{t("influencer_profile.pricing_empty")}</p>
             )}
             {contentTypes.map((ct) => (
               <div key={ct} className="flex items-center gap-3">
@@ -829,7 +830,7 @@ export default function InfluencerEditProfile() {
                     onChange={(e) => setPricing({ ...pricing, [ct]: Number(e.target.value) })}
                     className="pr-8"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">€</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-aurora-ink-3">€</span>
                 </div>
               </div>
             ))}
@@ -843,7 +844,7 @@ export default function InfluencerEditProfile() {
               <CardTitle className="text-base">{t("influencer_profile.social_networks", "Réseaux sociaux")}</CardTitle>
               <Button type="button" variant="outline" size="sm" onClick={addSocial}><Plus className="h-3.5 w-3.5 mr-1" />{t("common.add", "Ajouter")}</Button>
             </div>
-            <div className="flex items-start gap-2 mt-2 text-xs text-gray-500">
+            <div className="flex items-start gap-2 mt-2 text-xs text-aurora-ink-3">
               <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-indigo-500" />
               <p>
                 La synchronisation automatique nécessite une connexion OAuth officielle
@@ -853,9 +854,9 @@ export default function InfluencerEditProfile() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {socials.length === 0 && <p className="text-sm text-gray-400">{t("influencer_profile.no_socials", "Ajoutez au moins un réseau social")}</p>}
+            {socials.length === 0 && <p className="text-sm text-aurora-ink-3">{t("influencer_profile.no_socials", "Ajoutez au moins un réseau social")}</p>}
             {socials.map((s, i) => (
-              <div key={i} className="border border-gray-100 rounded-xl p-3 space-y-2">
+              <div key={i} className="border border-aurora-line rounded-xl p-3 space-y-2">
                 <div className="grid sm:grid-cols-5 gap-2 items-end">
                   <div>
                     <Label className="text-xs">{t("influencer_profile.platform")}</Label>
@@ -897,7 +898,7 @@ export default function InfluencerEditProfile() {
                         onClick={() => connectOAuth(s.id!)}
                         title={t("influencer_profile.oauth_connect_title")}
                       >
-                        🔗 OAuth
+                        ðŸ”— OAuth
                       </Button>
                       <Button
                         type="button" variant="outline" size="sm"
@@ -922,12 +923,12 @@ export default function InfluencerEditProfile() {
         <Card className="card-base">
           <CardHeader>
             <CardTitle className="text-base">{t("influencer_profile.gallery_title")}</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-aurora-ink-3 mt-1">
               {t("influencer_profile.gallery_hint")}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs text-indigo-900">
+            <div className="rounded-xl border border-aurora-blue/15 bg-indigo-50/70 p-3 text-xs text-indigo-900">
               <div className="flex items-center gap-2 font-semibold">
                 <Info className="h-3.5 w-3.5" />
                 {t("influencer_profile.gallery_recommendations_title")}
@@ -938,7 +939,7 @@ export default function InfluencerEditProfile() {
             </div>
             <div className="grid sm:grid-cols-3 gap-3">
               {gallery.map((g) => (
-                <div key={g.id} className="relative rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                <div key={g.id} className="relative rounded-xl border border-aurora-line overflow-hidden bg-aurora-surface">
                   <div className="aspect-[5/4] w-full overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={resolveMedia(g.image)} alt={g.caption ?? ""} className="w-full h-full object-cover" />
@@ -952,7 +953,7 @@ export default function InfluencerEditProfile() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                   <Input
-                    className="rounded-none border-0 border-t border-gray-200 text-xs"
+                    className="rounded-none border-0 border-t border-aurora-line text-xs"
                     placeholder={t("influencer_profile.gallery_caption_placeholder")}
                     defaultValue={g.caption ?? ""}
                     onBlur={(e) => {
@@ -963,7 +964,7 @@ export default function InfluencerEditProfile() {
                 </div>
               ))}
               {gallery.length < 3 && (
-                <label className="flex flex-col items-center justify-center aspect-[5/4] rounded-xl border-2 border-dashed border-gray-300 hover:border-indigo-400 cursor-pointer text-gray-500 hover:text-indigo-600 transition-colors">
+                <label className="flex flex-col items-center justify-center aspect-[5/4] rounded-xl border-2 border-dashed border-gray-300 hover:border-indigo-400 cursor-pointer text-aurora-ink-3 hover:text-aurora-blue transition-colors">
                   {galleryUploading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
@@ -986,10 +987,10 @@ export default function InfluencerEditProfile() {
                 </label>
               )}
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-aurora-ink-3">
               {gallery.length === 1
                 ? t("influencer_profile.gallery_count", { count: gallery.length })
-                : t("influencer_profile.gallery_count_plural", { count: gallery.length })} {" — "}{t("influencer_profile.gallery_note")}
+                : t("influencer_profile.gallery_count_plural", { count: gallery.length })} {" – "}{t("influencer_profile.gallery_note")}
             </p>
           </CardContent>
         </Card>
@@ -1000,7 +1001,7 @@ export default function InfluencerEditProfile() {
             <CardTitle className="text-base">{t("influencer_profile.content_links_title", "Liens de contenus")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-xs text-gray-500">{t("influencer_profile.content_links_desc", "Partagez jusqu'à 10 liens vers vos meilleurs contenus, votre portfolio externe ou votre site.")}</p>
+            <p className="text-xs text-aurora-ink-3">{t("influencer_profile.content_links_desc", "Partagez jusqu'à 10 liens vers vos meilleurs contenus, votre portfolio externe ou votre site.")}</p>
             {contentLinks.map((l, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                 <Input
@@ -1018,7 +1019,7 @@ export default function InfluencerEditProfile() {
                   maxLength={500}
                   onChange={(e) => setContentLinks((arr) => arr.map((x, i) => i === idx ? { ...x, url: e.target.value } : x))}
                 />
-                <Button type="button" variant="ghost" size="sm" className="col-span-1 text-red-500" onClick={() => setContentLinks((arr) => arr.filter((_, i) => i !== idx))}>×</Button>
+                <Button type="button" variant="ghost" size="sm" className="col-span-1 text-red-500" onClick={() => setContentLinks((arr) => arr.filter((_, i) => i !== idx))}>Ã—</Button>
               </div>
             ))}
             {contentLinks.length < 10 && (
@@ -1047,7 +1048,7 @@ export default function InfluencerEditProfile() {
             <div>
               <Label>{t("influencer_profile.payment_details", "Détails (chiffrés)")}</Label>
               <Input className="mt-1" type="password" placeholder={t("influencer_profile.payment_placeholder", "IBAN ou email PayPal")} value={profile_form.payment_details} onChange={(e) => setProfileForm({ ...profile_form, payment_details: e.target.value })} />
-              <p className="text-xs text-gray-400 mt-1">{t("influencer_profile.payment_note", "Stocké chiffré (Fernet). Laisser vide pour ne pas modifier.")}</p>
+              <p className="text-xs text-aurora-ink-3 mt-1">{t("influencer_profile.payment_note", "Stocké chiffré (Fernet). Laisser vide pour ne pas modifier.")}</p>
             </div>
           </CardContent>
         </Card>

@@ -33,17 +33,17 @@ export default function PasswordResetRequest() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-50 px-4">
+    <div className="min-h-screen flex items-center justify-center hero-aurora-bg px-4 py-16">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white text-xs font-black shadow-sm">IC</div>
-            <span className="text-xl font-bold text-gray-900 tracking-tight">InfluConnect</span>
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-aurora-blue to-aurora-blue-deep flex items-center justify-center text-white text-xs font-black shadow-soft">IC</div>
+            <span className="text-xl font-semibold text-aurora-ink tracking-tight">InfluConnect</span>
           </Link>
         </div>
-        <Card className="card-base shadow-xl shadow-indigo-500/5">
+        <Card className="card-base shadow-soft-xl">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold">
+            <CardTitle className="text-2xl font-semibold tracking-tight">
               {isMfa
                 ? t("auth.mfa_reset.title", "Réinitialiser la 2FA")
                 : t("auth.reset.title")}
@@ -60,8 +60,8 @@ export default function PasswordResetRequest() {
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                   <Mail className="h-6 w-6" />
                 </div>
-                <p className="text-sm text-gray-600">{t("auth.reset.sent")}</p>
-                <Link to="/login" className="inline-block text-sm text-indigo-600 hover:underline">{t("auth.reset.back_to_login")}</Link>
+                <p className="text-sm text-aurora-ink-2">{t("auth.reset.sent")}</p>
+                <Link to="/login" className="inline-block text-sm text-aurora-blue hover:underline">{t("auth.reset.back_to_login")}</Link>
               </div>
             ) : (
               <form onSubmit={submit} className="space-y-4">
@@ -72,8 +72,8 @@ export default function PasswordResetRequest() {
                 <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
                   {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.loading")}</> : t("auth.reset.send")}
                 </Button>
-                <p className="text-center text-xs text-gray-500">
-                  <Link to="/login" className="text-indigo-600 hover:underline">{t("auth.reset.back_to_login")}</Link>
+                <p className="text-center text-xs text-aurora-ink-3">
+                  <Link to="/login" className="text-aurora-blue hover:underline">{t("auth.reset.back_to_login")}</Link>
                 </p>
               </form>
             )}

@@ -27,18 +27,18 @@ export function BrandHoverCard({
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 shrink-0">
             {brandLogo && <AvatarImage src={resolveMediaUrl(brandLogo)} />}
-            <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
+            <AvatarFallback className="bg-aurora-ink text-white text-sm font-semibold">
               {(brandName || "??").slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <p className="font-semibold text-gray-900 truncate">{brandName}</p>
+          <p className="font-semibold text-aurora-ink truncate">{brandName}</p>
         </div>
-        <div className="mt-3 pt-3 border-t border-gray-100">
+        <div className="mt-3 pt-3 border-t border-aurora-line">
           <a
             href={profileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"
+            className="flex items-center gap-1 text-xs font-medium text-aurora-blue hover:underline"
           >
             <ExternalLink className="h-3 w-3" />Voir le profil de la marque
           </a>

@@ -14,6 +14,8 @@ router.register(r"influencers/media-kit-images", views_extra.MediaKitImageViewSe
 router.register(r"contract-templates", views_extra.ContractTemplateViewSet, basename="contract-template")
 
 urlpatterns = [
+    path("health/", views_extra.HealthCheckView.as_view(), name="health"),
+    path("health/ready/", views_extra.ReadinessCheckView.as_view(), name="health-ready"),
     # ---- Auth ----
     path("auth/register/", views.RegisterView.as_view(), name="register"),
     path("auth/login/", views.LoginView.as_view(), name="login"),
@@ -68,6 +70,9 @@ urlpatterns = [
     # ---- Campaigns extra actions ----
     path("campaigns/<int:pk>/target/", views.CampaignTargetView.as_view(), name="campaign-target"),
     path("campaigns/<int:pk>/send-proposals/", views.CampaignSendProposalsView.as_view(), name="campaign-send-proposals"),
+    path("campaigns/<int:pk>/lookalikes/", views_extra.CampaignLookalikeView.as_view(), name="campaign-lookalikes"),
+    path("campaigns/<int:pk>/emv/", views_extra.CampaignEmvView.as_view(), name="campaign-emv"),
+    path("campaigns/<int:pk>/export-report/", views_extra.CampaignReportExportView.as_view(), name="campaign-export-report"),
     path("events/<int:pk>/invite/", views.EventInviteView.as_view(), name="event-invite"),
     path("event-invitations/", views.EventInvitationListView.as_view(), name="event-invitations"),
     path("event-invitations/<uuid:invite_token>/", views.EventInvitationDetailByTokenView.as_view(), name="event-invitation-detail-token"),
@@ -135,10 +140,12 @@ urlpatterns = [
     path("admin/proposals/<int:pk>/arbitrate/", views.AdminArbitrateView.as_view(), name="admin-arbitrate"),
     path("admin/overview/", views_extra.AdminOverviewView.as_view(), name="admin-overview"),
     path("admin/users/<int:pk>/status/", views_extra.AdminUserStatusUpdateView.as_view(), name="admin-user-status-update"),
+    path("admin/users/<int:pk>/", views_extra.AdminUserUpdateView.as_view(), name="admin-user-update"),
     path("admin/financials/", views.AdminFinancialsView.as_view(), name="admin-financials"),
     path("admin/settings/", views.AdminSettingsView.as_view(), name="admin-settings"),
     # Brand validation workflow (CDC §5.1)
     path("admin/brands/", views_extra.AdminPendingBrandsView.as_view(), name="admin-brands"),
+    path("admin/brands/<int:pk>/", views_extra.AdminBrandUpdateView.as_view(), name="admin-brand-update"),
     path("admin/brands/<int:pk>/approve/", views_extra.AdminBrandApproveView.as_view(), name="admin-brand-approve"),
     path("admin/brands/<int:pk>/reject/", views_extra.AdminBrandRejectView.as_view(), name="admin-brand-reject"),
     # Review moderation

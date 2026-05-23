@@ -28,14 +28,15 @@ export default function Onboarding() {
     ]).finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   const labels = reference?.completion_labels ?? FALLBACK_LABELS
   const friendlyMissing = (status?.missing_fields ?? []).map((f) => labels[f] ?? f)
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("onboarding.title", "Complétez votre profil")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("influencer_dashboard.eyebrow", "Espace créateur")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("onboarding.title", "Complétez votre profil")}</h1>
       <Card className="card-base">
         <CardHeader><CardTitle>{t("onboarding.completion", "Progression")} : {status?.completion_percent ?? 0}%</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -43,12 +44,12 @@ export default function Onboarding() {
           {status?.onboarding_completed ? (
             <div className="flex items-center gap-2 text-green-600 text-sm">
               <CheckCircle2 className="h-5 w-5" />
-              {t("onboarding.completed", "Profil complet — prêt à recevoir des propositions")}
+              {t("onboarding.completed", "Profil complet – prêt à recevoir des propositions")}
             </div>
           ) : (
             <div>
-              <p className="text-sm text-gray-600 mb-2">{t("onboarding.missing", "Étapes restantes")} :</p>
-              <ul className="text-sm text-gray-500 space-y-1 list-disc list-inside">
+              <p className="text-sm text-aurora-ink-2 mb-2">{t("onboarding.missing", "Étapes restantes")} :</p>
+              <ul className="text-sm text-aurora-ink-3 space-y-1 list-disc list-inside">
                 {friendlyMissing.map((m, i) => <li key={i}>{m}</li>)}
               </ul>
             </div>

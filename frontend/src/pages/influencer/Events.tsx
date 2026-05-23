@@ -66,14 +66,15 @@ export default function InfluencerEvents() {
   }
 
   if (loading) {
-    return <div className="p-6"><div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div></div>
+    return <div className="p-6"><div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div></div>
   }
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("events.my_invitations", "Mes invitations événements")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("influencer_dashboard.eyebrow", "Espace créateur")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("events.my_invitations", "Mes invitations événements")}</h1>
       {sorted.length === 0 ? (
-        <Card className="card-base"><CardContent className="py-12 text-center text-gray-500">{t("events.no_invites", "Aucune invitation")}</CardContent></Card>
+        <Card className="card-base"><CardContent className="py-12 text-center text-aurora-ink-3">{t("events.no_invites", "Aucune invitation")}</CardContent></Card>
       ) : (
         sorted.map((inv) => (
           <Card key={inv.id} className="card-base">
@@ -84,9 +85,9 @@ export default function InfluencerEvents() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <p><span className="text-gray-500">{t("events.when", "Quand")}:</span> {new Date(inv.event_starts_at).toLocaleString()}</p>
-              <p><span className="text-gray-500">{t("events.where", "Où")}:</span> {inv.event_address}</p>
-              <p><span className="text-gray-500">{t("events.max_plus_ones", "Accompagnants autorisés")}:</span> +{inv.max_plus_ones}</p>
+              <p><span className="text-aurora-ink-3">{t("events.when", "Quand")}:</span> {new Date(inv.event_starts_at).toLocaleString()}</p>
+              <p><span className="text-aurora-ink-3">{t("events.where", "Où")}:</span> {inv.event_address}</p>
+              <p><span className="text-aurora-ink-3">{t("events.max_plus_ones", "Accompagnants autorisés")}:</span> +{inv.max_plus_ones}</p>
 
               <form className="space-y-2" onSubmit={(e) => submit(e, inv)}>
                 <div className="grid sm:grid-cols-2 gap-2">

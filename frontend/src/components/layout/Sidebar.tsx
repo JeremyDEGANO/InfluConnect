@@ -11,55 +11,57 @@ import {
   Bell, Megaphone, Crown, Users, LifeBuoy, MessageSquare, CalendarCheck,
 } from "lucide-react"
 
-interface NavItem { label: string; href: string; icon: React.ElementType }
+type NavSection = "work" | "account"
+interface NavItem { label: string; href: string; icon: React.ElementType; section?: NavSection }
 
 interface ConversationItem {
   unread_count?: number
 }
 
 const INFLUENCER_NAV: NavItem[] = [
-  { label: "nav.dashboard", href: "/influencer/dashboard", icon: LayoutDashboard },
-  { label: "nav.onboarding", href: "/influencer/onboarding", icon: Sparkles },
-  { label: "nav.message", href: "/influencer/messages", icon: MessageSquare },
-  { label: "nav.events", href: "/influencer/events", icon: CalendarCheck },
-  { label: "nav.proposals", href: "/influencer/proposals", icon: FileText },
-  { label: "nav.castings", href: "/influencer/castings", icon: Megaphone },
-  { label: "nav.contracts", href: "/influencer/contracts", icon: FileText },
-  { label: "nav.earnings", href: "/influencer/earnings", icon: DollarSign },
-  { label: "nav.media_kit", href: "/influencer/media-kit", icon: FileText },
-  { label: "nav.notifications", href: "/influencer/notifications", icon: Bell },
-  { label: "nav.profile", href: "/influencer/profile/edit", icon: User },
-  { label: "nav.support", href: "/influencer/support", icon: LifeBuoy },
-  { label: "nav.delegations", href: "/influencer/delegations", icon: Crown },
+  { label: "nav.dashboard", href: "/influencer/dashboard", icon: LayoutDashboard, section: "work" },
+  { label: "nav.onboarding", href: "/influencer/onboarding", icon: Sparkles, section: "work" },
+  { label: "nav.message", href: "/influencer/messages", icon: MessageSquare, section: "work" },
+  { label: "nav.events", href: "/influencer/events", icon: CalendarCheck, section: "work" },
+  { label: "nav.proposals", href: "/influencer/proposals", icon: FileText, section: "work" },
+  { label: "nav.castings", href: "/influencer/castings", icon: Megaphone, section: "work" },
+  { label: "nav.contracts", href: "/influencer/contracts", icon: FileText, section: "work" },
+  { label: "nav.earnings", href: "/influencer/earnings", icon: DollarSign, section: "work" },
+  { label: "nav.media_kit", href: "/influencer/media-kit", icon: FileText, section: "work" },
+  { label: "nav.notifications", href: "/influencer/notifications", icon: Bell, section: "work" },
+  { label: "nav.delegations", href: "/influencer/delegations", icon: Crown, section: "work" },
+  { label: "nav.profile", href: "/influencer/profile/edit", icon: User, section: "account" },
+  { label: "nav.support", href: "/influencer/support", icon: LifeBuoy, section: "account" },
 ]
 
 const BRAND_NAV: NavItem[] = [
-  { label: "nav.dashboard", href: "/brand/dashboard", icon: LayoutDashboard },
-  { label: "nav.campaigns", href: "/brand/campaigns", icon: Briefcase },
-  { label: "campaigns.new_campaign", href: "/brand/campaigns/new", icon: PlusCircle },
-  { label: "nav.events", href: "/brand/events", icon: CalendarCheck },
-  { label: "nav.marketplace", href: "/marketplace", icon: Users },
-  { label: "nav.message", href: "/brand/messages", icon: MessageSquare },
-  { label: "nav.notifications", href: "/brand/notifications", icon: Bell },
-  { label: "nav.castings", href: "/brand/castings", icon: Megaphone },
-  { label: "nav.contracts", href: "/brand/contracts", icon: FileText },
-  { label: "nav.team", href: "/brand/team", icon: Users },
-  { label: "nav.profile", href: "/brand/profile/edit", icon: User },
-  { label: "nav.subscription", href: "/brand/subscription", icon: CreditCard },
-  { label: "nav.support", href: "/brand/support", icon: LifeBuoy },
-  { label: "nav.ambassadors", href: "/brand/ambassadors", icon: Crown },
-  { label: "nav.contract_templates", href: "/brand/contract-templates", icon: ScrollText },
-  { label: "nav.brand_onboarding", href: "/brand/onboarding", icon: Sparkles },
+  { label: "nav.dashboard", href: "/brand/dashboard", icon: LayoutDashboard, section: "work" },
+  { label: "nav.campaigns", href: "/brand/campaigns", icon: Briefcase, section: "work" },
+  { label: "campaigns.new_campaign", href: "/brand/campaigns/new", icon: PlusCircle, section: "work" },
+  { label: "nav.marketplace", href: "/marketplace", icon: Users, section: "work" },
+  { label: "nav.castings", href: "/brand/castings", icon: Megaphone, section: "work" },
+  { label: "nav.contracts", href: "/brand/contracts", icon: FileText, section: "work" },
+  { label: "nav.events", href: "/brand/events", icon: CalendarCheck, section: "work" },
+  { label: "nav.message", href: "/brand/messages", icon: MessageSquare, section: "work" },
+  { label: "nav.ambassadors", href: "/brand/ambassadors", icon: Crown, section: "work" },
+  { label: "nav.notifications", href: "/brand/notifications", icon: Bell, section: "work" },
+  { label: "nav.contract_templates", href: "/brand/contract-templates", icon: ScrollText, section: "work" },
+  { label: "nav.team", href: "/brand/team", icon: Users, section: "account" },
+  { label: "nav.profile", href: "/brand/profile/edit", icon: User, section: "account" },
+  { label: "nav.subscription", href: "/brand/subscription", icon: CreditCard, section: "account" },
+  { label: "nav.support", href: "/brand/support", icon: LifeBuoy, section: "account" },
+  { label: "nav.brand_onboarding", href: "/brand/onboarding", icon: Sparkles, section: "account" },
 ]
 
 const ADMIN_NAV: NavItem[] = [
-  { label: "nav.admin", href: "/admin", icon: Shield },
-  { label: "nav.admin_companies", href: "/admin/companies", icon: Building2 },
-  { label: "nav.admin_users", href: "/admin/users", icon: Users },
-  { label: "nav.admin_brands", href: "/admin/brands", icon: Building2 },
-  { label: "nav.admin_reviews", href: "/admin/reviews", icon: Star },
-  { label: "nav.admin_audit", href: "/admin/audit-log", icon: ScrollText },
-  { label: "nav.admin_support", href: "/admin/support", icon: LifeBuoy },
+  { label: "nav.admin", href: "/admin", icon: Shield, section: "work" },
+  { label: "nav.admin_companies", href: "/admin/companies", icon: Building2, section: "work" },
+  { label: "nav.admin_users", href: "/admin/users", icon: Users, section: "work" },
+  { label: "nav.admin_campaigns", href: "/admin/campaigns", icon: Briefcase, section: "work" },
+  { label: "nav.admin_brands", href: "/admin/brands", icon: Building2, section: "work" },
+  { label: "nav.admin_reviews", href: "/admin/reviews", icon: Star, section: "work" },
+  { label: "nav.admin_audit", href: "/admin/audit-log", icon: ScrollText, section: "work" },
+  { label: "nav.admin_support", href: "/admin/support", icon: LifeBuoy, section: "account" },
 ]
 
 export function Sidebar() {
@@ -129,48 +131,104 @@ export function Sidebar() {
       ? ADMIN_NAV
       : INFLUENCER_NAV.filter((item) => item.href !== "/influencer/onboarding" || onboardingCompleted !== true)
 
+  const workItems = items.filter((it) => (it.section ?? "work") === "work")
+  const accountItems = items.filter((it) => it.section === "account")
+
+  const sectionLabel =
+    user?.user_type === "brand"
+      ? t("common.workspace_brand", "Marque")
+      : user?.user_type === "admin"
+        ? t("common.workspace_admin", "Administration")
+        : t("common.workspace_creator", "Créateur")
+
+  const planLabel =
+    user?.user_type === "brand"
+      ? t("common.plan_growth", "Plan Growth")
+      : user?.user_type === "admin"
+        ? t("common.plan_admin", "Console admin")
+        : t("common.plan_creator", "Compte créateur")
+
+  const displayName =
+    [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.email || "InfluConnect"
+  const initials = (user?.first_name?.[0] ?? user?.email?.[0] ?? "I").toUpperCase()
+
+  const renderItem = (item: NavItem) => {
+    const Icon = item.icon
+    const active = location.pathname === item.href
+    return (
+      <Link
+        key={item.href}
+        to={item.href}
+        className={cn(
+          "relative flex items-center gap-2.5 px-3 h-9 rounded-lg text-[13px] font-medium transition-colors ease-aurora",
+          active
+            ? "bg-aurora-blue/10 text-aurora-blue-deep"
+            : "text-aurora-ink-2 hover:bg-aurora-surface hover:text-aurora-ink"
+        )}
+      >
+        <Icon className={cn("shrink-0", active ? "text-aurora-blue-deep" : "text-aurora-ink-3")} style={{ width: "16px", height: "16px" }} />
+        {!collapsed && <span className="truncate flex-1">{t(item.label)}</span>}
+        {item.href.includes("/messages") && unreadMessages > 0 && (
+          <span
+            className={cn(
+              "inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-aurora-blue px-1.5 text-[10px] font-semibold text-white",
+              collapsed && "absolute right-1.5 top-1.5"
+            )}
+          >
+            {unreadMessages > 99 ? "99+" : unreadMessages}
+          </span>
+        )}
+      </Link>
+    )
+  }
+
   return (
-    <aside className={cn("relative bg-white border-r border-gray-100 flex flex-col transition-all duration-300 shrink-0", collapsed ? "w-16" : "w-56")}>
+    <aside className={cn("relative bg-white border-r border-aurora-line flex flex-col transition-all duration-300 ease-aurora shrink-0 min-h-screen", collapsed ? "w-16" : "w-60")}>
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-6 z-10 h-6 w-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
+        className="absolute -right-3 top-6 z-10 h-6 w-6 rounded-full bg-white border border-aurora-line shadow-soft flex items-center justify-center hover:bg-aurora-surface transition-colors"
       >
-        {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+        {collapsed ? <ChevronRight className="h-3 w-3 text-aurora-ink-3" /> : <ChevronLeft className="h-3 w-3 text-aurora-ink-3" />}
       </button>
 
-      <nav className="flex-1 py-6 px-2 space-y-1">
-        {items.map((item) => {
-          const Icon = item.icon
-          const active = location.pathname === item.href
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                active
-                  ? "bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-700 border border-indigo-100"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )}
-            >
-              <Icon className={cn("h-4.5 w-4.5 shrink-0", active ? "text-indigo-600" : "text-gray-400")} style={{ width: "18px", height: "18px" }} />
-              {!collapsed && (
-                <span className="truncate flex-1">{t(item.label)}</span>
-              )}
-              {item.href.includes("/messages") && unreadMessages > 0 && (
-                <span
-                  className={cn(
-                    "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white",
-                    collapsed && "absolute right-2 top-2 h-4 min-w-4 px-1 text-[10px]"
-                  )}
-                >
-                  {unreadMessages > 99 ? "99+" : unreadMessages}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+      {/* Brand block */}
+      <div className={cn("px-4 pt-5 pb-4 flex items-center gap-2", collapsed && "justify-center px-0")}>
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-aurora-blue to-aurora-blue-deep shrink-0" />
+        {!collapsed && <span className="font-semibold tracking-tight text-aurora-ink">InfluConnect</span>}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2.5 pb-32">
+        {!collapsed && (
+          <div className="px-3 mb-2 mt-1 text-[11px] uppercase tracking-widest text-aurora-ink-3 font-medium">
+            {sectionLabel}
+          </div>
+        )}
+        <nav className="space-y-0.5">{workItems.map(renderItem)}</nav>
+
+        {accountItems.length > 0 && (
+          <>
+            {!collapsed && (
+              <div className="px-3 mt-6 mb-2 text-[11px] uppercase tracking-widest text-aurora-ink-3 font-medium">
+                {t("common.account", "Compte")}
+              </div>
+            )}
+            <nav className="space-y-0.5">{accountItems.map(renderItem)}</nav>
+          </>
+        )}
+      </div>
+
+      {/* User card */}
+      {!collapsed && user && (
+        <div className="absolute bottom-4 left-3 right-3 rounded-xl bg-aurora-surface/60 border border-aurora-line p-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-aurora-blue to-aurora-blue-deep text-white flex items-center justify-center font-semibold text-sm shrink-0">
+            {initials}
+          </div>
+          <div className="leading-tight min-w-0">
+            <div className="text-sm font-medium text-aurora-ink truncate">{displayName}</div>
+            <div className="text-xs text-aurora-ink-3 truncate">{planLabel}</div>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

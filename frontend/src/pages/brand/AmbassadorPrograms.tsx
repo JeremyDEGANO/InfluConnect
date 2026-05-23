@@ -90,10 +90,11 @@ export default function AmbassadorPrograms() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5 flex items-center gap-2">
             <Crown className="h-6 w-6 text-amber-500" />{t("ambassadors.title")}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">{t("ambassadors.subtitle")}</p>
+          <p className="text-sm text-aurora-ink-3 mt-1">{t("ambassadors.subtitle")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -151,9 +152,9 @@ export default function AmbassadorPrograms() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("ambassadors.loading")}</div>
+        <div className="flex items-center justify-center py-20 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("ambassadors.loading")}</div>
       ) : programs.length === 0 ? (
-        <Card className="card-base"><CardContent className="py-16 text-center text-gray-400">{t("ambassadors.empty")}</CardContent></Card>
+        <Card className="card-base"><CardContent className="py-16 text-center text-aurora-ink-3">{t("ambassadors.empty")}</CardContent></Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {programs.map((p) => (
@@ -172,12 +173,12 @@ export default function AmbassadorPrograms() {
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{p.influencer_display_name || `Influencer #${p.influencer}`}</p>
-                    <p className="text-xs text-gray-500">€{p.monthly_budget ?? 0}{t("ambassadors.per_month")}</p>
+                    <p className="text-sm font-medium text-aurora-ink">{p.influencer_display_name || `Influencer #${p.influencer}`}</p>
+                    <p className="text-xs text-aurora-ink-3">€{p.monthly_budget ?? 0}{t("ambassadors.per_month")}</p>
                   </div>
                 </div>
-                {p.description && <p className="text-sm text-gray-600 line-clamp-2">{p.description}</p>}
-                <div className="flex items-center gap-3 text-xs text-gray-500">
+                {p.description && <p className="text-sm text-aurora-ink-2 line-clamp-2">{p.description}</p>}
+                <div className="flex items-center gap-3 text-xs text-aurora-ink-3">
                   {p.starts_at && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(p.starts_at).toLocaleDateString(i18n.language)}</span>}
                   {p.ends_at && <span>→ {new Date(p.ends_at).toLocaleDateString(i18n.language)}</span>}
                   {p.auto_renew && <Badge variant="outline" className="text-[10px]">{t("ambassadors.auto_renew_badge")}</Badge>}

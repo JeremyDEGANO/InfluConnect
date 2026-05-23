@@ -1,0 +1,42 @@
+[
+ {
+  "RuleID": "generic-api-key",
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 9,
+  "EndLine": 9,
+  "StartColumn": 12,
+  "EndColumn": 48,
+  "Match": "api', '0005_campaign_max_influencers'",
+  "Secret": "0005_campaign_max_influencers",
+  "File": "/repo/backend/api/migrations/0006_campaign_content_formats.py",
+  "SymlinkFile": "",
+  "Commit": "",
+  "Entropy": 3.9262724,
+  "Author": "",
+  "Email": "",
+  "Date": "",
+  "Message": "",
+  "Tags": [],
+  "Fingerprint": "/repo/backend/api/migrations/0006_campaign_content_formats.py:generic-api-key:9"
+ },
+ {
+  "RuleID": "generic-api-key",
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 161,
+  "EndLine": 161,
+  "StartColumn": 66,
+  "EndColumn": 107,
+  "Match": ".env.VITE_GIPHY_API_KEY || 'dc6zaTOxFJmzC'",
+  "Secret": "dc6zaTOxFJmzC",
+  "File": "/repo/frontend/src/pages/Messages.tsx",
+  "SymlinkFile": "",
+  "Commit": "",
+  "Entropy": 3.5465937,
+  "Author": "",
+  "Email": "",
+  "Date": "",
+  "Message": "",
+  "Tags": [],
+  "Fingerprint": "/repo/frontend/src/pages/Messages.tsx:generic-api-key:161"
+ }
+]

@@ -138,22 +138,22 @@ export default function BrandEventDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
   if (!item) return <div className="p-6">{t("common.not_found", "Introuvable")}</div>
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-2xl font-bold text-gray-900">{item.title}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink">{item.title}</h1>
         <Badge variant="outline">{item.status}</Badge>
       </div>
 
       <Card className="card-base">
         <CardContent className="pt-6 grid md:grid-cols-3 gap-4 text-sm">
-          <p className="flex items-center gap-1 text-gray-700"><CalendarDays className="h-4 w-4" />{new Date(item.starts_at).toLocaleString()}</p>
-          <p className="flex items-center gap-1 text-gray-700"><MapPin className="h-4 w-4" />{item.address}</p>
-          <p className="flex items-center gap-1 text-gray-700"><Users className="h-4 w-4" />{item.invitations.length} {t("events.invitations", "invitations")}</p>
+          <p className="flex items-center gap-1 text-aurora-ink-2"><CalendarDays className="h-4 w-4" />{new Date(item.starts_at).toLocaleString()}</p>
+          <p className="flex items-center gap-1 text-aurora-ink-2"><MapPin className="h-4 w-4" />{item.address}</p>
+          <p className="flex items-center gap-1 text-aurora-ink-2"><Users className="h-4 w-4" />{item.invitations.length} {t("events.invitations", "invitations")}</p>
         </CardContent>
       </Card>
 
@@ -192,20 +192,20 @@ export default function BrandEventDetail() {
           </div>
 
           {item.invitations.length === 0 ? (
-            <p className="text-sm text-gray-400">{t("events.no_invites", "Aucune invitation")}</p>
+            <p className="text-sm text-aurora-ink-3">{t("events.no_invites", "Aucune invitation")}</p>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {item.invitations.map((inv) => (
-                <div key={inv.id} className="rounded-xl border p-3 bg-gray-50 flex gap-3">
+                <div key={inv.id} className="rounded-xl border p-3 bg-aurora-surface flex gap-3">
                   <div className="shrink-0">
                     <QRCodeSVG value={inv.qr_payload} size={72} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm text-gray-900 truncate">{inv.invitee_label || inv.influencer_display_name || inv.invited_email || `#${inv.influencer}`}</p>
-                    <p className="text-xs text-gray-500">{t("events.rsvp", "Réponse")}: {inv.status}</p>
-                    <p className="text-xs text-gray-500">{t("events.plus_ones", "Accompagnants")}: +{inv.plus_ones_confirmed} / +{inv.max_plus_ones}</p>
-                    <p className="text-xs text-gray-500">{t("events.checkin_status", "Entrée")}: {inv.checked_in_at ? t("events.checked_in", "Check-in validé") : t("events.not_checked_in", "Non check-in")}</p>
-                    {inv.responded_at && <p className="text-[11px] text-gray-400">{new Date(inv.responded_at).toLocaleString()}</p>}
+                    <p className="font-medium text-sm text-aurora-ink truncate">{inv.invitee_label || inv.influencer_display_name || inv.invited_email || `#${inv.influencer}`}</p>
+                    <p className="text-xs text-aurora-ink-3">{t("events.rsvp", "Réponse")}: {inv.status}</p>
+                    <p className="text-xs text-aurora-ink-3">{t("events.plus_ones", "Accompagnants")}: +{inv.plus_ones_confirmed} / +{inv.max_plus_ones}</p>
+                    <p className="text-xs text-aurora-ink-3">{t("events.checkin_status", "Entrée")}: {inv.checked_in_at ? t("events.checked_in", "Check-in validé") : t("events.not_checked_in", "Non check-in")}</p>
+                    {inv.responded_at && <p className="text-[11px] text-aurora-ink-3">{new Date(inv.responded_at).toLocaleString()}</p>}
                   </div>
                 </div>
               ))}

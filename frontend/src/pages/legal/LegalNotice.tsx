@@ -2,7 +2,7 @@ export default function LegalNotice() {
   return (
     <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
       <h1>Mentions Légales</h1>
-      <p className="text-sm text-gray-500">Dernière mise à jour : 21 avril 2026</p>
+      <p className="text-sm text-aurora-ink-3">Dernière mise à jour : 21 avril 2026</p>
 
       <p>
         Conformément aux dispositions des articles 6-III et 19 de la loi n° 2004-575

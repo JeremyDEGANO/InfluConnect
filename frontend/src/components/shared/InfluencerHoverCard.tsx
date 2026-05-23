@@ -46,13 +46,13 @@ export function InfluencerHoverCard({
         <div className="flex items-start gap-3">
           <Avatar className="h-12 w-12 shrink-0">
             {avatar && <AvatarImage src={resolveMediaUrl(avatar)} />}
-            <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white font-semibold">
+            <AvatarFallback className="bg-aurora-ink text-white font-semibold">
               {(displayName || "??").slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-gray-900 truncate">{displayName}</p>
-            <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+            <p className="font-semibold text-aurora-ink truncate">{displayName}</p>
+            <div className="flex items-center gap-2 text-xs text-aurora-ink-3 mt-0.5">
               {city && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{city}</span>}
               {totalFollowers > 0 && <span className="flex items-center gap-0.5"><Users className="h-3 w-3" />{fmt(totalFollowers)}</span>}
             </div>
@@ -74,17 +74,17 @@ export function InfluencerHoverCard({
             {contentThemes.slice(0, 5).map((th) => (
               <Badge key={th} variant="info" className="text-[10px] px-1.5 py-0">{th}</Badge>
             ))}
-            {contentThemes.length > 5 && <span className="text-[10px] text-gray-400">+{contentThemes.length - 5}</span>}
+            {contentThemes.length > 5 && <span className="text-[10px] text-aurora-ink-3">+{contentThemes.length - 5}</span>}
           </div>
         )}
 
-        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+        <div className="flex gap-2 mt-3 pt-3 border-t border-aurora-line">
           {profileUrl && (
             <a
               href={profileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"
+              className="flex items-center gap-1 text-xs font-medium text-aurora-blue hover:underline"
             >
               <ExternalLink className="h-3 w-3" />Voir le profil
             </a>
@@ -94,7 +94,7 @@ export function InfluencerHoverCard({
               href={mediaKitUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:underline"
+              className="flex items-center gap-1 text-xs font-medium text-aurora-ink-3 hover:underline"
             >
               <ExternalLink className="h-3 w-3" />Kit média
             </a>

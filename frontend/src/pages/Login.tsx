@@ -63,18 +63,18 @@ export default function Login() {
   const secondFactorRequired = totpRequired || emailOtpRequired
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-50 px-4">
+    <div className="min-h-screen flex items-center justify-center hero-aurora-bg px-4 py-16">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white text-xs font-black shadow-sm">IC</div>
-            <span className="text-xl font-bold text-gray-900 tracking-tight">InfluConnect</span>
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-aurora-blue to-aurora-blue-deep flex items-center justify-center text-white text-xs font-black shadow-soft">IC</div>
+            <span className="text-xl font-semibold text-aurora-ink tracking-tight">InfluConnect</span>
           </Link>
         </div>
-        <Card className="card-base shadow-xl shadow-indigo-500/5">
+        <Card className="card-base shadow-soft-xl">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold">{t("auth.login")}</CardTitle>
-            <CardDescription>{t("auth.welcome_back")}</CardDescription>
+            <CardTitle className="text-3xl font-semibold tracking-tight">{t("auth.login")}</CardTitle>
+            <CardDescription className="text-aurora-ink-3">{t("auth.welcome_back")}</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -85,11 +85,11 @@ export default function Login() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label htmlFor="password">{t("auth.password")}</Label>
-                  <Link to="/reset-password" className="text-xs text-indigo-600 hover:underline">{t("auth.forgot_password")}</Link>
+                  <Link to="/reset-password" className="text-xs text-aurora-blue hover:underline">{t("auth.forgot_password")}</Link>
                 </div>
                 <div className="relative">
                   <Input id="password" type={showPw ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={secondFactorRequired} />
-                  <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-aurora-ink-3 hover:text-aurora-ink-2">
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
@@ -111,7 +111,7 @@ export default function Login() {
                     autoFocus
                     className="mt-1 tracking-[0.4em] text-center font-mono"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">{t("auth.totp_hint")}</p>
+                  <p className="text-[11px] text-aurora-ink-3 mt-1">{t("auth.totp_hint")}</p>
                 </div>
               )}
               {emailOtpRequired && (
@@ -131,7 +131,7 @@ export default function Login() {
                     autoFocus
                     className="mt-1 tracking-[0.4em] text-center font-mono"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">{t("auth.email_otp_hint")}</p>
+                  <p className="text-[11px] text-aurora-ink-3 mt-1">{t("auth.email_otp_hint")}</p>
                 </div>
               )}
               <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
@@ -146,22 +146,22 @@ export default function Login() {
                     setTotpCode("")
                     setEmailOtpCode("")
                   }}
-                  className="text-xs text-gray-500 hover:text-gray-700 block mx-auto"
+                  className="text-xs text-aurora-ink-3 hover:text-aurora-ink-2 block mx-auto"
                 >
                   {t("auth.use_different_account")}
                 </button>
               )}
             </form>
-            <p className="text-center text-sm text-gray-500 mt-4">
+            <p className="text-center text-sm text-aurora-ink-3 mt-4">
               {t("auth.no_account")}{" "}
-              <Link to="/register" className="text-indigo-600 font-medium hover:underline">{t("auth.register")}</Link>
+              <Link to="/register" className="text-aurora-blue font-medium hover:underline">{t("auth.register")}</Link>
             </p>
             {totpRequired && (
-              <p className="text-center text-xs text-gray-400 mt-3">
-                <Link to="/reset-password" className="hover:text-gray-600 hover:underline mr-3">
+              <p className="text-center text-xs text-aurora-ink-3 mt-3">
+                <Link to="/reset-password" className="hover:text-aurora-ink-2 hover:underline mr-3">
                   {t("auth.forgot_password")}
                 </Link>
-                <Link to="/reset-password?mfa=1" className="hover:text-gray-600 hover:underline">
+                <Link to="/reset-password?mfa=1" className="hover:text-aurora-ink-2 hover:underline">
                   {t("auth.lost_authenticator", "Authentificateur perdu ?")}
                 </Link>
               </p>

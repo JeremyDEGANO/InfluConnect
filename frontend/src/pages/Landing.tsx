@@ -1,22 +1,21 @@
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
-import { PricingCard } from "@/components/shared/PricingCard"
 import {
-  Shield, FileText, Star, Zap, Users, TrendingUp, ArrowRight,
+  FileText, Star, Zap, Users, ArrowRight,
   Search, Lock, MessageSquare, BarChart3, Upload, Heart, Gift,
-  UserPlus, Target, Handshake, DollarSign,
+  UserPlus, Target, Handshake, DollarSign, Briefcase, Check,
 } from "lucide-react"
 
 const FEATURE_KEYS = [
-  { icon: Search, key: "matching", color: "bg-blue-500/10 text-blue-600" },
-  { icon: Lock, key: "escrow", color: "bg-emerald-500/10 text-emerald-600" },
-  { icon: FileText, key: "contracts", color: "bg-violet-500/10 text-violet-600" },
-  { icon: MessageSquare, key: "messaging", color: "bg-amber-500/10 text-amber-600" },
-  { icon: BarChart3, key: "roi", color: "bg-pink-500/10 text-pink-600" },
-  { icon: Upload, key: "verification", color: "bg-cyan-500/10 text-cyan-600" },
-  { icon: Heart, key: "reviews", color: "bg-rose-500/10 text-rose-600" },
-  { icon: Gift, key: "gifting", color: "bg-indigo-500/10 text-indigo-600" },
+  { icon: Search, key: "matching" },
+  { icon: Lock, key: "escrow" },
+  { icon: FileText, key: "contracts" },
+  { icon: MessageSquare, key: "messaging" },
+  { icon: BarChart3, key: "roi" },
+  { icon: Upload, key: "verification" },
+  { icon: Heart, key: "reviews" },
+  { icon: Gift, key: "gifting" },
 ]
 
 const STEP_KEYS = [
@@ -30,55 +29,66 @@ export default function Landing() {
   const { t } = useTranslation()
 
   return (
-    <div className="min-h-screen">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-float" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl animate-float-delayed" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-500/5 rounded-full blur-3xl" />
-        </div>
-        <div className="relative container max-w-6xl mx-auto px-4 pt-20 pb-24">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-1.5 text-sm mb-8 border border-white/10 fade-in-up">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-gray-300">{t("landing.badge")}</span>
-            </div>
-            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-6 fade-in-up fade-in-up-delay-1">
-              {t("landing.hero_title_1")}{" "}
-              <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
-                {t("landing.hero_title_2")}
-              </span>
-            </h1>
-            <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed fade-in-up fade-in-up-delay-2">
-              {t("landing.hero_subtitle")}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center fade-in-up fade-in-up-delay-3">
-              <Button size="lg" variant="gradient" className="text-base px-8" asChild>
-                <Link to="/register?type=influencer">
-                  <Users className="h-5 w-5" />
-                  {t("landing.cta_influencer")}
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline-dark" className="text-base px-8" asChild>
-                <Link to="/register?type=brand">
-                  <Zap className="h-5 w-5" />
-                  {t("landing.cta_brand")}
-                </Link>
-              </Button>
-            </div>
+    <div className="min-h-screen bg-white">
+      {/* Hero — Apple keynote light */}
+      <section className="relative overflow-hidden hero-aurora-bg">
+        <div className="relative container max-w-6xl mx-auto px-5 pt-20 pb-24 text-center">
+          <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-md ring-1 ring-aurora-line rounded-full px-3.5 py-1 text-[12px] mb-7 fade-in-up shadow-soft">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-aurora-ink-2 font-medium">{t("landing.badge")}</span>
+          </div>
+          <h1 className="text-5xl sm:text-6xl md:text-[80px] font-semibold leading-[1.05] tracking-[-0.04em] text-aurora-ink mb-6 fade-in-up fade-in-up-delay-1 text-balance">
+            {t("landing.hero_title_1")}{" "}
+            <span className="text-aurora-blue">{t("landing.hero_title_2")}</span>
+          </h1>
+          <p className="text-lg sm:text-xl text-aurora-ink-2 max-w-2xl mx-auto mb-9 leading-relaxed fade-in-up fade-in-up-delay-2 text-pretty">
+            {t("landing.hero_subtitle")}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-9 fade-in-up fade-in-up-delay-2">
+            <span className="inline-flex items-center gap-1.5 bg-white ring-1 ring-aurora-line rounded-full px-3 py-1 text-[12px] text-aurora-ink-2 font-medium">
+              <Zap className="h-3.5 w-3.5 text-aurora-blue" />
+              {t("landing.role_brand")}
+            </span>
+            <span className="inline-flex items-center gap-1.5 bg-white ring-1 ring-aurora-line rounded-full px-3 py-1 text-[12px] text-aurora-ink-2 font-medium">
+              <Briefcase className="h-3.5 w-3.5 text-aurora-blue" />
+              {t("landing.role_agency")}
+            </span>
+            <span className="inline-flex items-center gap-1.5 bg-white ring-1 ring-aurora-line rounded-full px-3 py-1 text-[12px] text-aurora-ink-2 font-medium">
+              <Users className="h-3.5 w-3.5 text-aurora-blue" />
+              {t("landing.role_influencer")}
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center fade-in-up fade-in-up-delay-3">
+            <Button size="lg" variant="gradient" asChild>
+              <Link to="/register?type=influencer">
+                <Users className="h-4 w-4" />
+                {t("landing.cta_influencer")}
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/register?type=brand">
+                <Zap className="h-4 w-4" />
+                {t("landing.cta_brand")}
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/register?type=agency">
+                <Briefcase className="h-4 w-4" />
+                {t("landing.cta_agency")}
+              </Link>
+            </Button>
           </div>
 
           {/* Stats bar */}
-          <div className="mt-20 grid grid-cols-3 gap-8 max-w-lg mx-auto fade-in-up fade-in-up-delay-4">
+          <div className="mt-16 grid grid-cols-3 gap-6 max-w-2xl mx-auto fade-in-up fade-in-up-delay-4">
             {[
               { value: "2,847", label: t("landing.stat_creators") },
               { value: "412", label: t("landing.stat_brands") },
               { value: "€1.3M", label: t("landing.stat_paid") },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
-                <div className="text-2xl sm:text-3xl font-bold text-white">{stat.value}</div>
-                <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
+                <div className="num text-3xl sm:text-4xl font-semibold text-aurora-ink tracking-[-0.02em]">{stat.value}</div>
+                <div className="text-[12px] text-aurora-ink-3 mt-1.5 font-medium">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -86,21 +96,21 @@ export default function Landing() {
       </section>
 
       {/* Features */}
-      <section className="py-24 px-4 bg-gray-50/50" id="features">
+      <section className="py-24 px-5 bg-aurora-surface" id="features">
         <div className="container max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-indigo-600 tracking-wider uppercase">{t("landing.features_tag")}</span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mt-3">{t("landing.features_title")}</h2>
-            <p className="text-gray-500 mt-4 max-w-xl mx-auto">{t("landing.features_subtitle")}</p>
+          <div className="text-center mb-14">
+            <span className="text-[11px] font-semibold text-aurora-blue tracking-[0.18em] uppercase">{t("landing.features_tag")}</span>
+            <h2 className="text-4xl sm:text-5xl font-semibold text-aurora-ink mt-3 tracking-[-0.03em] text-balance">{t("landing.features_title")}</h2>
+            <p className="text-aurora-ink-2 mt-4 max-w-xl mx-auto">{t("landing.features_subtitle")}</p>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {FEATURE_KEYS.map(({ icon: Icon, key, color }) => (
-              <div key={key} className="group bg-white rounded-2xl border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-                <div className={`h-12 w-12 rounded-xl ${color} flex items-center justify-center mb-4`}>
-                  <Icon className="h-6 w-6" />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {FEATURE_KEYS.map(({ icon: Icon, key }) => (
+              <div key={key} className="group bg-white rounded-2xl border border-aurora-line p-6 hover:shadow-soft-lg hover:-translate-y-0.5 transition-all duration-300 ease-aurora">
+                <div className="h-11 w-11 rounded-xl bg-aurora-blue/10 flex items-center justify-center mb-4">
+                  <Icon className="h-5 w-5 text-aurora-blue-deep" />
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-2">{t(`landing.feat_${key}`)}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{t(`landing.feat_${key}_desc`)}</p>
+                <h3 className="font-semibold text-aurora-ink mb-1.5 text-[15px] tracking-tight">{t(`landing.feat_${key}`)}</h3>
+                <p className="text-[13px] text-aurora-ink-2 leading-relaxed">{t(`landing.feat_${key}_desc`)}</p>
               </div>
             ))}
           </div>
@@ -108,130 +118,93 @@ export default function Landing() {
       </section>
 
       {/* How it works */}
-      <section className="py-24 px-4 bg-white" id="how-it-works">
+      <section className="py-24 px-5 bg-white" id="how-it-works">
         <div className="container max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-indigo-600 tracking-wider uppercase">{t("landing.how_tag")}</span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mt-3">{t("landing.how_title")}</h2>
-            <p className="text-gray-500 mt-4">{t("landing.how_subtitle")}</p>
+            <span className="text-[11px] font-semibold text-aurora-blue tracking-[0.18em] uppercase">{t("landing.how_tag")}</span>
+            <h2 className="text-4xl sm:text-5xl font-semibold text-aurora-ink mt-3 tracking-[-0.03em] text-balance">{t("landing.how_title")}</h2>
+            <p className="text-aurora-ink-2 mt-4">{t("landing.how_subtitle")}</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {STEP_KEYS.map(({ num, icon: Icon, key }) => (
               <div key={num} className="relative text-center group">
-                <div className="text-6xl font-black text-indigo-100 group-hover:text-indigo-200 transition-colors mb-4">{num}</div>
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
-                  <Icon className="h-7 w-7 text-white" />
+                <div className="num text-7xl font-semibold text-aurora-blue/10 group-hover:text-aurora-blue/20 transition-colors mb-3 tracking-tight">{num}</div>
+                <div className="h-12 w-12 rounded-2xl bg-aurora-blue flex items-center justify-center mx-auto mb-5 shadow-soft group-hover:-translate-y-0.5 transition-transform ease-aurora">
+                  <Icon className="h-5 w-5 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t(`landing.${key}_title`)}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{t(`landing.${key}_desc`)}</p>
+                <h3 className="text-[16px] font-semibold text-aurora-ink mb-1.5 tracking-tight">{t(`landing.${key}_title`)}</h3>
+                <p className="text-[13px] text-aurora-ink-2 leading-relaxed">{t(`landing.${key}_desc`)}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="py-24 px-4 bg-gray-50/50" id="pricing">
-        <div className="container max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-indigo-600 tracking-wider uppercase">{t("landing.pricing_tag")}</span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mt-3">{t("landing.pricing_title")}</h2>
-            <p className="text-gray-500 mt-4">{t("landing.pricing_subtitle")}</p>
+      {/* Pricing teaser */}
+      <section className="py-24 px-5 bg-aurora-surface">
+        <div className="container max-w-5xl mx-auto text-center">
+          <span className="text-[11px] font-semibold text-aurora-blue tracking-[0.18em] uppercase">{t("nav.pricing")}</span>
+          <h2 className="text-4xl sm:text-5xl font-semibold text-aurora-ink mt-3 tracking-[-0.03em] text-balance">
+            {t("landing.pricing_title", "Une tarification simple, prévisible.")}
+          </h2>
+          <p className="text-aurora-ink-2 mt-4 max-w-xl mx-auto">{t("landing.pricing_subtitle", "Choisissez l'offre adaptée à votre rôle. Sans engagement.")}</p>
+          <div className="mt-10 grid sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
+            <div className="bg-white rounded-3xl border border-aurora-line p-8 text-left shadow-soft">
+              <h3 className="text-lg font-semibold text-aurora-ink tracking-tight">{t("landing.role_brand")}</h3>
+              <p className="text-sm text-aurora-ink-2 mt-2">À partir de <span className="num font-semibold text-aurora-ink">49€</span> / mois</p>
+              <ul className="mt-5 space-y-2 text-[13px] text-aurora-ink-2">
+                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Recherche illimitée</li>
+                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Escrow sécurisé Stripe</li>
+                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Contrats électroniques eIDAS</li>
+              </ul>
+              <Button variant="gradient" className="mt-6 w-full" asChild><Link to="/pricing/brands">Voir les offres marques</Link></Button>
+            </div>
+            <div className="bg-white rounded-3xl border border-aurora-line p-8 text-left shadow-soft">
+              <h3 className="text-lg font-semibold text-aurora-ink tracking-tight">{t("landing.role_agency")}</h3>
+              <p className="text-sm text-aurora-ink-2 mt-2">À partir de <span className="num font-semibold text-aurora-ink">149€</span> / mois</p>
+              <ul className="mt-5 space-y-2 text-[13px] text-aurora-ink-2">
+                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Multi-marques & talents</li>
+                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Délégations & commissions</li>
+                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Reporting consolidé</li>
+              </ul>
+              <Button variant="outline" className="mt-6 w-full" asChild><Link to="/pricing/agencies">Voir les offres agences</Link></Button>
+            </div>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            <PricingCard
-              name={t("landing.plan_starter")}
-              price={49}
-              description={t("landing.plan_starter_desc")}
-              features={["5 campaigns/mo", "20 contacts", "Basic analytics", "Email support"]}
-              cta={t("landing.cta_trial")}
-              onSelect={() => {}}
-            />
-            <PricingCard
-              name={t("landing.plan_growth")}
-              price={149}
-              description={t("landing.plan_growth_desc")}
-              features={["25 campaigns/mo", "Unlimited contacts", "Advanced analytics", "Priority support", "Custom contracts"]}
-              cta={t("landing.cta_trial")}
-              highlighted
-              onSelect={() => {}}
-            />
-            <PricingCard
-              name={t("landing.plan_pro")}
-              price={399}
-              description={t("landing.plan_pro_desc")}
-              features={["Unlimited campaigns", "Multi-brand management", "API access", "White-label reports", "Dedicated manager"]}
-              cta={t("landing.cta_sales")}
-              onSelect={() => {}}
-            />
-          </div>
-          <div className="text-center mt-10">
-            <Button variant="outline" asChild>
-              <Link to="/pricing">{t("landing.compare_plans")} <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-24 px-4 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
-        </div>
-        <div className="relative container max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t("landing.cta_title")}</h2>
-          <p className="text-gray-400 mb-10 text-lg max-w-xl mx-auto">{t("landing.cta_subtitle")}</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="gradient" className="text-base px-8" asChild>
-              <Link to="/register">{t("landing.cta_create")} <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-            <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 text-base px-8" asChild>
-              <Link to="/login">{t("landing.cta_demo")}</Link>
-            </Button>
+          <div className="mt-8">
+            <Link to="/compare" className="inline-flex items-center gap-1.5 text-sm font-medium text-aurora-blue-deep hover:underline">
+              Comparer toutes les offres <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 bg-white">
-        <div className="container max-w-6xl mx-auto px-4">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center text-gray-900 mb-3">Ils nous font confiance</h2>
-          <p className="text-gray-500 text-center mb-12 max-w-2xl mx-auto">
+      <section className="py-24 bg-white">
+        <div className="container max-w-6xl mx-auto px-5">
+          <h2 className="text-4xl sm:text-5xl font-semibold text-center text-aurora-ink mb-3 tracking-[-0.03em] text-balance">Ils nous font confiance</h2>
+          <p className="text-aurora-ink-2 text-center mb-12 max-w-2xl mx-auto">
             Plus de 1 200 marques et 15 000 créateurs utilisent InfluConnect chaque mois.
           </p>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-5">
             {[
-              {
-                name: "Camille R.",
-                role: "CMO, Maison Verte (bio)",
-                quote: "On a divisé par 3 le temps de gestion de nos campagnes. Le matching est bluffant, et l'escrow rassure tout le monde.",
-              },
-              {
-                name: "Sofiane M.",
-                role: "Créateur lifestyle • 42k followers",
-                quote: "Enfin une plateforme qui paye vite, où les contrats sont clairs et où je peux négocier sans me battre pendant 15 mails.",
-              },
-              {
-                name: "Lucie D.",
-                role: "Fondatrice, Studio Rose",
-                quote: "Le programme ambassadeurs + les contrats personnalisés ont remplacé 3 outils qu'on utilisait avant. ROI immédiat.",
-              },
+              { name: "Camille R.", role: "CMO, Maison Verte (bio)", quote: "On a divisé par 3 le temps de gestion de nos campagnes. Le matching est bluffant, et l'escrow rassure tout le monde." },
+              { name: "Sofiane M.", role: "Créateur lifestyle • 42k followers", quote: "Enfin une plateforme qui paye vite, où les contrats sont clairs et où je peux négocier sans me battre pendant 15 mails." },
+              { name: "Lucie D.", role: "Fondatrice, Studio Rose", quote: "Le programme ambassadeurs + les contrats personnalisés ont remplacé 3 outils qu'on utilisait avant. ROI immédiat." },
             ].map((tm) => (
-              <div key={tm.name} className="p-6 rounded-2xl border border-gray-100 bg-gradient-to-br from-white to-gray-50 hover:shadow-lg transition-shadow">
+              <div key={tm.name} className="p-6 rounded-3xl border border-aurora-line bg-white hover:shadow-soft-lg transition-shadow ease-aurora">
                 <div className="flex gap-0.5 mb-4">
                   {[0, 1, 2, 3, 4].map((i) => (
-                    <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <p className="text-gray-700 text-sm leading-relaxed mb-4 italic">« {tm.quote} »</p>
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-violet-600 flex items-center justify-center text-white font-semibold">
+                <p className="text-aurora-ink text-[14px] leading-relaxed mb-5">« {tm.quote} »</p>
+                <div className="flex items-center gap-3 pt-4 border-t border-aurora-line">
+                  <div className="h-9 w-9 rounded-full bg-aurora-ink flex items-center justify-center text-white text-sm font-semibold">
                     {tm.name[0]}
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm">{tm.name}</p>
-                    <p className="text-xs text-gray-500">{tm.role}</p>
+                    <p className="font-semibold text-aurora-ink text-[13px]">{tm.name}</p>
+                    <p className="text-[11px] text-aurora-ink-3">{tm.role}</p>
                   </div>
                 </div>
               </div>
@@ -241,40 +214,44 @@ export default function Landing() {
       </section>
 
       {/* FAQ */}
-      <section className="py-20 bg-gray-50">
-        <div className="container max-w-3xl mx-auto px-4">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center text-gray-900 mb-10">Questions fréquentes</h2>
-          <div className="space-y-3">
+      <section className="py-24 bg-aurora-surface">
+        <div className="container max-w-3xl mx-auto px-5">
+          <h2 className="text-4xl sm:text-5xl font-semibold text-center text-aurora-ink mb-10 tracking-[-0.03em] text-balance">Questions fréquentes</h2>
+          <div className="space-y-2.5">
             {[
-              {
-                q: "Comment fonctionne le paiement escrow ?",
-                a: "La marque bloque le montant de la collaboration sur son compte Stripe lors de la signature. Les fonds sont libérés automatiquement à l'influenceur après validation du contenu (ou après 14 jours sans contestation).",
-              },
-              {
-                q: "Est-ce gratuit pour les influenceurs ?",
-                a: "Oui. L'inscription, la création du media kit, la réception de propositions et le paiement sont 100% gratuits. Nous prélevons une commission de 15% sur chaque collaboration, payée par la marque.",
-              },
-              {
-                q: "Puis-je personnaliser mes contrats ?",
-                a: "Oui, les plans Growth et Pro permettent de créer vos propres templates HTML avec variables dynamiques (livrables, prix, exclusivité, etc.). Les contrats sont signés électroniquement (eIDAS) et archivés 10 ans.",
-              },
-              {
-                q: "Êtes-vous conforme RGPD ?",
-                a: "Oui, hébergement France (OVH Cloud), données chiffrées au repos, DPA disponible, droit à l'oubli automatisé et registre des traitements à jour.",
-              },
-              {
-                q: "Que se passe-t-il en cas de litige ?",
-                a: "Notre équipe de médiation intervient sous 48 heures. Les fonds restent bloqués en escrow jusqu'à résolution. En dernier recours, le Tribunal de commerce de Paris est compétent.",
-              },
+              { q: "Comment fonctionne le paiement escrow ?", a: "La marque bloque le montant de la collaboration sur son compte Stripe lors de la signature. Les fonds sont libérés automatiquement à l'influenceur après validation du contenu (ou après 14 jours sans contestation)." },
+              { q: "Est-ce gratuit pour les influenceurs ?", a: "Oui. L'inscription, la création du media kit, la réception de propositions et le paiement sont 100% gratuits. Nous prélevons une commission de 15% sur chaque collaboration, payée par la marque." },
+              { q: "Puis-je personnaliser mes contrats ?", a: "Oui, les plans Growth et Pro permettent de créer vos propres templates HTML avec variables dynamiques (livrables, prix, exclusivité, etc.). Les contrats sont signés électroniquement (eIDAS) et archivés 10 ans." },
+              { q: "Êtes-vous conforme RGPD ?", a: "Oui, hébergement France (OVH Cloud), données chiffrées au repos, DPA disponible, droit à l'oubli automatisé et registre des traitements à jour." },
+              { q: "Que se passe-t-il en cas de litige ?", a: "Notre équipe de médiation intervient sous 48 heures. Les fonds restent bloqués en escrow jusqu'à résolution. En dernier recours, le Tribunal de commerce de Paris est compétent." },
             ].map((faq) => (
-              <details key={faq.q} className="group bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer">
-                <summary className="font-semibold text-gray-900 flex items-center justify-between list-none">
+              <details key={faq.q} className="group bg-white rounded-2xl border border-aurora-line p-5 cursor-pointer">
+                <summary className="font-semibold text-aurora-ink flex items-center justify-between list-none text-[14px] tracking-tight">
                   {faq.q}
-                  <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-90" />
+                  <ArrowRight className="h-3.5 w-3.5 text-aurora-ink-3 transition-transform group-open:rotate-90" />
                 </summary>
-                <p className="text-sm text-gray-600 leading-relaxed mt-3">{faq.a}</p>
+                <p className="text-[13px] text-aurora-ink-2 leading-relaxed mt-3">{faq.a}</p>
               </details>
             ))}
+          </div>
+          <div className="text-center mt-8">
+            <Link to="/faq" className="text-sm font-medium text-aurora-blue-deep hover:underline">Voir toutes les questions →</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-24 px-5 bg-aurora-ink text-white relative overflow-hidden hero-aurora-dark">
+        <div className="relative container max-w-3xl mx-auto text-center">
+          <h2 className="text-4xl sm:text-5xl font-semibold mb-4 tracking-[-0.03em] text-balance">{t("landing.cta_title")}</h2>
+          <p className="text-white/70 mb-10 text-lg max-w-xl mx-auto text-pretty">{t("landing.cta_subtitle")}</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button size="lg" variant="gradient" asChild>
+              <Link to="/register">{t("landing.cta_create")} <ArrowRight className="h-4 w-4" /></Link>
+            </Button>
+            <Button size="lg" variant="outline-dark" asChild>
+              <Link to="/login">{t("landing.cta_demo")}</Link>
+            </Button>
           </div>
         </div>
       </section>

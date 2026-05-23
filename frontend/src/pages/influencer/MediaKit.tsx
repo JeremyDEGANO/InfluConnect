@@ -114,7 +114,7 @@ export default function InfluencerMediaKit() {
   if (loading) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
-        <div className="flex items-center justify-center h-64 text-gray-400">
+        <div className="flex items-center justify-center h-64 text-aurora-ink-3">
           <Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}
         </div>
       </div>
@@ -123,13 +123,14 @@ export default function InfluencerMediaKit() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("onboarding.media_kit", "Kit média")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("influencer_dashboard.eyebrow", "Espace créateur")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("onboarding.media_kit", "Kit média")}</h1>
       <Card className="card-base">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> {t("onboarding.media_kit", "Kit média")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-aurora-ink-2">
             {t("onboarding.media_kit_desc", "Générez un kit média PDF récapitulant vos réseaux, statistiques et tarifs (nécessite 80 % de profil complet).")}
           </p>
           {missingCollaborationPitch && (
@@ -164,7 +165,7 @@ export default function InfluencerMediaKit() {
             )}
           </div>
           {mediaKitDate && (
-            <p className="text-xs text-gray-400 flex items-center gap-2">
+            <p className="text-xs text-aurora-ink-3 flex items-center gap-2">
               {isCustom && <Badge variant="purple">{t("media_kit.custom_badge", "PDF personnalisé")}</Badge>}
               <span>{t("onboarding.last_generated", "Dernière génération")} : {new Date(mediaKitDate).toLocaleString("fr-FR")}</span>
             </p>

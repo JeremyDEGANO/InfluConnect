@@ -29,13 +29,13 @@ export function MultiStepForm({ steps, currentStep, children }: MultiStepFormPro
               <div key={step.id} className="flex flex-col items-center gap-1" style={{ width: `${100 / steps.length}%` }}>
                 <div className={cn(
                   "h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all",
-                  done && "bg-gradient-to-r from-indigo-600 to-violet-600 text-white",
-                  active && "bg-gradient-to-r from-indigo-600 to-violet-600 text-white ring-4 ring-indigo-100",
-                  !done && !active && "bg-gray-100 text-gray-400"
+                  done && "bg-aurora-blue text-white",
+                  active && "bg-aurora-blue text-white ring-4 ring-aurora-blue/15",
+                  !done && !active && "bg-aurora-surface text-aurora-ink-3"
                 )}>
                   {done ? <Check className="h-4 w-4" /> : step.id}
                 </div>
-                <span className={cn("text-xs font-medium text-center hidden sm:block", active ? "text-indigo-700" : done ? "text-gray-700" : "text-gray-400")}>
+                <span className={cn("text-xs font-medium text-center hidden sm:block", active ? "text-aurora-blue-deep" : done ? "text-aurora-ink-2" : "text-aurora-ink-3")}>
                   {step.title}
                 </span>
               </div>

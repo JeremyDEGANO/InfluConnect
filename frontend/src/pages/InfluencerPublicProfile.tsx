@@ -100,9 +100,9 @@ export default function InfluencerPublicProfile() {
     n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+    return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
   }
-  if (!inf) return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
+  if (!inf) return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
 
   const totalFollowers = inf.social_networks?.reduce((s, sn) => s + sn.followers_count, 0) ?? 0
   const focus = (searchParams.get("focus") || "").toLowerCase()
@@ -118,7 +118,7 @@ export default function InfluencerPublicProfile() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-xl font-bold text-gray-900">{t("influencer_public.title")}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-aurora-ink">{t("influencer_public.title")}</h1>
       </div>
 
       <Card className="card-base">
@@ -126,13 +126,13 @@ export default function InfluencerPublicProfile() {
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
               {inf.avatar && <AvatarImage src={resolveMediaUrl(inf.avatar)} />}
-              <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-lg font-semibold">
+              <AvatarFallback className="bg-aurora-ink text-white text-lg font-semibold">
                 {(inf.display_name || "??").slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <CardTitle className="text-xl">{inf.display_name || `#${inf.id}`}</CardTitle>
-              <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+              <div className="flex items-center gap-3 mt-1 text-sm text-aurora-ink-3">
                 {inf.city && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{inf.city}</span>}
                 <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{fmt(totalFollowers)}</span>
                 {ratingLabel && (
@@ -147,8 +147,8 @@ export default function InfluencerPublicProfile() {
         <CardContent className="space-y-4">
           {inf.bio && (
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{t("influencer_public.bio")}</p>
-              <div className="text-sm text-gray-700 leading-relaxed space-y-3">
+              <p className="text-sm font-medium text-aurora-ink-3 mb-1">{t("influencer_public.bio")}</p>
+              <div className="text-sm text-aurora-ink-2 leading-relaxed space-y-3">
                 {inf.bio.split(/\n{2,}/).map((para, i) => (
                   <p key={i}>{para.replace(/\n/g, " ")}</p>
                 ))}
@@ -157,7 +157,7 @@ export default function InfluencerPublicProfile() {
           )}
           {inf.content_themes?.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{t("influencer_public.themes")}</p>
+              <p className="text-sm font-medium text-aurora-ink-3 mb-1">{t("influencer_public.themes")}</p>
               <div className="flex flex-wrap gap-1.5">
                 {inf.content_themes.map((th) => <Badge key={th} variant="info">{th}</Badge>)}
               </div>
@@ -165,7 +165,7 @@ export default function InfluencerPublicProfile() {
           )}
           {inf.content_types_offered?.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{t("influencer_public.content_types")}</p>
+              <p className="text-sm font-medium text-aurora-ink-3 mb-1">{t("influencer_public.content_types")}</p>
               <div className="flex flex-wrap gap-1.5">
                 {inf.content_types_offered.map((ct) => <Badge key={ct} variant="outline">{ct}</Badge>)}
               </div>
@@ -173,12 +173,12 @@ export default function InfluencerPublicProfile() {
           )}
           {inf.social_networks?.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-2">{t("influencer_public.networks")}</p>
+              <p className="text-sm font-medium text-aurora-ink-3 mb-2">{t("influencer_public.networks")}</p>
               <div className="grid sm:grid-cols-2 gap-2">
                 {inf.social_networks.map((sn) => (
-                  <div key={sn.platform} className="p-3 bg-gray-50 rounded-xl flex items-center justify-between text-sm">
+                  <div key={sn.platform} className="p-3 bg-aurora-surface rounded-xl flex items-center justify-between text-sm">
                     <span className="font-medium capitalize">{sn.platform}</span>
-                    <span className="text-gray-500">{fmt(sn.followers_count)}</span>
+                    <span className="text-aurora-ink-3">{fmt(sn.followers_count)}</span>
                   </div>
                 ))}
               </div>
@@ -186,24 +186,24 @@ export default function InfluencerPublicProfile() {
           )}
           {inf.content_links?.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-2">{t("influencer_public.content_links", "Liens & contenus")}</p>
+              <p className="text-sm font-medium text-aurora-ink-3 mb-2">{t("influencer_public.content_links", "Liens & contenus")}</p>
               <ul className="space-y-1 text-sm">
                 {inf.content_links.map((l, i) => (
                   <li key={i}>
-                    <a href={l.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline break-all">{l.label || l.url}</a>
+                    <a href={l.url} target="_blank" rel="noreferrer" className="text-aurora-blue hover:underline break-all">{l.label || l.url}</a>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          <div id="media-kit" className={focus === "media-kit" || hashFocus === "media-kit" ? "rounded-xl border border-indigo-200 bg-indigo-50 p-3" : ""}>
-            <p className="text-sm font-medium text-gray-500 mb-2">{t("influencer_public.media_kit")}</p>
+          <div id="media-kit" className={focus === "media-kit" || hashFocus === "media-kit" ? "rounded-xl border border-aurora-blue/20 bg-indigo-50 p-3" : ""}>
+            <p className="text-sm font-medium text-aurora-ink-3 mb-2">{t("influencer_public.media_kit")}</p>
             {inf.media_kit_pdf ? (
               <Button asChild variant="outline" size="sm">
                 <a href={resolveMediaUrl(inf.media_kit_pdf)} target="_blank" rel="noreferrer">{t("influencer_public.open_media_kit")}</a>
               </Button>
             ) : (
-              <p className="text-sm text-gray-400">{t("influencer_public.media_kit_unavailable")}</p>
+              <p className="text-sm text-aurora-ink-3">{t("influencer_public.media_kit_unavailable")}</p>
             )}
           </div>
         </CardContent>

@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/lib/auth"
 import api from "@/lib/api"
+import { BRAND_SECTOR_OPTIONS } from "@/lib/brandSectors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,25 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Upload } from "lucide-react"
 import { Link } from "react-router-dom"
-
-const SECTOR_OPTIONS = [
-  "Mode & Beauté",
-  "Luxe",
-  "Cosmétiques",
-  "Santé & Bien-être",
-  "Sport & Fitness",
-  "Food & Boissons",
-  "Voyage & Tourisme",
-  "Tech & Électronique",
-  "Gaming",
-  "Finance & Assurance",
-  "Éducation",
-  "Automobile",
-  "Maison & Décoration",
-  "B2B / Services",
-  "Culture & Divertissement",
-  "Autre",
-]
 
 export default function BrandEditProfile() {
   const { t } = useTranslation()
@@ -125,7 +107,8 @@ export default function BrandEditProfile() {
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{t("brand_profile.title")}</h1>
+        <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("brand_profile.title")}</h1>
         <Badge variant={validationStatus === "approved" ? "purple" : validationStatus === "rejected" ? "destructive" : "outline"}>
           {t(`brand_profile.status_${validationStatus}`, validationStatus)}
         </Badge>
@@ -135,12 +118,12 @@ export default function BrandEditProfile() {
         <Card className="card-base border-l-4 border-l-purple-500">
           <CardContent className="py-4 flex items-center justify-between gap-4">
             <div>
-              <p className="font-semibold text-gray-900">
+              <p className="font-semibold text-aurora-ink">
                 {validationStatus === "rejected"
                   ? t("brand_profile.banner_rejected_title", "Inscription refusée")
                   : t("brand_profile.banner_pending_title", "Validation requise")}
               </p>
-              <p className="text-sm text-gray-600 mt-0.5">
+              <p className="text-sm text-aurora-ink-2 mt-0.5">
                 {validationStatus === "rejected" && validationNotes
                   ? validationNotes
                   : t("brand_profile.banner_pending_desc", "Complétez votre profil et soumettez-le pour validation.")}
@@ -165,11 +148,11 @@ export default function BrandEditProfile() {
           <CardHeader><CardTitle className="text-base">{t("brand_profile.company_info")}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+              <div className="w-20 h-20 rounded-xl border border-aurora-line bg-aurora-surface flex items-center justify-center overflow-hidden">
                 {logoUrl ? (
                   <img src={logoUrl} alt="logo" className="object-contain w-full h-full" />
                 ) : (
-                  <span className="text-xs text-gray-400">{t("brand_profile.no_logo", "Aucun logo")}</span>
+                  <span className="text-xs text-aurora-ink-3">{t("brand_profile.no_logo", "Aucun logo")}</span>
                 )}
               </div>
               <div className="flex-1">
@@ -180,7 +163,7 @@ export default function BrandEditProfile() {
                     {logoUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
                     {t("brand_profile.upload_logo", "Téléverser")}
                   </Button>
-                  <span className="text-xs text-gray-400">{t("brand_profile.logo_hint", "PNG/JPG, 5 Mo max")}</span>
+                  <span className="text-xs text-aurora-ink-3">{t("brand_profile.logo_hint", "PNG/JPG, 5 Mo max")}</span>
                 </div>
               </div>
             </div>
@@ -194,8 +177,8 @@ export default function BrandEditProfile() {
                 onChange={(e) => update("sector", e.target.value)}
               >
                 <option value="">{t("brand_profile.select_sector", "Sélectionnez un secteur")}</option>
-                {!SECTOR_OPTIONS.includes(form.sector) && form.sector && <option value={form.sector}>{form.sector}</option>}
-                {SECTOR_OPTIONS.map((sector) => (
+                {!BRAND_SECTOR_OPTIONS.includes(form.sector as any) && form.sector && <option value={form.sector}>{form.sector}</option>}
+                {BRAND_SECTOR_OPTIONS.map((sector) => (
                   <option key={sector} value={sector}>{sector}</option>
                 ))}
               </select>

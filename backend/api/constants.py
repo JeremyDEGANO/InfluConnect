@@ -11,7 +11,7 @@ SUBSCRIPTION_PLANS = {
     "starter": {
         "id": "starter",
         "name": "Starter",
-        "price_eur_monthly": 49,
+        "price_eur_monthly": 79,
         "stripe_price_id": "price_starter_stub",
         "features": {
             "concurrent_campaigns": 3,
@@ -31,7 +31,7 @@ SUBSCRIPTION_PLANS = {
     "growth": {
         "id": "growth",
         "name": "Growth",
-        "price_eur_monthly": 149,
+        "price_eur_monthly": 199,
         "stripe_price_id": "price_growth_stub",
         "features": {
             "concurrent_campaigns": 10,
@@ -51,7 +51,7 @@ SUBSCRIPTION_PLANS = {
     "pro": {
         "id": "pro",
         "name": "Pro",
-        "price_eur_monthly": 399,
+        "price_eur_monthly": 499,
         "stripe_price_id": "price_pro_stub",
         "features": {
             "concurrent_campaigns": -1,  # unlimited

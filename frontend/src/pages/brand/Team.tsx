@@ -48,11 +48,12 @@ export default function BrandTeam() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("brand_team.title", "Équipe")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("brand_team.title", "Équipe")}</h1>
       <Card className="card-base">
         <CardHeader><CardTitle className="text-base">{t("brand_team.invite_title", "Inviter un collaborateur")}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -79,14 +80,14 @@ export default function BrandTeam() {
         <CardHeader><CardTitle className="text-base">{t("brand_team.members", "Membres")}</CardTitle></CardHeader>
         <CardContent>
           {list.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">{t("brand_team.empty", "Aucun collaborateur invité.")}</p>
+            <p className="text-sm text-aurora-ink-3 text-center py-4">{t("brand_team.empty", "Aucun collaborateur invité.")}</p>
           ) : (
             <div className="space-y-2">
               {list.map((m) => (
-                <div key={m.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50">
+                <div key={m.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-aurora-surface">
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{m.user_name || m.invited_email}</p>
-                    <p className="text-xs text-gray-500">{m.user_email || m.invited_email} · {t(`brand_team.role_${m.role}`, m.role)} · {t(`brand_team.status_${m.status}`, m.status)}</p>
+                    <p className="font-medium text-aurora-ink text-sm">{m.user_name || m.invited_email}</p>
+                    <p className="text-xs text-aurora-ink-3">{m.user_email || m.invited_email} Â· {t(`brand_team.role_${m.role}`, m.role)} Â· {t(`brand_team.status_${m.status}`, m.status)}</p>
                   </div>
                   {m.role !== "owner" && m.status !== "revoked" && (
                     <Button variant="ghost" size="sm" className="text-red-500" onClick={() => handleRevoke(m.id)}>

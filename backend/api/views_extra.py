@@ -20,9 +20,11 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.files.base import ContentFile
+from django.db import connections
 from django.shortcuts import get_object_or_404
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.db.models import Q, Avg, Count
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
@@ -56,6 +58,13 @@ from .serializers import (
 from .services import email_service, stripe_service
 from .services.completion import compute_influencer_completion
 from .services.pdf_service import generate_contract_pdf, generate_media_kit_pdf
+from .services.insights_reporting import (
+    build_campaign_report_payload,
+    compute_campaign_emv,
+    compute_lookalikes,
+    render_report_pdf,
+    render_report_pptx,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +87,39 @@ def _audit(actor, action: str, target_type: str = "", target_id: int | None = No
         metadata=metadata or {},
         ip_address=ip,
     )
+
+
+class HealthCheckView(APIView):
+    permission_classes = []
+    authentication_classes = []
+
+    def get(self, request):
+        return Response({"ok": True, "service": "influconnect-api"})
+
+
+class ReadinessCheckView(APIView):
+    permission_classes = []
+    authentication_classes = []
+
+    def get(self, request):
+        db_ok = True
+        cache_ok = True
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+        except Exception:
+            db_ok = False
+        try:
+            cache.set("health:ready", "1", timeout=5)
+            cache_ok = cache.get("health:ready") == "1"
+        except Exception:
+            cache_ok = False
+        ok = db_ok and cache_ok
+        return Response(
+            {"ok": ok, "database": db_ok, "cache": cache_ok},
+            status=status.HTTP_200_OK if ok else status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
 
 def _notify(user, type_: str, title: str, message: str, proposal=None, send_email: bool = False,
@@ -505,6 +547,11 @@ class AdminOverviewView(APIView):
 
         users_qs = User.objects.select_related('brand_profile', 'influencer_profile').order_by('-created_at')
 
+        live_campaigns_qs = Campaign.objects.select_related('brand').filter(status='active').annotate(
+            proposals_total=Count('proposals', distinct=True),
+            proposals_in_progress=Count('proposals', filter=Q(proposals__status='in_progress'), distinct=True),
+        ).order_by('deadline', '-created_at')[:20]
+
         support_open = SupportTicket.objects.exclude(status='closed').count()
         support_stale_48h = SupportTicket.objects.filter(
             status__in=['open', 'in_progress'],
@@ -561,6 +608,21 @@ class AdminOverviewView(APIView):
                 'subscription_active': bool(brand_profile.subscription_active) if brand_profile else False,
             })
 
+        live_campaigns_data = []
+        for c in live_campaigns_qs:
+            live_campaigns_data.append({
+                'id': c.id,
+                'title': c.title,
+                'brand_company_name': c.brand.company_name,
+                'status': c.status,
+                'deadline': c.deadline,
+                'price_per_influencer': c.price_per_influencer,
+                'max_influencers': c.max_influencers,
+                'proposals_total': int(c.proposals_total or 0),
+                'proposals_in_progress': int(c.proposals_in_progress or 0),
+                'created_at': c.created_at,
+            })
+
         return Response({
             'kpis': {
                 'users_total': User.objects.count(),
@@ -593,6 +655,7 @@ class AdminOverviewView(APIView):
             'proposal_status_counts': proposal_status_counts,
             'brands': brands_data,
             'users': users_data,
+            'live_campaigns': live_campaigns_data,
         })
 
 
@@ -624,6 +687,65 @@ class AdminUserStatusUpdateView(APIView):
         return Response({'id': user.id, 'is_active': user.is_active})
 
 
+class AdminUserUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.id == request.user.id and request.data.get('is_active') is False:
+            return Response({'detail': 'Cannot deactivate yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed = {'email', 'phone', 'location', 'language_preference', 'is_active'}
+        changed = {}
+
+        for key in allowed:
+            if key not in request.data:
+                continue
+            value = request.data.get(key)
+            if key == 'language_preference':
+                value = str(value or '').lower().strip()
+                if value not in {'fr', 'en'}:
+                    return Response({'detail': 'language_preference must be fr or en.'}, status=status.HTTP_400_BAD_REQUEST)
+            if key == 'email':
+                value = str(value or '').strip().lower()
+                if not value:
+                    return Response({'detail': 'email cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
+                if User.objects.exclude(pk=user.pk).filter(email=value).exists():
+                    return Response({'detail': 'email already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+            if key == 'is_active':
+                value = bool(value)
+            if key in {'phone', 'location'}:
+                value = str(value or '').strip()
+
+            old = getattr(user, key)
+            if old != value:
+                setattr(user, key, value)
+                changed[key] = {'old': old, 'new': value}
+
+        if changed:
+            user.save(update_fields=list(changed.keys()))
+            _audit(
+                request.user,
+                'admin_user_status_update',
+                'User',
+                user.id,
+                metadata={'fields': changed},
+                ip=_client_ip(request),
+            )
+
+        return Response({
+            'id': user.id,
+            'email': user.email,
+            'phone': user.phone,
+            'location': user.location,
+            'language_preference': user.language_preference,
+            'is_active': user.is_active,
+        })
+
+
 class AdminPendingBrandsView(generics.ListAPIView):
     serializer_class = BrandAdminSerializer
     permission_classes = [IsAdminUser]
@@ -641,6 +763,50 @@ class AdminPendingBrandsView(generics.ListAPIView):
                     ready_ids.append(profile.id)
             return BrandProfile.objects.select_related("user", "validated_by").filter(id__in=ready_ids).order_by("-id")
         return qs
+
+
+class AdminBrandUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, pk):
+        profile = BrandProfile.objects.select_related('user').filter(pk=pk).first()
+        if not profile:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        allowed = {'company_name', 'website', 'sector', 'description', 'validation_notes', 'validation_status'}
+        changed = {}
+
+        for key in allowed:
+            if key not in request.data:
+                continue
+            value = request.data.get(key)
+            if key == 'validation_status':
+                value = str(value or '').strip().lower()
+                if value not in {'pending', 'approved', 'rejected'}:
+                    return Response({'detail': 'validation_status must be pending, approved or rejected.'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                value = str(value or '').strip()
+
+            old = getattr(profile, key)
+            if old != value:
+                setattr(profile, key, value)
+                changed[key] = {'old': old, 'new': value}
+
+        if changed:
+            if 'validation_status' in changed:
+                profile.validated_at = timezone.now()
+                profile.validated_by = request.user
+            profile.save(update_fields=list(changed.keys()) + (['validated_at', 'validated_by'] if 'validation_status' in changed else []))
+            _audit(
+                request.user,
+                'brand_validated' if changed.get('validation_status', {}).get('new') == 'approved' else 'brand_rejected' if changed.get('validation_status', {}).get('new') == 'rejected' else 'subscription_changed',
+                'BrandProfile',
+                profile.id,
+                metadata={'fields': changed},
+                ip=_client_ip(request),
+            )
+
+        return Response(BrandAdminSerializer(profile).data)
 
 
 class AdminBrandApproveView(APIView):
@@ -683,7 +849,11 @@ class AdminBrandApproveView(APIView):
                 email_body=email_service.send_brand_validated.__doc__ or
                           "Votre compte InfluConnect a été validé.")
         # Use dedicated template
-        email_service.send_brand_validated(profile.user.email, profile.company_name)
+        email_service.send_brand_validated(
+            profile.user.email,
+            profile.company_name,
+            language=profile.user.language_preference,
+        )
         return Response(BrandAdminSerializer(profile).data)
 
 
@@ -708,7 +878,12 @@ class AdminBrandRejectView(APIView):
                metadata={"reason": reason}, ip=_client_ip(request))
         _notify(profile.user, "brand_rejected", "Inscription refusée",
                 f"Motif : {reason}", send_email=True)
-        email_service.send_brand_rejected(profile.user.email, profile.company_name, reason)
+        email_service.send_brand_rejected(
+            profile.user.email,
+            profile.company_name,
+            reason,
+            language=profile.user.language_preference,
+        )
         return Response(BrandAdminSerializer(profile).data)
 
 
@@ -790,6 +965,106 @@ class BrandSubmitForValidationView(APIView):
             "ready_to_submit": True,
             "can_create_campaigns": False,
         })
+
+
+class CampaignLookalikeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        campaign = Campaign.objects.filter(pk=pk, brand__user=request.user).first()
+        if not campaign:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            reference_influencer_id = int(request.data.get("reference_influencer_id") or 0)
+        except (TypeError, ValueError):
+            reference_influencer_id = 0
+        if reference_influencer_id <= 0:
+            return Response({"detail": "reference_influencer_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            limit = int(request.data.get("limit") or 20)
+        except (TypeError, ValueError):
+            limit = 20
+
+        try:
+            min_score = float(request.data.get("min_score") or 0.35)
+        except (TypeError, ValueError):
+            min_score = 0.35
+
+        rows = compute_lookalikes(
+            campaign=campaign,
+            reference_influencer_id=reference_influencer_id,
+            limit=limit,
+            min_score=min_score,
+        )
+
+        return Response({
+            "campaign_id": campaign.id,
+            "reference_influencer_id": reference_influencer_id,
+            "count": len(rows),
+            "results": rows,
+        })
+
+
+class CampaignEmvView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        campaign = Campaign.objects.filter(pk=pk, brand__user=request.user).first()
+        if not campaign:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = compute_campaign_emv(campaign)
+        return Response(payload)
+
+
+class CampaignReportExportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if request.user.user_type != "brand":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        campaign = Campaign.objects.filter(pk=pk, brand__user=request.user).first()
+        if not campaign:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        output_format = str(request.data.get("format") or "pptx").strip().lower()
+        report = build_campaign_report_payload(campaign)
+
+        if output_format == "pdf":
+            data = render_report_pdf(report)
+            ext = "pdf"
+            content_type = "application/pdf"
+        elif output_format in {"pptx", "google_slides"}:
+            # Google Slides can import native PPTX files directly.
+            data = render_report_pptx(report)
+            ext = "pptx"
+            content_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        else:
+            return Response({"detail": "format must be one of: pdf, pptx, google_slides."}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = f"campaign_{campaign.id}_report.{ext}"
+        response = HttpResponse(data, content_type=content_type)
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        _audit(
+            request.user,
+            "subscription_changed",
+            "Campaign",
+            campaign.id,
+            metadata={"export_format": output_format, "filename": filename},
+            ip=_client_ip(request),
+        )
+
+        return response
 
 
 # ---------------------------------------------------------------------------
@@ -972,6 +1247,13 @@ class ProposalGenerateContractView(APIView):
                 f"La marque a généré le contrat pour « {proposal.campaign.title} ». "
                 f"Veuillez le relire et le signer.",
                 proposal=proposal, send_email=True)
+        if proposal.campaign.brand.user.email:
+            email_service.send_contract_ready_for_signature(
+                proposal.campaign.brand.user.email,
+                "brand",
+                proposal.campaign.title,
+                language=proposal.campaign.brand.user.language_preference,
+            )
         return Response(CampaignProposalSerializer(proposal).data)
 
 

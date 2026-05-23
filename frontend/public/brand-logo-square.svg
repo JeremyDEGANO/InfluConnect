@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">InfluConnect Logo</title>
+  <desc id="desc">Black rounded square with IC letters in white.</desc>
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="#0f1115"/>
+  <g fill="#ffffff" font-family="Poppins, Montserrat, Arial, sans-serif" font-weight="700" text-anchor="middle" dominant-baseline="middle">
+    <text x="256" y="280" font-size="182" letter-spacing="-6">IC</text>
+  </g>
+</svg>

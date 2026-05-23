@@ -2,7 +2,7 @@ export default function Terms() {
   return (
     <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
       <h1>Conditions Générales d'Utilisation</h1>
-      <p className="text-sm text-gray-500">Dernière mise à jour : 21 avril 2026</p>
+      <p className="text-sm text-aurora-ink-3">Dernière mise à jour : 21 avril 2026</p>
 
       <h2>1. Présentation</h2>
       <p>
@@ -90,25 +90,32 @@ export default function Terms() {
         En cas de différend, les parties s'engagent à rechercher une solution amiable
         avant toute action judiciaire. Conformément à l'article L.612-1 du Code de la
         consommation, le consommateur peut recourir gratuitement au service de médiation
-        de la consommation. À défaut, le tribunal compétent est celui du siège social
-        d'InfluConnect SAS, sauf disposition légale contraire.
+        de la consommation.
       </p>
 
-      <h2>10. Suspension et résiliation</h2>
+      <h2>10. Loi applicable et juridiction</h2>
+      <p>
+        Les présentes CGU sont régies par le droit français. À défaut de résolution
+        amiable, tout litige relatif à l'interprétation, la validité ou l'exécution des
+        présentes relève de la compétence des juridictions de Paris, sous réserve des
+        dispositions légales impératives contraires.
+      </p>
+
+      <h2>11. Suspension et résiliation</h2>
       <p>
         InfluConnect se réserve le droit de suspendre ou de supprimer tout compte qui
         contreviendrait aux présentes CGU, à la législation en vigueur ou aux conditions
         d'utilisation des réseaux sociaux tiers (TikTok, Meta, Google, Twitch).
       </p>
 
-      <h2>11. Modifications</h2>
+      <h2>12. Modifications</h2>
       <p>
         InfluConnect peut modifier les présentes CGU à tout moment. Les utilisateurs sont
         informés par e-mail au moins quinze (15) jours avant l'entrée en vigueur des
         modifications.
       </p>
 
-      <h2>12. Contact</h2>
+      <h2>13. Coordonnées de contact</h2>
       <p>
         Pour toute question relative aux présentes CGU :{" "}
         <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>

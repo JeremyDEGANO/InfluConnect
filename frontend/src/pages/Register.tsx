@@ -45,6 +45,10 @@ export default function Register() {
   const update = (k: string, v: string | boolean) => setForm((p) => ({ ...p, [k]: v }))
   const selectedRole: "influencer" | "brand" | "agency" | "" =
     form.user_type === "influencer" ? "influencer" : form.user_type === "brand" ? (form.is_agency ? "agency" : "brand") : ""
+  const needsPlan = form.user_type === "brand"
+  const selectablePlans = form.is_agency
+    ? plans.filter((plan) => plan.code === "growth" || plan.code === "pro")
+    : plans
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -52,7 +56,7 @@ export default function Register() {
       toast({ variant: "destructive", title: t("auth.passwords_mismatch") })
       return
     }
-    if (form.user_type === "brand" && !form.subscription_plan) {
+    if (needsPlan && !form.subscription_plan) {
       toast({ variant: "destructive", title: t("auth.choose_plan_first", "Choisissez un plan d'abord") })
       setStep(2)
       return
@@ -85,24 +89,24 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-50 px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center hero-aurora-bg px-4 py-16">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white text-xs font-black shadow-sm">IC</div>
-            <span className="text-xl font-bold text-gray-900 tracking-tight">InfluConnect</span>
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-aurora-blue to-aurora-blue-deep flex items-center justify-center text-white text-xs font-black shadow-soft">IC</div>
+            <span className="text-xl font-semibold text-aurora-ink tracking-tight">InfluConnect</span>
           </Link>
         </div>
-        <Card className="card-base shadow-xl shadow-indigo-500/5">
+        <Card className="card-base shadow-soft-xl">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold">{t("auth.register")}</CardTitle>
+            <CardTitle className="text-2xl font-semibold tracking-tight">{t("auth.register")}</CardTitle>
             <CardDescription>{t("auth.create_subtitle")}</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <MultiStepForm steps={STEPS} currentStep={step}>
               {step === 1 && (
                 <div className="space-y-4">
-                  <p className="text-center text-sm text-gray-600 mb-4">{t("auth.choose_role")}</p>
+                  <p className="text-center text-sm text-aurora-ink-2 mb-4">{t("auth.choose_role")}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {([
                       { key: "influencer", icon: Users },
@@ -123,7 +127,7 @@ export default function Register() {
                         }}
                         className={cn(
                           "flex flex-col items-center gap-3 p-6 rounded-2xl border-2 transition-all",
-                          selectedRole === key ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-indigo-300"
+                          selectedRole === key ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-indigo-300"
                         )}
                       >
                         {key === "influencer" ? (
@@ -137,32 +141,37 @@ export default function Register() {
                       </button>
                     ))}
                   </div>
-                  <Button variant="gradient" className="w-full mt-4" disabled={!form.user_type} onClick={() => setStep(form.user_type === "brand" ? 2 : 3)}>
+                  <Button
+                    variant="gradient"
+                    className="w-full mt-4"
+                    disabled={!form.user_type}
+                    onClick={() => setStep(needsPlan ? 2 : 3)}
+                  >
                     {t("common.next")}
                   </Button>
                 </div>
               )}
-              {step === 2 && form.user_type === "brand" && (
+              {step === 2 && needsPlan && (
                 <div className="space-y-3">
-                  <p className="text-center text-sm text-gray-600 mb-2">{t("auth.choose_plan", "Choisissez votre plan")}</p>
+                  <p className="text-center text-sm text-aurora-ink-2 mb-2">{t("auth.choose_plan", "Choisissez votre plan")}</p>
                   <div className="space-y-2">
-                    {plans.map((p) => (
+                    {selectablePlans.map((p) => (
                       <button
                         key={p.code}
                         type="button"
                         onClick={() => update("subscription_plan", p.code)}
                         className={cn(
                           "w-full text-left p-4 rounded-2xl border-2 transition-all flex items-center justify-between",
-                          form.subscription_plan === p.code ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-indigo-300"
+                          form.subscription_plan === p.code ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-indigo-300"
                         )}
                       >
                         <div>
-                          <p className="font-semibold text-gray-900">{p.name}</p>
-                          <p className="text-xs text-gray-500">{p.features.campaigns_per_month === "unlimited" ? "Campagnes illimit\u00e9es" : `${p.features.campaigns_per_month} campagnes/mois`} · {p.features.support}</p>
+                          <p className="font-semibold text-aurora-ink">{p.name}</p>
+                          <p className="text-xs text-aurora-ink-3">{p.features.campaigns_per_month === "unlimited" ? "Campagnes illimit\u00e9es" : `${p.features.campaigns_per_month} campagnes/mois`} · {p.features.support}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-indigo-600">{p.price_eur}€</p>
-                          <p className="text-xs text-gray-400">/mois HT</p>
+                          <p className="text-lg font-bold text-aurora-blue">{p.price_eur}€</p>
+                          <p className="text-xs text-aurora-ink-3">/mois HT</p>
                         </div>
                       </button>
                     ))}
@@ -195,8 +204,8 @@ export default function Register() {
                         <Label htmlFor="siret">SIRET</Label>
                         <Input id="siret" value={form.siret} onChange={(e) => update("siret", e.target.value)} className="mt-1" placeholder="14 chiffres" maxLength={14} />
                       </div>
-                      {form.subscription_plan && (
-                        <div className="flex items-center gap-2 p-2 bg-indigo-50 rounded-lg text-xs text-indigo-700">
+                      {needsPlan && form.subscription_plan && (
+                        <div className="flex items-center gap-2 p-2 bg-indigo-50 rounded-lg text-xs text-aurora-blue-deep">
                           <Check className="h-3.5 w-3.5" />
                           {t("auth.plan_selected", "Plan s\u00e9lectionn\u00e9")}: <span className="font-semibold capitalize">{form.subscription_plan}</span>
                         </div>
@@ -216,7 +225,7 @@ export default function Register() {
                     <Input id="cpw" type="password" value={form.confirm_password} onChange={(e) => update("confirm_password", e.target.value)} required className="mt-1" />
                   </div>
                   <div className="flex gap-2">
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(form.user_type === "brand" ? 2 : 1)}>{t("common.back")}</Button>
+                    <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(needsPlan ? 2 : 1)}>{t("common.back")}</Button>
                     <Button type="submit" variant="gradient" className="flex-1" disabled={loading}>
                       {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.loading")}</> : t("auth.register")}
                     </Button>
@@ -224,9 +233,9 @@ export default function Register() {
                 </form>
               )}
             </MultiStepForm>
-            <p className="text-center text-sm text-gray-500 mt-4">
+            <p className="text-center text-sm text-aurora-ink-3 mt-4">
               {t("auth.have_account")}{" "}
-              <Link to="/login" className="text-indigo-600 font-medium hover:underline">{t("auth.login")}</Link>
+              <Link to="/login" className="text-aurora-blue font-medium hover:underline">{t("auth.login")}</Link>
             </p>
           </CardContent>
         </Card>

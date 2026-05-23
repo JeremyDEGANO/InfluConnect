@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="fr" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Editorial — InfluConnect</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { darkMode:'class', theme:{ extend:{
+    colors:{ ink:{ 950:'#08090a', 900:'#0d0e10', 850:'#111214', 800:'#17181b', 700:'#1f2125', 600:'#2a2c31', 500:'#3a3d44', 400:'#6b6f78', 300:'#9ca0a8', 200:'#c8ccd2', 100:'#e6e8eb' }, accent:{ DEFAULT:'#7c5cff', soft:'#a594ff' } },
+    fontFamily:{ sans:['Inter','-apple-system','system-ui','sans-serif'], mono:['ui-monospace','SF Mono','Menlo','monospace'] }
+  }}}
+</script>
+<style>
+  html,body{ -webkit-font-smoothing:antialiased; letter-spacing:-0.012em; font-feature-settings:"cv11","ss01"; }
+  .num{ font-variant-numeric:tabular-nums; letter-spacing:-0.02em; font-family:ui-monospace,SF Mono,Menlo,monospace; }
+  .grid-bg{ background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0); background-size: 24px 24px; }
+  .gradient-text{ background:linear-gradient(180deg,#fff 0%, #9ca0a8 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .ring-accent{ box-shadow:0 0 0 1px rgba(124,92,255,0.4), 0 0 32px -8px rgba(124,92,255,0.4); }
+  details>summary::-webkit-details-marker{display:none}
+</style>
+</head>
+<body class="bg-ink-950 text-ink-100 font-sans">
+
+<!-- Switcher -->
+<div class="sticky top-0 z-50 bg-ink-950/80 backdrop-blur border-b border-ink-800">
+  <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="text-sm text-ink-400 hover:text-white">←</a>
+      <div class="w-7 h-7 rounded-md bg-white text-ink-950 grid place-items-center font-bold">I</div>
+      <span class="font-semibold tracking-tight">Editorial</span>
+      <span class="text-xs text-ink-400 ml-2">Proposition 2 · Linear / Vercel</span>
+    </div>
+    <nav class="flex items-center gap-1 text-sm">
+      <button data-tab="landing" class="tab px-3 py-1.5 rounded-md font-medium">Landing</button>
+      <button data-tab="brand"   class="tab px-3 py-1.5 rounded-md font-medium">Marque</button>
+      <button data-tab="influ"   class="tab px-3 py-1.5 rounded-md font-medium">Influenceur</button>
+      <button data-tab="admin"   class="tab px-3 py-1.5 rounded-md font-medium">Admin</button>
+      <button data-tab="agency"  class="tab px-3 py-1.5 rounded-md font-medium">Agence</button>
+    </nav>
+  </div>
+</div>
+
+<!-- ============ LANDING ============ -->
+<section data-pane="landing" class="pane">
+  <!-- Site nav -->
+  <div class="border-b border-ink-800 bg-ink-950/60 backdrop-blur">
+    <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-7">
+        <div class="flex items-center gap-2"><div class="w-6 h-6 rounded-md bg-white text-ink-950 grid place-items-center font-bold text-sm">I</div><span class="font-semibold tracking-tight">InfluConnect</span></div>
+        <nav class="flex gap-5 text-sm text-ink-300"><a class="hover:text-white">Produit</a><a class="hover:text-white">Marques</a><a class="hover:text-white">Créateurs</a><a class="hover:text-white">Agences</a><a class="hover:text-white">Tarifs</a><a class="hover:text-white">Changelog</a></nav>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <a class="text-ink-300 hover:text-white">Connexion</a>
+        <a class="px-3.5 h-8 inline-flex items-center rounded-md bg-white text-ink-950 font-medium hover:bg-ink-100 transition">Démarrer →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div class="relative overflow-hidden grid-bg">
+    <div class="absolute inset-x-0 top-0 h-[600px] bg-gradient-to-b from-accent/10 via-transparent to-transparent pointer-events-none"></div>
+    <div class="max-w-5xl mx-auto px-6 pt-24 pb-28 relative">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink-900 border border-ink-800 text-xs">
+        <span class="text-accent-soft font-mono">v3.0</span>
+        <span class="text-ink-300">Escrow temps réel · Disponible</span>
+        <span class="text-ink-500">→</span>
+      </div>
+      <h1 class="mt-7 text-5xl md:text-7xl font-semibold tracking-tight leading-[1.02] gradient-text">
+        L'infrastructure<br/>de l'influence moderne.
+      </h1>
+      <p class="mt-7 text-lg text-ink-300 max-w-xl">Un système unique pour matcher, contracter, payer et mesurer les collaborations entre marques et créateurs. Conçu pour la vitesse.</p>
+      <div class="mt-9 flex items-center gap-3">
+        <a class="h-10 px-5 inline-flex items-center rounded-md bg-white text-ink-950 font-medium hover:bg-ink-100 transition">Commencer gratuitement</a>
+        <a class="h-10 px-5 inline-flex items-center gap-2 rounded-md bg-ink-900 border border-ink-800 hover:border-ink-700 transition text-ink-100">
+          <span class="font-mono text-xs text-ink-400">$</span> npm install influconnect
+        </a>
+      </div>
+      <!-- Logos -->
+      <div class="mt-20">
+        <div class="text-xs uppercase tracking-widest text-ink-500 mb-5">Utilisé par 412 marques en France</div>
+        <div class="flex flex-wrap gap-x-12 gap-y-4 items-center text-ink-400 text-lg font-semibold tracking-tight">
+          <span>SÉZANE</span><span>RESPIRE</span><span>LE SLIP FRANÇAIS</span><span>NUOO</span><span>AIME</span><span>CAVAL</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product preview -->
+  <div class="max-w-6xl mx-auto px-6 pb-24">
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-2 ring-accent">
+      <div class="rounded-xl bg-ink-950 border border-ink-800 overflow-hidden">
+        <div class="h-9 bg-ink-900/60 border-b border-ink-800 flex items-center gap-2 px-4">
+          <span class="w-2.5 h-2.5 rounded-full bg-ink-700"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-ink-700"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-ink-700"></span>
+          <span class="ml-4 text-xs text-ink-500 font-mono">influconnect.app/brand/dashboard</span>
+        </div>
+        <div class="p-8 grid grid-cols-4 gap-3">
+          <div class="rounded-lg border border-ink-800 bg-ink-900/50 p-4"><div class="text-[10px] text-ink-500 uppercase tracking-widest">Active</div><div class="num text-2xl mt-1">7</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-900/50 p-4"><div class="text-[10px] text-ink-500 uppercase tracking-widest">Reach</div><div class="num text-2xl mt-1">2.4M</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-900/50 p-4"><div class="text-[10px] text-ink-500 uppercase tracking-widest">Spend</div><div class="num text-2xl mt-1">12 480€</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-900/50 p-4"><div class="text-[10px] text-ink-500 uppercase tracking-widest">CPM</div><div class="num text-2xl mt-1">€5.20</div></div>
+          <div class="col-span-4 rounded-lg border border-ink-800 bg-ink-900/50 p-4 mt-2">
+            <svg viewBox="0 0 600 120" class="w-full h-32"><path d="M0,100 C80,80 140,90 220,60 C300,30 360,80 440,40 C520,10 560,20 600,5" stroke="#7c5cff" stroke-width="1.5" fill="none"/><path d="M0,100 C80,80 140,90 220,60 C300,30 360,80 440,40 C520,10 560,20 600,5 L600,120 L0,120 Z" fill="url(#gh)"/><defs><linearGradient id="gh" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#7c5cff" stop-opacity="0.3"/><stop offset="100%" stop-color="#7c5cff" stop-opacity="0"/></linearGradient></defs></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features grid -->
+  <div class="border-t border-ink-800">
+    <div class="max-w-6xl mx-auto px-6 py-24">
+      <div class="max-w-2xl mb-14">
+        <div class="text-xs font-mono text-accent-soft uppercase tracking-widest mb-3">FEATURES</div>
+        <h2 class="text-4xl font-semibold tracking-tight">Construit pour les opérateurs.</h2>
+      </div>
+      <div class="grid md:grid-cols-3 border border-ink-800 rounded-xl overflow-hidden divide-x divide-y divide-ink-800">
+        <div class="p-7"><div class="text-xs font-mono text-ink-500">01</div><h3 class="mt-3 font-semibold tracking-tight">Matching IA</h3><p class="mt-2 text-sm text-ink-400">Profils scorés sur audience, ton et historique de livraison.</p></div>
+        <div class="p-7"><div class="text-xs font-mono text-ink-500">02</div><h3 class="mt-3 font-semibold tracking-tight">Escrow natif</h3><p class="mt-2 text-sm text-ink-400">Stripe Connect, libération à la livraison validée.</p></div>
+        <div class="p-7"><div class="text-xs font-mono text-ink-500">03</div><h3 class="mt-3 font-semibold tracking-tight">Contrats eIDAS</h3><p class="mt-2 text-sm text-ink-400">Modèles juridiques FR, signature qualifiée.</p></div>
+        <div class="p-7"><div class="text-xs font-mono text-ink-500">04</div><h3 class="mt-3 font-semibold tracking-tight">Analytics ROI</h3><p class="mt-2 text-sm text-ink-400">Reach, engagement, conversions, CPM en temps réel.</p></div>
+        <div class="p-7"><div class="text-xs font-mono text-ink-500">05</div><h3 class="mt-3 font-semibold tracking-tight">Vérification audience</h3><p class="mt-2 text-sm text-ink-400">Détection bots, géo, démographie automatisées.</p></div>
+        <div class="p-7"><div class="text-xs font-mono text-ink-500">06</div><h3 class="mt-3 font-semibold tracking-tight">API & webhooks</h3><p class="mt-2 text-sm text-ink-400">Intégrez vos outils internes en quelques lignes.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roles -->
+  <div class="border-t border-ink-800 bg-gradient-to-b from-ink-950 to-ink-900">
+    <div class="max-w-6xl mx-auto px-6 py-24">
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-ink-800 bg-ink-900 p-7 hover:border-ink-700 transition group">
+          <div class="text-xs font-mono text-accent-soft">/CREATEUR</div>
+          <h3 class="mt-3 text-2xl font-semibold tracking-tight">Gratuit</h3>
+          <p class="mt-2 text-sm text-ink-400">Reçois, signe, livre, sois payé.</p>
+          <div class="mt-6 pt-6 border-t border-ink-800 text-sm text-ink-300 space-y-1.5">
+            <div>→ Profil & media kit</div><div>→ Propositions illimitées</div><div>→ Paiements vérifiés</div>
+          </div>
+          <button class="mt-6 w-full h-10 rounded-md border border-ink-700 hover:bg-ink-800 transition text-sm font-medium">Créer un profil</button>
+        </div>
+        <div class="rounded-xl border border-accent/40 bg-ink-900 p-7 ring-accent relative">
+          <div class="absolute -top-2.5 left-7 px-2 py-0.5 rounded bg-accent text-white text-[10px] font-mono uppercase tracking-widest">populaire</div>
+          <div class="text-xs font-mono text-accent-soft">/MARQUE</div>
+          <h3 class="mt-3 text-2xl font-semibold tracking-tight">49 € <span class="text-ink-500 text-base font-normal">/ mois</span></h3>
+          <p class="mt-2 text-sm text-ink-400">Lance, gère, mesure tes campagnes.</p>
+          <div class="mt-6 pt-6 border-t border-ink-800 text-sm text-ink-300 space-y-1.5">
+            <div>→ Campagnes illimitées</div><div>→ Marketplace + IA matching</div><div>→ Analytics avancées</div>
+          </div>
+          <button class="mt-6 w-full h-10 rounded-md bg-white text-ink-950 hover:bg-ink-100 transition text-sm font-medium">Démarrer</button>
+        </div>
+        <div class="rounded-xl border border-ink-800 bg-ink-900 p-7 hover:border-ink-700 transition">
+          <div class="text-xs font-mono text-accent-soft">/AGENCE</div>
+          <h3 class="mt-3 text-2xl font-semibold tracking-tight">Custom</h3>
+          <p class="mt-2 text-sm text-ink-400">Roster, commissions, reporting.</p>
+          <div class="mt-6 pt-6 border-t border-ink-800 text-sm text-ink-300 space-y-1.5">
+            <div>→ Roster illimité</div><div>→ Commissions auto</div><div>→ Manager dédié</div>
+          </div>
+          <button class="mt-6 w-full h-10 rounded-md border border-ink-700 hover:bg-ink-800 transition text-sm font-medium">Contacter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="border-t border-ink-800 py-10">
+    <div class="max-w-6xl mx-auto px-6 flex justify-between text-sm text-ink-500">
+      <div>© 2026 InfluConnect</div>
+      <div class="flex gap-6"><a>Statut</a><a>Docs</a><a>Confidentialité</a><a>CGU</a></div>
+    </div>
+  </footer>
+</section>
+
+<!-- ============ APP SHELL — common pattern ============ -->
+<!-- Each role pane: dark sidebar, dense content -->
+
+<!-- ============ BRAND ============ -->
+<section data-pane="brand" class="pane hidden bg-ink-900 min-h-screen">
+  <div class="flex">
+    <aside class="w-56 shrink-0 bg-ink-950 border-r border-ink-800 min-h-screen p-3">
+      <div class="px-2 mb-6 flex items-center gap-2">
+        <div class="w-6 h-6 rounded-md bg-white text-ink-950 grid place-items-center font-bold text-xs">I</div>
+        <select class="bg-ink-900 border border-ink-800 rounded-md text-xs px-2 py-1 text-ink-200">
+          <option>L'Atelier Paris</option><option>+ Ajouter espace</option>
+        </select>
+      </div>
+      <div class="px-2 text-[10px] font-mono uppercase tracking-widest text-ink-500 mb-1">Workspace</div>
+      <nav class="text-sm space-y-px">
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md bg-ink-800 text-white font-medium">▦ Dashboard</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⚑ Campagnes <span class="ml-auto font-mono text-[10px] text-ink-500">12</span></a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">◇ Marketplace</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⌬ Castings</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✉ Messages <span class="ml-auto px-1.5 rounded-sm bg-accent text-white text-[10px] font-semibold">3</span></a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">★ Ambassadeurs</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✦ Évènements</a>
+      </nav>
+      <div class="px-2 mt-5 text-[10px] font-mono uppercase tracking-widest text-ink-500 mb-1">Account</div>
+      <nav class="text-sm space-y-px">
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⚙ Paramètres</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">◷ Abonnement</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">? Support</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 min-h-screen">
+      <!-- Top toolbar -->
+      <div class="h-12 border-b border-ink-800 bg-ink-950/60 backdrop-blur flex items-center justify-between px-6">
+        <div class="flex items-center gap-3 text-sm text-ink-400"><span class="text-ink-200">Dashboard</span><span class="text-ink-600">/</span><span>Vue d'ensemble</span></div>
+        <div class="flex items-center gap-2">
+          <div class="relative"><input class="h-8 w-64 bg-ink-900 border border-ink-800 rounded-md pl-8 pr-3 text-sm placeholder:text-ink-500" placeholder="Rechercher (⌘K)"/><span class="absolute left-2.5 top-1.5 text-ink-500 text-sm">⌕</span></div>
+          <button class="h-8 px-3 rounded-md bg-white text-ink-950 text-sm font-medium">＋ Campagne</button>
+        </div>
+      </div>
+
+      <div class="p-6">
+        <h1 class="text-2xl font-semibold tracking-tight mb-1">Vue d'ensemble</h1>
+        <p class="text-sm text-ink-400 mb-6">Dernière sync · il y a 2 min</p>
+
+        <!-- KPI grid -->
+        <div class="grid grid-cols-4 gap-3 mb-3">
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">campagnes</div><div class="num text-3xl mt-2 text-white">7</div><div class="text-xs text-emerald-400 mt-1 font-mono">+2</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">propositions</div><div class="num text-3xl mt-2 text-white">142</div><div class="text-xs text-emerald-400 mt-1 font-mono">+18%</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">spend (mtd)</div><div class="num text-3xl mt-2 text-white">12 480€</div><div class="text-xs text-ink-400 mt-1 font-mono">/40 000€</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">delivery</div><div class="num text-3xl mt-2 text-white">96%</div><div class="text-xs text-amber-400 mt-1 font-mono">↓ -1pt</div></div>
+        </div>
+
+        <!-- Chart -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 rounded-lg border border-ink-800 bg-ink-950 p-5">
+            <div class="flex items-center justify-between mb-4"><div class="font-semibold">Performance</div><div class="flex bg-ink-900 border border-ink-800 rounded-md text-xs"><button class="px-2.5 py-1 bg-ink-800 text-white">7d</button><button class="px-2.5 py-1 text-ink-400">30d</button><button class="px-2.5 py-1 text-ink-400">90d</button></div></div>
+            <svg viewBox="0 0 600 200" class="w-full h-48">
+              <defs><linearGradient id="ge1" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#7c5cff" stop-opacity="0.4"/><stop offset="100%" stop-color="#7c5cff" stop-opacity="0"/></linearGradient></defs>
+              <g stroke="#1f2125" stroke-width="1"><line x1="0" y1="50" x2="600" y2="50"/><line x1="0" y1="100" x2="600" y2="100"/><line x1="0" y1="150" x2="600" y2="150"/></g>
+              <path d="M0,140 L75,130 L150,110 L225,118 L300,80 L375,95 L450,60 L525,70 L600,30 L600,200 L0,200 Z" fill="url(#ge1)"/>
+              <path d="M0,140 L75,130 L150,110 L225,118 L300,80 L375,95 L450,60 L525,70 L600,30" stroke="#7c5cff" stroke-width="2" fill="none"/>
+              <path d="M0,160 L75,155 L150,150 L225,140 L300,135 L375,120 L450,115 L525,100 L600,90" stroke="#3a3d44" stroke-width="1.5" stroke-dasharray="4 4" fill="none"/>
+            </svg>
+            <div class="flex gap-4 text-xs text-ink-400 mt-2 font-mono"><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-accent rounded-sm"></span>Reach 2.4M</span><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-ink-500 rounded-sm"></span>Engagement 4.8%</span></div>
+          </div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-5">
+            <div class="font-semibold mb-4">Pipeline</div>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between"><span class="text-sm text-ink-300">Brouillons</span><span class="num text-sm">3</span></div><div class="h-1 bg-ink-900 rounded"><div class="h-full w-1/4 bg-ink-500 rounded"></div></div>
+              <div class="flex items-center justify-between mt-3"><span class="text-sm text-ink-300">En revue</span><span class="num text-sm">5</span></div><div class="h-1 bg-ink-900 rounded"><div class="h-full w-2/5 bg-amber-500 rounded"></div></div>
+              <div class="flex items-center justify-between mt-3"><span class="text-sm text-ink-300">Actives</span><span class="num text-sm">7</span></div><div class="h-1 bg-ink-900 rounded"><div class="h-full w-3/5 bg-accent rounded"></div></div>
+              <div class="flex items-center justify-between mt-3"><span class="text-sm text-ink-300">Livrées</span><span class="num text-sm">21</span></div><div class="h-1 bg-ink-900 rounded"><div class="h-full w-full bg-emerald-500 rounded"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="mt-3 rounded-lg border border-ink-800 bg-ink-950 overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-ink-800"><div class="font-semibold">Campagnes</div><div class="flex gap-2 text-xs"><button class="px-2 py-1 rounded-md bg-ink-800 text-white">Toutes</button><button class="px-2 py-1 rounded-md text-ink-400">Actives</button><button class="px-2 py-1 rounded-md text-ink-400">Brouillons</button></div></div>
+          <table class="w-full text-sm">
+            <thead><tr class="text-[10px] uppercase tracking-widest text-ink-500 font-mono"><th class="text-left px-5 py-2.5 font-medium">Nom</th><th class="text-left font-medium">Statut</th><th class="text-left font-medium">Créateurs</th><th class="text-left font-medium">Reach</th><th class="text-left font-medium">Budget</th><th class="text-left font-medium">Échéance</th></tr></thead>
+            <tbody class="divide-y divide-ink-800">
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="text-white">Collection Été 2026</div><div class="text-xs text-ink-500">cmp_8k2nd · IG, TT</div></td><td><span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">ACTIVE</span></td><td class="num text-ink-200">8/10</td><td class="num text-ink-200">1.2M</td><td class="num text-white">5 400€</td><td class="num text-ink-400">28/05</td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="text-white">Lancement parfum N°7</div><div class="text-xs text-ink-500">cmp_3p9rk · Reels</div></td><td><span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">REVIEW</span></td><td class="num text-ink-200">4/6</td><td class="num text-ink-200">680k</td><td class="num text-white">3 800€</td><td class="num text-ink-400">02/06</td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="text-white">Pop‑up store Marais</div><div class="text-xs text-ink-500">cmp_1xt0z · Stories</div></td><td><span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-ink-700 text-ink-300 border border-ink-700">DRAFT</span></td><td class="num text-ink-500">0/12</td><td class="num text-ink-500">—</td><td class="num text-white">2 200€</td><td class="num text-ink-500">—</td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="text-white">Saint-Valentin 2026</div><div class="text-xs text-ink-500">cmp_4qwlm · Posts</div></td><td><span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-ink-700 text-ink-300 border border-ink-700">DONE</span></td><td class="num text-ink-200">6/6</td><td class="num text-ink-200">540k</td><td class="num text-white">3 100€</td><td class="num text-ink-400">14/02</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ INFLUENCEUR ============ -->
+<section data-pane="influ" class="pane hidden bg-ink-900 min-h-screen">
+  <div class="flex">
+    <aside class="w-56 shrink-0 bg-ink-950 border-r border-ink-800 min-h-screen p-3">
+      <div class="px-2 mb-6 flex items-center gap-2"><div class="w-7 h-7 rounded-full bg-gradient-to-br from-pink-400 to-rose-500"></div><div class="leading-tight"><div class="text-sm font-medium">@lea.parisienne</div><div class="text-[10px] text-ink-500 font-mono">128k · IG/TT</div></div></div>
+      <div class="px-2 text-[10px] font-mono uppercase tracking-widest text-ink-500 mb-1">Workspace</div>
+      <nav class="text-sm space-y-px">
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md bg-ink-800 text-white font-medium">▦ Dashboard</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✉ Propositions <span class="ml-auto px-1.5 rounded bg-accent text-white text-[10px]">5</span></a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⌬ Castings</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">€ Revenus</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">◈ Media kit</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✦ Évènements</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✉ Messages</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⚐ Délégations</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 min-h-screen">
+      <div class="h-12 border-b border-ink-800 bg-ink-950/60 flex items-center justify-between px-6">
+        <div class="text-sm text-ink-400"><span class="text-ink-200">Dashboard</span></div>
+        <div class="flex items-center gap-2">
+          <button class="h-8 px-3 rounded-md border border-ink-800 text-sm">Voir profil public ↗</button>
+          <button class="h-8 px-3 rounded-md bg-white text-ink-950 text-sm font-medium">Mettre à jour stats</button>
+        </div>
+      </div>
+
+      <div class="p-6">
+        <h1 class="text-2xl font-semibold tracking-tight mb-1">Bonsoir, Léa.</h1>
+        <p class="text-sm text-ink-400 mb-6">5 propositions à traiter · 2 expirent dans &lt; 24h</p>
+
+        <!-- KPI -->
+        <div class="grid grid-cols-4 gap-3 mb-3">
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">revenus 2026</div><div class="num text-3xl mt-2 text-white">8 740€</div><div class="text-xs text-emerald-400 mt-1 font-mono">+24% YoY</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">campagnes</div><div class="num text-3xl mt-2 text-white">3</div><div class="text-xs text-ink-400 mt-1 font-mono">2 en livraison</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">propositions</div><div class="num text-3xl mt-2 text-white">5</div><div class="text-xs text-amber-400 mt-1 font-mono">2 urgent</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">rating</div><div class="num text-3xl mt-2 text-white">4.9</div><div class="text-xs text-ink-400 mt-1 font-mono">27 reviews</div></div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 rounded-lg border border-ink-800 bg-ink-950 p-5">
+            <div class="flex items-center justify-between mb-4"><div class="font-semibold">Revenus mensuels</div><span class="text-xs text-ink-500 font-mono">FY 2026</span></div>
+            <div class="flex items-end gap-2 h-44">
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-ink-800 rounded-sm" style="height:30%"></div><span class="text-[10px] text-ink-500 font-mono">JAN</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-ink-700 rounded-sm" style="height:50%"></div><span class="text-[10px] text-ink-500 font-mono">FEV</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-ink-600 rounded-sm" style="height:45%"></div><span class="text-[10px] text-ink-500 font-mono">MAR</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/60 rounded-sm" style="height:65%"></div><span class="text-[10px] text-ink-500 font-mono">AVR</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent rounded-sm" style="height:90%"></div><span class="text-[10px] text-white font-mono">MAI</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-ink-900 border border-dashed border-ink-700 rounded-sm" style="height:60%"></div><span class="text-[10px] text-ink-600 font-mono">JUI</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-ink-900 border border-dashed border-ink-700 rounded-sm" style="height:65%"></div><span class="text-[10px] text-ink-600 font-mono">JUL</span></div>
+            </div>
+          </div>
+          <div class="rounded-lg border border-accent/30 bg-gradient-to-br from-accent/10 to-ink-950 p-5">
+            <div class="text-[10px] uppercase tracking-widest text-accent-soft font-mono">prochain virement</div>
+            <div class="num text-4xl mt-2 text-white">1 240€</div>
+            <div class="text-sm text-ink-300 mt-1">prévu · 18/05</div>
+            <div class="mt-6 pt-4 border-t border-ink-800 text-xs text-ink-400 font-mono">IBAN •••• 4827 · vérifié</div>
+            <button class="mt-4 w-full h-9 rounded-md bg-white text-ink-950 text-sm font-medium">Détails du virement →</button>
+          </div>
+        </div>
+
+        <div class="mt-3 rounded-lg border border-ink-800 bg-ink-950">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-ink-800"><div class="font-semibold">Propositions à traiter</div><a class="text-xs text-accent-soft font-mono">VOIR_TOUT →</a></div>
+          <div class="divide-y divide-ink-800">
+            <div class="px-5 py-4 flex items-center gap-4"><div class="w-9 h-9 rounded-md bg-gradient-to-br from-pink-400 to-rose-500"></div><div class="flex-1"><div class="text-white font-medium">Sézane — Collection Été</div><div class="text-xs text-ink-500 font-mono">prop_a8nq · 2 reels + 4 stories</div></div><div class="text-right"><div class="num text-white font-medium">850€</div><div class="text-xs text-amber-400 font-mono">EXPIRE 23h</div></div><div class="flex gap-2 ml-4"><button class="h-8 px-3 rounded-md border border-ink-800 text-xs">Refuser</button><button class="h-8 px-3 rounded-md bg-white text-ink-950 text-xs font-medium">Accepter</button></div></div>
+            <div class="px-5 py-4 flex items-center gap-4"><div class="w-9 h-9 rounded-md bg-gradient-to-br from-amber-400 to-orange-500"></div><div class="flex-1"><div class="text-white font-medium">Le Slip Français</div><div class="text-xs text-ink-500 font-mono">prop_b3kp · ambassadeur 6 mois</div></div><div class="text-right"><div class="num text-white font-medium">3 600€</div><div class="text-xs text-ink-500 font-mono">6 mois</div></div><div class="flex gap-2 ml-4"><button class="h-8 px-3 rounded-md border border-ink-800 text-xs">Refuser</button><button class="h-8 px-3 rounded-md bg-white text-ink-950 text-xs font-medium">Accepter</button></div></div>
+            <div class="px-5 py-4 flex items-center gap-4"><div class="w-9 h-9 rounded-md bg-gradient-to-br from-emerald-400 to-teal-500"></div><div class="flex-1"><div class="text-white font-medium">Respire — Lancement déo</div><div class="text-xs text-ink-500 font-mono">prop_c1vz · 1 reel produit</div></div><div class="text-right"><div class="num text-white font-medium">420€</div><div class="text-xs text-ink-500 font-mono">3j</div></div><div class="flex gap-2 ml-4"><button class="h-8 px-3 rounded-md border border-ink-800 text-xs">Refuser</button><button class="h-8 px-3 rounded-md bg-white text-ink-950 text-xs font-medium">Accepter</button></div></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ ADMIN ============ -->
+<section data-pane="admin" class="pane hidden bg-ink-900 min-h-screen">
+  <div class="flex">
+    <aside class="w-56 shrink-0 bg-ink-950 border-r border-ink-800 min-h-screen p-3">
+      <div class="px-2 mb-6 flex items-center gap-2"><div class="w-6 h-6 rounded-md bg-red-500/20 border border-red-500/30 grid place-items-center text-red-400 text-xs font-bold">A</div><span class="font-semibold tracking-tight text-sm">Admin Console</span></div>
+      <div class="px-2 text-[10px] font-mono uppercase tracking-widest text-ink-500 mb-1">Pilotage</div>
+      <nav class="text-sm space-y-px">
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md bg-ink-800 text-white font-medium">▦ Vue d'ensemble</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⌂ Entreprises</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⌬ Marques</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">☺ Utilisateurs</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">★ Avis</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">◷ Audit log</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">? Support <span class="ml-auto px-1.5 rounded bg-amber-500 text-white text-[10px]">7</span></a>
+      </nav>
+    </aside>
+
+    <main class="flex-1">
+      <div class="h-12 border-b border-ink-800 bg-ink-950/60 flex items-center justify-between px-6">
+        <div class="text-sm text-ink-400"><span class="text-ink-200">Admin</span><span class="text-ink-600 mx-2">/</span>Vue d'ensemble</div>
+        <div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">SYSTÈME OK</span><span class="text-xs text-ink-500 font-mono">build 3.0.42</span></div>
+      </div>
+
+      <div class="p-6">
+        <h1 class="text-2xl font-semibold tracking-tight mb-1">Plateforme</h1>
+        <p class="text-sm text-ink-400 mb-6">Données live · refresh 30s</p>
+
+        <div class="grid grid-cols-4 gap-3 mb-3">
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">utilisateurs</div><div class="num text-3xl mt-2 text-white">3 259</div><div class="text-xs text-emerald-400 mt-1 font-mono">+128 (30j)</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">revenu</div><div class="num text-3xl mt-2 text-white">48 920€</div><div class="text-xs text-emerald-400 mt-1 font-mono">+12.4%</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">kyc en attente</div><div class="num text-3xl mt-2 text-white">14</div><div class="text-xs text-amber-400 mt-1 font-mono">2 &gt; 48h</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">tickets ouverts</div><div class="num text-3xl mt-2 text-white">7</div><div class="text-xs text-red-400 mt-1 font-mono">3 priority</div></div>
+        </div>
+
+        <!-- Moderation queue -->
+        <div class="rounded-lg border border-ink-800 bg-ink-950 mb-3">
+          <div class="px-5 py-3 border-b border-ink-800 flex items-center justify-between"><div class="font-semibold">File de modération · Marques</div><div class="flex gap-2"><button class="h-8 px-3 rounded-md border border-ink-800 text-xs">Filtrer</button><button class="h-8 px-3 rounded-md bg-white text-ink-950 text-xs font-medium">Examiner ▶</button></div></div>
+          <table class="w-full text-sm">
+            <thead><tr class="text-[10px] uppercase tracking-widest text-ink-500 font-mono"><th class="text-left px-5 py-2.5 font-medium">Marque</th><th class="text-left font-medium">SIRET</th><th class="text-left font-medium">Plan</th><th class="text-left font-medium">Score</th><th class="text-left font-medium">Reçu</th><th></th></tr></thead>
+            <tbody class="divide-y divide-ink-800">
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3 text-white">Maison Lurel</td><td class="num text-ink-300">812 456 789 00012</td><td><span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-violet-500/10 text-violet-300 border border-violet-500/20">PRO</span></td><td class="num text-emerald-400">94</td><td class="text-ink-400 font-mono text-xs">2j</td><td class="text-right pr-5"><button class="h-7 px-2.5 rounded bg-emerald-500/10 text-emerald-400 text-xs font-mono mr-1">APPROVE</button><button class="h-7 px-2.5 rounded bg-red-500/10 text-red-400 text-xs font-mono">REJECT</button></td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3 text-white">Studio Bleu Marine</td><td class="num text-ink-300">901 234 567 00033</td><td><span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-300 border border-blue-500/20">GROWTH</span></td><td class="num text-emerald-400">88</td><td class="text-ink-400 font-mono text-xs">1j</td><td class="text-right pr-5"><button class="h-7 px-2.5 rounded bg-emerald-500/10 text-emerald-400 text-xs font-mono mr-1">APPROVE</button><button class="h-7 px-2.5 rounded bg-red-500/10 text-red-400 text-xs font-mono">REJECT</button></td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3 text-white">Café & Co</td><td class="num text-ink-300">543 210 987 00021</td><td><span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-ink-700 text-ink-300 border border-ink-700">STARTER</span></td><td class="num text-amber-400">62</td><td class="text-ink-400 font-mono text-xs">4h</td><td class="text-right pr-5"><button class="h-7 px-2.5 rounded bg-emerald-500/10 text-emerald-400 text-xs font-mono mr-1">APPROVE</button><button class="h-7 px-2.5 rounded bg-red-500/10 text-red-400 text-xs font-mono">REJECT</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 rounded-lg border border-ink-800 bg-ink-950 p-5">
+            <div class="font-semibold mb-4">Croissance utilisateurs</div>
+            <svg viewBox="0 0 600 180" class="w-full h-44">
+              <defs><linearGradient id="ge2" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#10b981" stop-opacity="0.4"/><stop offset="100%" stop-color="#10b981" stop-opacity="0"/></linearGradient></defs>
+              <g stroke="#1f2125"><line x1="0" y1="45" x2="600" y2="45"/><line x1="0" y1="90" x2="600" y2="90"/><line x1="0" y1="135" x2="600" y2="135"/></g>
+              <path d="M0,150 L60,140 L120,130 L180,115 L240,105 L300,90 L360,75 L420,60 L480,50 L540,30 L600,20 L600,180 L0,180 Z" fill="url(#ge2)"/>
+              <path d="M0,150 L60,140 L120,130 L180,115 L240,105 L300,90 L360,75 L420,60 L480,50 L540,30 L600,20" stroke="#10b981" stroke-width="2" fill="none"/>
+            </svg>
+          </div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-5">
+            <div class="font-semibold mb-4">Activité système</div>
+            <ul class="space-y-3 text-sm">
+              <li class="flex gap-3"><span class="font-mono text-[10px] text-ink-500 mt-0.5 w-12">14:32</span><div class="flex-1"><div class="text-ink-100">15 marques validées</div></div><span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">OK</span></li>
+              <li class="flex gap-3"><span class="font-mono text-[10px] text-ink-500 mt-0.5 w-12">12:08</span><div class="flex-1"><div class="text-ink-100">2 348€ versés escrow</div></div><span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 text-[10px] font-mono">€</span></li>
+              <li class="flex gap-3"><span class="font-mono text-[10px] text-ink-500 mt-0.5 w-12">09:45</span><div class="flex-1"><div class="text-ink-100">3 signalements</div></div><span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-mono">WARN</span></li>
+              <li class="flex gap-3"><span class="font-mono text-[10px] text-ink-500 mt-0.5 w-12">hier</span><div class="flex-1"><div class="text-ink-100">Anomalie paiement</div></div><span class="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 text-[10px] font-mono">ERR</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ AGENCE ============ -->
+<section data-pane="agency" class="pane hidden bg-ink-900 min-h-screen">
+  <div class="flex">
+    <aside class="w-56 shrink-0 bg-ink-950 border-r border-ink-800 min-h-screen p-3">
+      <div class="px-2 mb-6 flex items-center gap-2"><div class="w-6 h-6 rounded-md bg-accent grid place-items-center text-white font-bold text-xs">S</div><div class="leading-tight"><div class="font-semibold tracking-tight text-sm">Studio Atlas</div><div class="text-[10px] text-ink-500 font-mono">24 talents</div></div></div>
+      <div class="px-2 text-[10px] font-mono uppercase tracking-widest text-ink-500 mb-1">Workspace</div>
+      <nav class="text-sm space-y-px">
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md bg-ink-800 text-white font-medium">▦ Dashboard</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">☺ Talents <span class="ml-auto font-mono text-[10px] text-ink-500">24</span></a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">⚐ Délégations</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">€ Commissions</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">✉ Messagerie</a>
+        <a class="flex items-center gap-2 px-2 h-8 rounded-md text-ink-300 hover:bg-ink-800">▤ Rapports</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1">
+      <div class="h-12 border-b border-ink-800 bg-ink-950/60 flex items-center justify-between px-6">
+        <div class="text-sm text-ink-400"><span class="text-ink-200">Agence</span><span class="text-ink-600 mx-2">/</span>Dashboard</div>
+        <button class="h-8 px-3 rounded-md bg-white text-ink-950 text-sm font-medium">＋ Inviter talent</button>
+      </div>
+
+      <div class="p-6">
+        <h1 class="text-2xl font-semibold tracking-tight mb-1">Studio Atlas</h1>
+        <p class="text-sm text-ink-400 mb-6">24 talents actifs · 17 campagnes en cours</p>
+
+        <div class="grid grid-cols-4 gap-3 mb-3">
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">roster</div><div class="num text-3xl mt-2 text-white">24</div><div class="text-xs text-emerald-400 mt-1 font-mono">+3</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">ca brut</div><div class="num text-3xl mt-2 text-white">62 480€</div><div class="text-xs text-emerald-400 mt-1 font-mono">+18%</div></div>
+          <div class="rounded-lg border border-accent/30 bg-gradient-to-br from-accent/10 to-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-accent-soft font-mono">commission</div><div class="num text-3xl mt-2 text-white">9 372€</div><div class="text-xs text-ink-300 mt-1 font-mono">15% moyen</div></div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-4"><div class="text-[10px] uppercase tracking-widest text-ink-500 font-mono">campagnes</div><div class="num text-3xl mt-2 text-white">17</div><div class="text-xs text-ink-400 mt-1 font-mono">8 marques</div></div>
+        </div>
+
+        <!-- Roster -->
+        <div class="rounded-lg border border-ink-800 bg-ink-950 mb-3">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-ink-800"><div class="font-semibold">Roster · Top performers (30j)</div><div class="flex gap-2 text-xs"><button class="h-7 px-2.5 rounded-md bg-ink-800 text-white">Tous</button><button class="h-7 px-2.5 rounded-md text-ink-400">Actifs</button><button class="h-7 px-2.5 rounded-md text-ink-400">Inactifs</button></div></div>
+          <table class="w-full text-sm">
+            <thead><tr class="text-[10px] uppercase tracking-widest text-ink-500 font-mono"><th class="text-left px-5 py-2.5 font-medium">Talent</th><th class="text-left font-medium">Followers</th><th class="text-left font-medium">Engagement</th><th class="text-left font-medium">Campagnes</th><th class="text-left font-medium">CA brut</th><th class="text-right pr-5 font-medium">Commission</th></tr></thead>
+            <tbody class="divide-y divide-ink-800">
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-rose-500"></div><div><div class="text-white">@lea.parisienne</div><div class="text-[10px] text-ink-500 font-mono">FASHION · LIFESTYLE</div></div></div></td><td class="num text-ink-200">128k</td><td class="num text-emerald-400">5.2%</td><td class="num text-ink-200">5</td><td class="num text-white">8 240€</td><td class="text-right pr-5 num text-white font-medium">1 240€</td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500"></div><div><div class="text-white">@thomas.cooks</div><div class="text-[10px] text-ink-500 font-mono">FOOD</div></div></div></td><td class="num text-ink-200">86k</td><td class="num text-emerald-400">6.8%</td><td class="num text-ink-200">4</td><td class="num text-white">6 530€</td><td class="text-right pr-5 num text-white font-medium">980€</td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500"></div><div><div class="text-white">@maya.travel</div><div class="text-[10px] text-ink-500 font-mono">TRAVEL</div></div></div></td><td class="num text-ink-200">214k</td><td class="num text-amber-400">3.9%</td><td class="num text-ink-200">3</td><td class="num text-white">5 830€</td><td class="text-right pr-5 num text-white font-medium">875€</td></tr>
+              <tr class="hover:bg-ink-900/50"><td class="px-5 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500"></div><div><div class="text-white">@nicolas.fit</div><div class="text-[10px] text-ink-500 font-mono">SPORT</div></div></div></td><td class="num text-ink-200">52k</td><td class="num text-emerald-400">7.1%</td><td class="num text-ink-200">3</td><td class="num text-white">4 130€</td><td class="text-right pr-5 num text-white font-medium">620€</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 rounded-lg border border-ink-800 bg-ink-950 p-5">
+            <div class="flex items-center justify-between mb-4"><div class="font-semibold">Commissions encaissées</div><div class="text-right"><div class="num text-xl text-white">112 480€</div><div class="text-[10px] text-emerald-400 font-mono">+22% YOY</div></div></div>
+            <div class="flex items-end gap-1.5 h-40">
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/30 rounded-sm" style="height:35%"></div><span class="text-[10px] text-ink-500 font-mono">J</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/40 rounded-sm" style="height:42%"></div><span class="text-[10px] text-ink-500 font-mono">F</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/50 rounded-sm" style="height:55%"></div><span class="text-[10px] text-ink-500 font-mono">M</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/50 rounded-sm" style="height:50%"></div><span class="text-[10px] text-ink-500 font-mono">A</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/60 rounded-sm" style="height:65%"></div><span class="text-[10px] text-ink-500 font-mono">M</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/60 rounded-sm" style="height:60%"></div><span class="text-[10px] text-ink-500 font-mono">J</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/70 rounded-sm" style="height:70%"></div><span class="text-[10px] text-ink-500 font-mono">J</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/70 rounded-sm" style="height:78%"></div><span class="text-[10px] text-ink-500 font-mono">A</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/80 rounded-sm" style="height:72%"></div><span class="text-[10px] text-ink-500 font-mono">S</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent/80 rounded-sm" style="height:80%"></div><span class="text-[10px] text-ink-500 font-mono">O</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent rounded-sm" style="height:88%"></div><span class="text-[10px] text-ink-500 font-mono">N</span></div>
+              <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-accent rounded-sm" style="height:96%"></div><span class="text-[10px] text-white font-mono">D</span></div>
+            </div>
+          </div>
+          <div class="rounded-lg border border-ink-800 bg-ink-950 p-5">
+            <div class="font-semibold mb-4">Invitations</div>
+            <div class="space-y-2">
+              <div class="p-3 rounded-md border border-ink-800 bg-ink-900"><div class="text-sm text-white">@julie.makeup</div><div class="text-[10px] font-mono text-ink-500 mt-0.5">SENT 3D · COM 18%</div></div>
+              <div class="p-3 rounded-md border border-ink-800 bg-ink-900"><div class="text-sm text-white">@chef_arthur</div><div class="text-[10px] font-mono text-ink-500 mt-0.5">SENT 1D · COM 15%</div></div>
+              <div class="p-3 rounded-md border border-ink-800 bg-ink-900"><div class="text-sm text-white">@petitsmoments</div><div class="text-[10px] font-mono text-ink-500 mt-0.5">SENT YESTERDAY · COM 20%</div></div>
+            </div>
+            <button class="mt-4 w-full h-9 rounded-md border border-dashed border-ink-700 text-sm text-ink-300 hover:bg-ink-900">＋ Nouvelle invitation</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const panes = document.querySelectorAll('.pane');
+  function activate(name){
+    panes.forEach(p => p.classList.toggle('hidden', p.dataset.pane !== name));
+    tabs.forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle('bg-white', on);
+      t.classList.toggle('text-ink-950', on);
+      t.classList.toggle('text-ink-300', !on);
+      t.classList.toggle('hover:bg-ink-800', !on);
+    });
+    window.scrollTo({top:0});
+  }
+  tabs.forEach(t => t.addEventListener('click', ()=>activate(t.dataset.tab)));
+  activate('landing');
+</script>
+
+</body>
+</html>

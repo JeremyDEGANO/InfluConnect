@@ -27,20 +27,21 @@ export default function Contracts() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <p className="text-sm text-aurora-ink-3">{t("common.workspace", "Espace de travail")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5 flex items-center gap-2">
           <FileText className="h-6 w-6 text-indigo-500" />
           {t("contracts_list.title")}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">{t("contracts_list.subtitle")}</p>
+        <p className="text-sm text-aurora-ink-3 mt-1">{t("contracts_list.subtitle")}</p>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400">
+        <div className="flex items-center justify-center py-20 text-aurora-ink-3">
           <Loader2 className="h-6 w-6 animate-spin mr-2" />{t("contracts_list.loading")}
         </div>
       ) : items.length === 0 ? (
         <Card className="card-base">
-          <CardContent className="py-16 text-center text-gray-400">{t("contracts_list.empty")}</CardContent>
+          <CardContent className="py-16 text-center text-aurora-ink-3">{t("contracts_list.empty")}</CardContent>
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
@@ -57,12 +58,12 @@ export default function Contracts() {
                       <Badge variant="warning" className="flex items-center gap-1"><Clock className="h-3 w-3" />{t("contracts_list.pending")}</Badge>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-aurora-ink-3">
                     {isBrand ? c.influencer_name : c.brand_company_name}
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="text-xs text-gray-500 space-y-1">
+                  <div className="text-xs text-aurora-ink-3 space-y-1">
                     <p>
                       <span className="font-medium">{t("contracts_list.brand_signed")}:</span>{" "}
                       {c.brand_signed_at ? new Date(c.brand_signed_at).toLocaleDateString(i18n.language) : "—"}
@@ -71,7 +72,7 @@ export default function Contracts() {
                       <span className="font-medium">{t("contracts_list.influencer_signed")}:</span>{" "}
                       {c.influencer_signed_at ? new Date(c.influencer_signed_at).toLocaleDateString(i18n.language) : "—"}
                     </p>
-                    <p className="text-gray-400">v{c.contract_version}</p>
+                    <p className="text-aurora-ink-3">v{c.contract_version}</p>
                   </div>
                   <div className="flex gap-2">
                     {c.contract_pdf && (

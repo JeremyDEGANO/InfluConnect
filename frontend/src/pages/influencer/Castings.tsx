@@ -62,16 +62,17 @@ export default function Castings() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <p className="text-sm text-aurora-ink-3">{t("influencer_dashboard.eyebrow", "Espace créateur")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5 flex items-center gap-2">
           <Megaphone className="h-6 w-6 text-indigo-500" />{t("castings_influencer.title")}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">{t("castings_influencer.subtitle")}</p>
+        <p className="text-sm text-aurora-ink-3 mt-1">{t("castings_influencer.subtitle")}</p>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("castings_influencer.loading")}</div>
+        <div className="flex items-center justify-center py-20 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("castings_influencer.loading")}</div>
       ) : items.length === 0 ? (
-        <Card className="card-base"><CardContent className="py-16 text-center text-gray-400">{t("castings_influencer.empty")}</CardContent></Card>
+        <Card className="card-base"><CardContent className="py-16 text-center text-aurora-ink-3">{t("castings_influencer.empty")}</CardContent></Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {items.map((c) => {
@@ -88,18 +89,18 @@ export default function Castings() {
                       <a href={`/influencer/brands/${c.brand}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 min-w-0 group cursor-pointer">
                         <Avatar className="h-6 w-6">
                           <AvatarImage src={resolveMediaUrl(c.brand_logo)} alt={c.brand_name} />
-                          <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-[10px] font-semibold">
+                          <AvatarFallback className="bg-aurora-ink text-white text-[10px] font-semibold">
                             {(c.brand_name || "??").slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <p className="text-xs text-gray-500 truncate group-hover:text-indigo-600 transition-colors">{c.brand_name}</p>
+                        <p className="text-xs text-aurora-ink-3 truncate group-hover:text-aurora-blue transition-colors">{c.brand_name}</p>
                       </a>
                     </BrandHoverCard>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm text-gray-600 line-clamp-3">{c.description}</p>
-                  <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                  <p className="text-sm text-aurora-ink-2 line-clamp-3">{c.description}</p>
+                  <div className="flex flex-wrap gap-3 text-xs text-aurora-ink-3">
                     {c.price_per_influencer && <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" />€{c.price_per_influencer}</span>}
                     {c.deadline && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(c.deadline).toLocaleDateString(i18n.language)}</span>}
                   </div>
@@ -118,9 +119,9 @@ export default function Castings() {
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
-                        <DialogHeader><DialogTitle>{t("castings_influencer.apply_to")} « {c.title} »</DialogTitle></DialogHeader>
+                        <DialogHeader><DialogTitle>{t("castings_influencer.apply_to")} Â« {c.title} Â»</DialogTitle></DialogHeader>
                         <div className="space-y-2">
-                          <p className="text-sm text-gray-600">{t("castings_influencer.intro")}</p>
+                          <p className="text-sm text-aurora-ink-2">{t("castings_influencer.intro")}</p>
                           <textarea
                             className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             placeholder={t("castings_influencer.placeholder")}

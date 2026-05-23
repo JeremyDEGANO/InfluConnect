@@ -176,10 +176,11 @@ export default function SecuritySettings() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <p className="text-sm text-aurora-ink-3">{t("common.account", "Compte")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5 flex items-center gap-2">
           <Shield className="h-6 w-6 text-indigo-500" /> {t("security.title")}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">{t("security.subtitle")}</p>
+        <p className="text-sm text-aurora-ink-3 mt-1">{t("security.subtitle")}</p>
       </div>
 
       <Card className="card-base">
@@ -195,21 +196,21 @@ export default function SecuritySettings() {
             <button
               type="button"
               onClick={() => { setSelectedMode("none"); setSetup(null); setCode("") }}
-              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "none" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-gray-200 hover:bg-gray-50"}`}
+              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "none" ? "border-indigo-300 bg-indigo-50 text-aurora-blue-deep" : "border-aurora-line hover:bg-aurora-surface"}`}
             >
               {t("security.method_none")}
             </button>
             <button
               type="button"
               onClick={() => { setSelectedMode("email"); setSetup(null); setCode("") }}
-              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "email" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-gray-200 hover:bg-gray-50"}`}
+              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "email" ? "border-indigo-300 bg-indigo-50 text-aurora-blue-deep" : "border-aurora-line hover:bg-aurora-surface"}`}
             >
               {t("security.method_email")}
             </button>
             <button
               type="button"
               onClick={() => setSelectedMode("totp")}
-              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "totp" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-gray-200 hover:bg-gray-50"}`}
+              className={`rounded-md border px-3 py-2 text-sm text-left transition ${selectedMode === "totp" ? "border-indigo-300 bg-indigo-50 text-aurora-blue-deep" : "border-aurora-line hover:bg-aurora-surface"}`}
             >
               {t("security.method_totp")}
             </button>
@@ -222,7 +223,7 @@ export default function SecuritySettings() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
-                {selectedMode === "none" ? <ShieldOff className="h-5 w-5 text-gray-400" /> : <ShieldCheck className="h-5 w-5 text-emerald-500" />}
+                {selectedMode === "none" ? <ShieldOff className="h-5 w-5 text-aurora-ink-3" /> : <ShieldCheck className="h-5 w-5 text-emerald-500" />}
                 {selectedMode === "totp" ? t("security.totp_title") : selectedMode === "email" ? t("security.email_title") : t("security.method_none")}
               </CardTitle>
               <CardDescription>
@@ -244,7 +245,7 @@ export default function SecuritySettings() {
 
           {selectedMode === "email" && emailEnabled && (
             <div className="space-y-3 border-t pt-4">
-              <p className="text-sm text-gray-600">{t("security.email_disable_desc")}</p>
+              <p className="text-sm text-aurora-ink-2">{t("security.email_disable_desc")}</p>
               <div>
                 <Label htmlFor="email-disable-pw">{t("security.current_password")}</Label>
                 <Input id="email-disable-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 max-w-sm" />
@@ -265,17 +266,17 @@ export default function SecuritySettings() {
 
           {selectedMode === "totp" && !totpEnabled && setup && (
             <div className="space-y-4">
-              <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+              <ol className="list-decimal list-inside text-sm text-aurora-ink-2 space-y-1">
                 <li>{t("security.step_install")}</li>
                 <li>{t("security.step_scan")}</li>
                 <li>{t("security.step_confirm")}</li>
               </ol>
-              <div className="flex flex-col sm:flex-row gap-4 items-center bg-gray-50 rounded-lg p-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-center bg-aurora-surface rounded-lg p-4">
                 <img src={setup.qr_png_base64} alt="QR code" className="h-44 w-44 bg-white rounded border" />
                 <div className="flex-1 space-y-2 w-full">
                   <Label>{t("security.manual_key")}</Label>
                   <code className="block text-xs font-mono break-all bg-white border rounded px-2 py-1.5">{setup.secret}</code>
-                  <p className="text-[11px] text-gray-500">{t("security.manual_key_hint")}</p>
+                  <p className="text-[11px] text-aurora-ink-3">{t("security.manual_key_hint")}</p>
                 </div>
               </div>
               <div>
@@ -305,7 +306,7 @@ export default function SecuritySettings() {
 
           {selectedMode === "totp" && totpEnabled && (
             <div className="space-y-3 border-t pt-4">
-              <p className="text-sm text-gray-600">{t("security.disable_desc")}</p>
+              <p className="text-sm text-aurora-ink-2">{t("security.disable_desc")}</p>
               <div>
                 <Label htmlFor="pw">{t("security.current_password")}</Label>
                 <Input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 max-w-sm" />
@@ -332,7 +333,7 @@ export default function SecuritySettings() {
 
           {selectedMode === "none" && activeMode === "email" && (
             <div className="space-y-3 border-t pt-4">
-              <p className="text-sm text-gray-600">{t("security.email_disable_desc")}</p>
+              <p className="text-sm text-aurora-ink-2">{t("security.email_disable_desc")}</p>
               <div>
                 <Label htmlFor="none-disable-email-pw">{t("security.current_password")}</Label>
                 <Input id="none-disable-email-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 max-w-sm" />
@@ -346,7 +347,7 @@ export default function SecuritySettings() {
 
           {selectedMode === "none" && activeMode === "totp" && (
             <div className="space-y-3 border-t pt-4">
-              <p className="text-sm text-gray-600">{t("security.disable_desc")}</p>
+              <p className="text-sm text-aurora-ink-2">{t("security.disable_desc")}</p>
               <div>
                 <Label htmlFor="none-disable-totp-pw">{t("security.current_password")}</Label>
                 <Input id="none-disable-totp-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 max-w-sm" />

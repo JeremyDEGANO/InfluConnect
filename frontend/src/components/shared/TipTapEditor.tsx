@@ -33,7 +33,7 @@ export default function TipTapEditor({ value, onChange, placeholder, minHeight =
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Link.configure({ openOnClick: false, HTMLAttributes: { class: "text-indigo-600 underline" } }),
+      Link.configure({ openOnClick: false, HTMLAttributes: { class: "text-aurora-blue underline" } }),
       Placeholder.configure({ placeholder: placeholder || "" }),
     ],
     content: value || "",
@@ -73,7 +73,7 @@ export default function TipTapEditor({ value, onChange, placeholder, minHeight =
 
   return (
     <div className="border rounded-md overflow-hidden bg-white">
-      <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1 bg-gray-50">
+      <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1 bg-aurora-surface">
         <ToolbarBtn editor={editor} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold"><Bold className="h-4 w-4" /></ToolbarBtn>
         <ToolbarBtn editor={editor} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic"><Italic className="h-4 w-4" /></ToolbarBtn>
         <div className="w-px h-5 bg-gray-200 mx-1" />

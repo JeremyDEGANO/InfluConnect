@@ -41,32 +41,33 @@ export default function AdminReviews() {
     finally { setBusy(null) }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("admin_reviews.title", "Modération des avis")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("admin_page.eyebrow", "Administration")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("admin_reviews.title", "Modération des avis")}</h1>
       <Card className="card-base">
         <CardHeader><CardTitle>{t("admin_reviews.pending", "En attente")} ({items.length})</CardTitle></CardHeader>
         <CardContent>
-          {items.length === 0 ? <p className="text-sm text-gray-400 text-center py-8">{t("admin_reviews.empty", "Aucun avis à modérer")}</p> : (
+          {items.length === 0 ? <p className="text-sm text-aurora-ink-3 text-center py-8">{t("admin_reviews.empty", "Aucun avis à modérer")}</p> : (
             <div className="space-y-3">
               {items.map((r) => (
-                <div key={r.id} className="border border-gray-100 rounded-xl p-4">
+                <div key={r.id} className="border border-aurora-line rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900">{r.reviewer_name}</span>
-                      <span className="text-gray-400 text-sm">→</span>
-                      <span className="text-gray-700 text-sm">{r.reviewee_name}</span>
+                      <span className="font-semibold text-aurora-ink">{r.reviewer_name}</span>
+                      <span className="text-aurora-ink-3 text-sm">â†’</span>
+                      <span className="text-aurora-ink-2 text-sm">{r.reviewee_name}</span>
                     </div>
                     <div className="flex items-center gap-1 text-amber-500">
                       {[1, 2, 3, 4, 5].map((i) => <Star key={i} className={`h-4 w-4 ${i <= r.rating ? "fill-current" : "text-gray-200"}`} />)}
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">{r.comment}</p>
+                  <p className="text-sm text-aurora-ink-2 mb-2">{r.comment}</p>
                   {r.criteria_ratings && Object.keys(r.criteria_ratings).length > 0 && (
-                    <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-3">
-                      {Object.entries(r.criteria_ratings).map(([k, v]) => <span key={k} className="bg-gray-50 px-2 py-1 rounded">{k}: {v}/5</span>)}
+                    <div className="flex flex-wrap gap-2 text-xs text-aurora-ink-3 mb-3">
+                      {Object.entries(r.criteria_ratings).map(([k, v]) => <span key={k} className="bg-aurora-surface px-2 py-1 rounded">{k}: {v}/5</span>)}
                     </div>
                   )}
                   <div className="flex gap-2">

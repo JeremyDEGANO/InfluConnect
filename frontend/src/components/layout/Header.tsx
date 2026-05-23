@@ -23,20 +23,26 @@ export function Header() {
   const brandApproved = user?.user_type !== "brand" || ((user?.brand_profile as { validation_status?: string } | undefined)?.validation_status === "approved")
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100/80">
-      <div className="container max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2.5 font-bold text-xl group">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white text-xs font-black shadow-sm shadow-indigo-500/20">IC</div>
-          <span className="text-gray-900 tracking-tight">InfluConnect</span>
+    <header className="sticky top-0 z-50 glass border-b border-aurora-line">
+      <div className="container max-w-7xl mx-auto px-5 h-14 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <img
+            src="/brand-logo-square.svg"
+            alt="InfluConnect"
+            className="h-7 w-7 rounded-[8px] shadow-soft object-cover"
+          />
+          <span className="text-aurora-ink font-semibold text-[15px] tracking-tight">InfluConnect</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
+        <nav className="hidden md:flex items-center gap-1 text-[13px] font-medium">
           {!isAuthenticated && (
             <>
-              <a href="#features" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.features")}</a>
-              <a href="#how-it-works" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.how_it_works")}</a>
-              <a href="#pricing" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.pricing")}</a>
-              <Link to="/pricing" className="px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all">{t("nav.compare")}</Link>
+              <Link to="/#features" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.features")}</Link>
+              <Link to="/#how-it-works" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.how_it_works")}</Link>
+              <Link to="/pricing/brands" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.pricing")}</Link>
+              <Link to="/compare" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.compare")}</Link>
+              <Link to="/about" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.about", "À propos")}</Link>
+              <Link to="/contact" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.contact", "Contact")}</Link>
             </>
           )}
         </nav>
@@ -49,18 +55,18 @@ export function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2">
-                    <Avatar className="h-9 w-9">
+                    <Avatar className="h-8 w-8 ring-2 ring-aurora-line hover:ring-aurora-blue/30 transition-all">
                       <AvatarImage src={resolveMediaUrl(user?.avatar)} alt={user?.first_name || "Avatar"} />
-                      <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-semibold">
+                      <AvatarFallback className="bg-aurora-ink text-white text-xs font-semibold">
                         {(user?.first_name?.[0] ?? "") + (user?.last_name?.[0] ?? "")}
                       </AvatarFallback>
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-lg border-gray-100">
-                  <DropdownMenuLabel>
-                    <p className="font-semibold">{user?.first_name} {user?.last_name}</p>
-                    <p className="text-xs text-gray-500 font-normal">{user?.email}</p>
+                <DropdownMenuContent align="end" className="w-52 rounded-2xl shadow-soft-lg border-aurora-line p-1.5">
+                  <DropdownMenuLabel className="px-3 py-2.5">
+                    <p className="font-semibold text-aurora-ink text-sm">{user?.first_name} {user?.last_name}</p>
+                    <p className="text-xs text-aurora-ink-3 font-normal mt-0.5 truncate">{user?.email}</p>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {brandApproved ? (
@@ -93,7 +99,7 @@ export function Header() {
               </DropdownMenu>
             </>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Button variant="ghost" size="sm" asChild><Link to="/login">{t("nav.login")}</Link></Button>
               <Button variant="gradient" size="sm" asChild><Link to="/register">{t("nav.register")}</Link></Button>
             </div>

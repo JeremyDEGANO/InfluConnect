@@ -75,7 +75,7 @@ export function NotificationBell() {
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unread > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs flex items-center justify-center font-semibold">
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-aurora-blue text-white text-xs flex items-center justify-center font-semibold">
               {unread > 9 ? "9+" : unread}
             </span>
           )}
@@ -85,12 +85,12 @@ export function NotificationBell() {
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Notifications</span>
           {unread > 0 && (
-            <button onClick={markAllRead} className="text-xs text-indigo-600 hover:underline">Tout lire</button>
+            <button onClick={markAllRead} className="text-xs text-aurora-blue hover:underline">Tout lire</button>
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {notifications.length === 0 ? (
-          <p className="text-center text-xs text-gray-400 py-6">Aucune notification</p>
+          <p className="text-center text-xs text-aurora-ink-3 py-6">Aucune notification</p>
         ) : (
           notifications.slice(0, 6).map((n) => (
             <DropdownMenuItem
@@ -100,14 +100,14 @@ export function NotificationBell() {
             >
               <div className="flex items-center justify-between w-full">
                 <span className="font-medium text-sm truncate">{n.title}</span>
-                <span className="text-xs text-gray-400 shrink-0 ml-2">{timeAgo(n.created_at)}</span>
+                <span className="text-xs text-aurora-ink-3 shrink-0 ml-2">{timeAgo(n.created_at)}</span>
               </div>
-              <span className="text-xs text-gray-600 line-clamp-2">{n.message}</span>
+              <span className="text-xs text-aurora-ink-2 line-clamp-2">{n.message}</span>
             </DropdownMenuItem>
           ))
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={viewAll} className="justify-center text-xs text-indigo-600 font-medium">
+        <DropdownMenuItem onClick={viewAll} className="justify-center text-xs text-aurora-blue font-medium">
           Voir toutes les notifications
         </DropdownMenuItem>
       </DropdownMenuContent>

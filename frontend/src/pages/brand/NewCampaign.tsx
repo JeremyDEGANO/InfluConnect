@@ -303,16 +303,16 @@ export default function NewCampaign() {
       <div className="p-6 max-w-3xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-          <h1 className="text-2xl font-bold text-gray-900">{t("campaigns.new_campaign")}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink">{t("campaigns.new_campaign")}</h1>
         </div>
         <Card className="card-base border-l-4 border-l-purple-500">
           <CardContent className="py-8 text-center space-y-4">
-            <p className="font-semibold text-gray-900">
+            <p className="font-semibold text-aurora-ink">
               {brandStatus === "rejected"
                 ? t("new_campaign.blocked_rejected", "Votre compte a été refusé")
                 : t("new_campaign.blocked_pending", "Validation requise")}
             </p>
-            <p className="text-sm text-gray-600">{t("new_campaign.blocked_desc", "Votre compte marque doit être validé par notre équipe avant de créer des campagnes.")}</p>
+            <p className="text-sm text-aurora-ink-2">{t("new_campaign.blocked_desc", "Votre compte marque doit être validé par notre équipe avant de créer des campagnes.")}</p>
             <Button variant="gradient" onClick={() => navigate("/brand/onboarding")}>
               {t("new_campaign.go_to_onboarding", "Aller à l'onboarding")}
             </Button>
@@ -326,7 +326,7 @@ export default function NewCampaign() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-2xl font-bold text-gray-900">{t("campaigns.new_campaign")}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink">{t("campaigns.new_campaign")}</h1>
       </div>
 
       <Card className="card-base">
@@ -336,7 +336,7 @@ export default function NewCampaign() {
               <div className="space-y-4">
                 <CardHeader className="p-0 pb-4"><CardTitle className="text-base">{t("new_campaign.basics")}</CardTitle></CardHeader>
                 <div>
-                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+                  <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">
                     {t("new_campaign_plus.campaign_type", "Type de campagne")}
                   </Label>
                   <div className="grid sm:grid-cols-2 gap-3">
@@ -345,22 +345,22 @@ export default function NewCampaign() {
                       onClick={() => updateCampaignType("paid")}
                       className={cn(
                         "p-4 rounded-xl border-2 text-left transition-all",
-                        form.campaign_type === "paid" ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                        form.campaign_type === "paid" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-gray-300",
                       )}
                     >
-                      <p className="font-semibold text-sm text-gray-900">{t("new_campaign_plus.campaign_type_paid", "Rémunérée")}</p>
-                      <p className="text-xs text-gray-500 mt-1">{t("new_campaign_plus.campaign_type_paid_desc", "Les influenceurs sont payés par publication.")}</p>
+                      <p className="font-semibold text-sm text-aurora-ink">{t("new_campaign_plus.campaign_type_paid", "Rémunérée")}</p>
+                      <p className="text-xs text-aurora-ink-3 mt-1">{t("new_campaign_plus.campaign_type_paid_desc", "Les influenceurs sont payés par publication.")}</p>
                     </button>
                     <button
                       type="button"
                       onClick={() => updateCampaignType("gifting")}
                       className={cn(
                         "p-4 rounded-xl border-2 text-left transition-all",
-                        form.campaign_type === "gifting" ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                        form.campaign_type === "gifting" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-gray-300",
                       )}
                     >
-                      <p className="font-semibold text-sm text-gray-900">{t("new_campaign_plus.campaign_type_gifting", "Gifting")}</p>
-                      <p className="text-xs text-gray-500 mt-1">{t("new_campaign_plus.campaign_type_gifting_desc", "Non rémunérée, envoi de produits aux influenceurs.")}</p>
+                      <p className="font-semibold text-sm text-aurora-ink">{t("new_campaign_plus.campaign_type_gifting", "Gifting")}</p>
+                      <p className="text-xs text-aurora-ink-3 mt-1">{t("new_campaign_plus.campaign_type_gifting_desc", "Non rémunérée, envoi de produits aux influenceurs.")}</p>
                     </button>
                   </div>
                 </div>
@@ -373,7 +373,7 @@ export default function NewCampaign() {
                   <textarea className="mt-1 w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder={t("new_campaign_plus.description_placeholder")} value={form.description} onChange={(e) => update("description", e.target.value)} />
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("campaigns.themes")}</Label>
+                  <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">{t("campaigns.themes")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {themeOptions.map((th) => (
                       <Badge key={th.code} variant={form.themes.includes(th.code) ? "info" : "outline"} className="cursor-pointer" onClick={() => toggle("themes", th.code)}>{th.label}</Badge>
@@ -382,7 +382,7 @@ export default function NewCampaign() {
                 </div>
                 {form.campaign_type === "gifting" && (
                   <div>
-                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+                    <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">
                       {t("new_campaign_plus.gifting_content_question", "Contenu en contrepartie ?")}
                     </Label>
                     <div className="grid sm:grid-cols-2 gap-2">
@@ -391,7 +391,7 @@ export default function NewCampaign() {
                         onClick={() => update("gifting_requires_content", true)}
                         className={cn(
                           "p-3 rounded-xl border text-left text-sm transition-all",
-                          form.gifting_requires_content ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                          form.gifting_requires_content ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-gray-300",
                         )}
                       >
                         {t("new_campaign_plus.gifting_content_yes", "Oui, je veux du contenu")}
@@ -401,7 +401,7 @@ export default function NewCampaign() {
                         onClick={() => update("gifting_requires_content", false)}
                         className={cn(
                           "p-3 rounded-xl border text-left text-sm transition-all",
-                          !form.gifting_requires_content ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                          !form.gifting_requires_content ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-gray-300",
                         )}
                       >
                         {t("new_campaign_plus.gifting_content_no", "Non, envoi de produit sans livrable")}
@@ -413,7 +413,7 @@ export default function NewCampaign() {
                 {(form.campaign_type === "paid" || form.gifting_requires_content) && (
                   <div>
                     <Label>{t("new_campaign_plus.content_formats")}</Label>
-                    <p className="text-xs text-gray-500 mt-1 mb-2">{t("new_campaign_plus.content_formats_hint")}</p>
+                    <p className="text-xs text-aurora-ink-3 mt-1 mb-2">{t("new_campaign_plus.content_formats_hint")}</p>
                     <div className="space-y-2">
                       {form.content_formats.map((cf, idx) => (
                         <div key={idx} className="flex items-center gap-2">
@@ -473,7 +473,7 @@ export default function NewCampaign() {
               <div className="space-y-4">
                 <CardHeader className="p-0 pb-4"><CardTitle className="text-base">{t("new_campaign.target_timeline")}</CardTitle></CardHeader>
                 <div>
-                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("new_campaign_plus.target_networks")}</Label>
+                  <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">{t("new_campaign_plus.target_networks")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {platformOptions.map((p) => (
                       <Badge key={p.code} variant={form.target_networks.includes(p.code) ? "info" : "outline"} className="cursor-pointer" onClick={() => toggle("target_networks", p.code)}>{p.label}</Badge>
@@ -482,7 +482,7 @@ export default function NewCampaign() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("audience.age_ranges", "Tranches d'âge ciblées")}</Label>
+                  <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">{t("audience.age_ranges", "Tranches d'âge ciblées")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {AGE_RANGE_OPTIONS.map((a) => (
                       <Badge
@@ -498,7 +498,7 @@ export default function NewCampaign() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("audience.gender", "Genre de l'audience")}</Label>
+                  <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">{t("audience.gender", "Genre de l'audience")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {GENDER_OPTIONS.map((g) => (
                       <Badge
@@ -514,7 +514,7 @@ export default function NewCampaign() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">{t("audience.languages", "Langues de l'audience")}</Label>
+                  <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">{t("audience.languages", "Langues de l'audience")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {audienceLanguageOptions.map((l: { code: string; label: string }) => (
                       <Badge
@@ -570,7 +570,7 @@ export default function NewCampaign() {
                     {t("campaigns.deadline")}
                     <HoverCard openDelay={100}>
                       <HoverCardTrigger asChild>
-                        <button type="button" tabIndex={-1} className="inline-flex items-center justify-center text-gray-400 hover:text-indigo-600">
+                        <button type="button" tabIndex={-1} className="inline-flex items-center justify-center text-aurora-ink-3 hover:text-aurora-blue">
                           <HelpCircle className="h-3.5 w-3.5" />
                         </button>
                       </HoverCardTrigger>
@@ -625,24 +625,24 @@ export default function NewCampaign() {
                     onClick={() => update("is_casting", false)}
                     className={cn(
                       "p-4 rounded-xl border-2 text-left transition-all",
-                      !form.is_casting ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                      !form.is_casting ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-gray-300",
                     )}
                   >
-                    <UserCheck className={cn("h-5 w-5 mb-2", !form.is_casting ? "text-indigo-600" : "text-gray-400")} />
-                    <p className="font-semibold text-sm text-gray-900">{t("new_campaign_plus.mode_direct_title")}</p>
-                    <p className="text-xs text-gray-500 mt-1">{t("new_campaign_plus.mode_direct_desc")}</p>
+                    <UserCheck className={cn("h-5 w-5 mb-2", !form.is_casting ? "text-aurora-blue" : "text-aurora-ink-3")} />
+                    <p className="font-semibold text-sm text-aurora-ink">{t("new_campaign_plus.mode_direct_title")}</p>
+                    <p className="text-xs text-aurora-ink-3 mt-1">{t("new_campaign_plus.mode_direct_desc")}</p>
                   </button>
                   <button
                     type="button"
                     onClick={() => update("is_casting", true)}
                     className={cn(
                       "p-4 rounded-xl border-2 text-left transition-all",
-                      form.is_casting ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300",
+                      form.is_casting ? "border-indigo-500 bg-indigo-50" : "border-aurora-line hover:border-gray-300",
                     )}
                   >
-                    <Megaphone className={cn("h-5 w-5 mb-2", form.is_casting ? "text-indigo-600" : "text-gray-400")} />
-                    <p className="font-semibold text-sm text-gray-900">{t("new_campaign_plus.mode_casting_title")}</p>
-                    <p className="text-xs text-gray-500 mt-1">{t("new_campaign_plus.mode_casting_desc")}</p>
+                    <Megaphone className={cn("h-5 w-5 mb-2", form.is_casting ? "text-aurora-blue" : "text-aurora-ink-3")} />
+                    <p className="font-semibold text-sm text-aurora-ink">{t("new_campaign_plus.mode_casting_title")}</p>
+                    <p className="text-xs text-aurora-ink-3 mt-1">{t("new_campaign_plus.mode_casting_desc")}</p>
                   </button>
                 </div>
                 <div>
@@ -654,13 +654,13 @@ export default function NewCampaign() {
                     value={form.max_influencers}
                     onChange={(e) => update("max_influencers", Math.max(1, Number(e.target.value) || 1))}
                   />
-                  <p className="text-xs text-gray-400 mt-1">{t("new_campaign_plus.max_influencers_hint")}</p>
+                  <p className="text-xs text-aurora-ink-3 mt-1">{t("new_campaign_plus.max_influencers_hint")}</p>
                 </div>
 
                 {!form.is_casting && (
                   <div className="space-y-2 border-t pt-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t("new_campaign_plus.pick_influencers")}</Label>
+                      <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide">{t("new_campaign_plus.pick_influencers")}</Label>
                       <Badge variant="info">{selectedIds.size} / {form.max_influencers}</Badge>
                     </div>
                     <Input
@@ -668,9 +668,9 @@ export default function NewCampaign() {
                       value={infSearch}
                       onChange={(e) => setInfSearch(e.target.value)}
                     />
-                    <div className="max-h-[500px] overflow-y-auto grid sm:grid-cols-2 gap-3 border rounded-lg p-3 bg-gray-50">
+                    <div className="max-h-[500px] overflow-y-auto grid sm:grid-cols-2 gap-3 border rounded-lg p-3 bg-aurora-surface">
                       {filteredInfluencers.length === 0 ? (
-                        <p className="text-sm text-gray-400 text-center py-6 col-span-full">{t("new_campaign_plus.no_influencers")}</p>
+                        <p className="text-sm text-aurora-ink-3 text-center py-6 col-span-full">{t("new_campaign_plus.no_influencers")}</p>
                       ) : filteredInfluencers.slice(0, 40).map((inf) => {
                         const totalFollowers = inf.social_networks?.reduce((s, sn) => s + sn.followers_count, 0) ?? 0
                         const picked = selectedIds.has(inf.id)
@@ -679,13 +679,13 @@ export default function NewCampaign() {
                             key={inf.id}
                             className={cn(
                               "relative p-3 rounded-xl border-2 bg-white transition-all",
-                              picked ? "border-indigo-500 shadow-md" : "border-transparent hover:border-gray-200",
+                              picked ? "border-indigo-500 shadow-md" : "border-transparent hover:border-aurora-line",
                             )}
                           >
                             <div className="flex items-start gap-3">
                               <Avatar className="h-14 w-14 shrink-0">
                                 {inf.avatar && <AvatarImage src={resolveMediaUrl(inf.avatar)} />}
-                                <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white font-semibold">
+                                <AvatarFallback className="bg-aurora-ink text-white font-semibold">
                                   {(inf.display_name || "??").slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
@@ -701,13 +701,13 @@ export default function NewCampaign() {
                                 >
                                   {inf.pseudo ? (
                                     <a href={`/brand/influencers/${encodeURIComponent(inf.pseudo)}`} target="_blank" rel="noopener noreferrer" className="group">
-                                      <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{inf.display_name || `#${inf.id}`}</p>
+                                      <p className="text-sm font-semibold text-aurora-ink truncate group-hover:text-aurora-blue transition-colors">{inf.display_name || `#${inf.id}`}</p>
                                     </a>
                                   ) : (
-                                    <p className="text-sm font-semibold text-gray-900 truncate">{inf.display_name || `#${inf.id}`}</p>
+                                    <p className="text-sm font-semibold text-aurora-ink truncate">{inf.display_name || `#${inf.id}`}</p>
                                   )}
                                 </InfluencerHoverCard>
-                                <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                <p className="text-xs text-aurora-ink-3 flex items-center gap-1 mt-0.5">
                                   <Users className="h-3 w-3" />{fmt(totalFollowers)}
                                   {inf.city && <span className="ml-1">· {inf.city}</span>}
                                 </p>
@@ -770,7 +770,7 @@ export default function NewCampaign() {
                   <div>
                     <Label>{t("new_campaign_plus.price_per_influencer")} *</Label>
                     <Input className="mt-1" type="number" placeholder="2000" value={form.budget} onChange={(e) => update("budget", e.target.value)} required />
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-aurora-ink-3 mt-1">
                       {t("new_campaign_plus.total_budget")}: €{((parseFloat(form.budget) || 0) * form.max_influencers).toFixed(2)}
                     </p>
                   </div>
@@ -781,21 +781,21 @@ export default function NewCampaign() {
                 )}
                 <div className="p-4 bg-indigo-50 rounded-xl text-sm space-y-1">
                   <p className="font-semibold text-indigo-800 mb-2">{t("new_campaign.summary")}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_title")}:</span> {form.title || "—"}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.campaign_type", "Type de campagne")}:</span> {form.campaign_type === "gifting" ? t("new_campaign_plus.campaign_type_gifting", "Gifting") : t("new_campaign_plus.campaign_type_paid", "Rémunérée")}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign.field_title")}:</span> {form.title || "—"}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign_plus.campaign_type", "Type de campagne")}:</span> {form.campaign_type === "gifting" ? t("new_campaign_plus.campaign_type_gifting", "Gifting") : t("new_campaign_plus.campaign_type_paid", "Rémunérée")}</p>
                   {form.campaign_type === "gifting" && (
-                    <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.gifting_content_question", "Contenu en contrepartie ?")}:</span> {form.gifting_requires_content ? t("common.yes", "Oui") : t("common.no", "Non")}</p>
+                    <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign_plus.gifting_content_question", "Contenu en contrepartie ?")}:</span> {form.gifting_requires_content ? t("common.yes", "Oui") : t("common.no", "Non")}</p>
                   )}
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_themes")}:</span> {form.themes.join(", ") || "—"}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.content_formats")}:</span> {(form.campaign_type === "gifting" && !form.gifting_requires_content) ? t("new_campaign_plus.no_content_expected", "Aucun contenu attendu") : (form.content_formats.length > 0 ? form.content_formats.map((cf) => `${cf.quantity}x ${contentTypeOptions.find((c) => c.code === cf.code)?.label || cf.code}`).join(", ") : "—")}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.target_networks")}:</span> {form.target_networks.join(", ") || "—"}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.mode_label")}:</span> {form.is_casting ? t("new_campaign_plus.mode_casting_title") : t("new_campaign_plus.mode_direct_title")}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.max_influencers")}:</span> {form.max_influencers}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign.field_themes")}:</span> {form.themes.join(", ") || "—"}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign_plus.content_formats")}:</span> {(form.campaign_type === "gifting" && !form.gifting_requires_content) ? t("new_campaign_plus.no_content_expected", "Aucun contenu attendu") : (form.content_formats.length > 0 ? form.content_formats.map((cf) => `${cf.quantity}x ${contentTypeOptions.find((c) => c.code === cf.code)?.label || cf.code}`).join(", ") : "—")}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign_plus.target_networks")}:</span> {form.target_networks.join(", ") || "—"}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign_plus.mode_label")}:</span> {form.is_casting ? t("new_campaign_plus.mode_casting_title") : t("new_campaign_plus.mode_direct_title")}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign_plus.max_influencers")}:</span> {form.max_influencers}</p>
                   {!form.is_casting && (
-                    <p className="text-indigo-700"><span className="font-medium">{t("new_campaign_plus.picked")}:</span> {selectedIds.size}</p>
+                    <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign_plus.picked")}:</span> {selectedIds.size}</p>
                   )}
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_deadline")}:</span> {form.deadline || "—"}</p>
-                  <p className="text-indigo-700"><span className="font-medium">{t("new_campaign.field_budget")}:</span> {form.campaign_type === "paid" ? (form.budget ? `€${form.budget}` : "—") : t("new_campaign_plus.not_paid", "Non rémunérée")}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign.field_deadline")}:</span> {form.deadline || "—"}</p>
+                  <p className="text-aurora-blue-deep"><span className="font-medium">{t("new_campaign.field_budget")}:</span> {form.campaign_type === "paid" ? (form.budget ? `€${form.budget}` : "—") : t("new_campaign_plus.not_paid", "Non rémunérée")}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(3)}>{t("common.back")}</Button>

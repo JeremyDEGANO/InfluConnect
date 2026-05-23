@@ -32,11 +32,12 @@ export default function InfluencerProposals() {
 
   const filtered = tab === "all" ? proposals : proposals.filter((p) => p.status === tab)
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("proposals.title")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("influencer_dashboard.eyebrow", "Espace créateur")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("proposals.title")}</h1>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="all">{t("proposals.all")}</TabsTrigger>
@@ -48,7 +49,7 @@ export default function InfluencerProposals() {
         <TabsContent value={tab} className="mt-4">
           <div className="space-y-3">
             {filtered.length === 0 && (
-              <div className="text-center py-12 text-gray-400">{t("proposals_page.no_proposals")}</div>
+              <div className="text-center py-12 text-aurora-ink-3">{t("proposals_page.no_proposals")}</div>
             )}
             {filtered.map((p) => (
               <Card key={p.id} className="card-base hover:shadow-md transition-shadow">
@@ -56,11 +57,11 @@ export default function InfluencerProposals() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">{p.campaign_title}</h3>
+                        <h3 className="font-semibold text-aurora-ink">{p.campaign_title}</h3>
                         <StatusBadge status={p.status as any} />
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">{p.brand_company_name}</p>
-                      <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+                      <p className="text-sm text-aurora-ink-3 mt-1">{p.brand_company_name}</p>
+                      <div className="flex items-center gap-4 mt-3 text-xs text-aurora-ink-3">
                         <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" />€{p.proposed_price}</span>
                         <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(p.created_at).toLocaleDateString()}</span>
                       </div>

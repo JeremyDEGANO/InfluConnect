@@ -223,8 +223,8 @@ export default function ProposalDetail() {
     } catch { toast({ title: t("common.error"), variant: "destructive" }) }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
-  if (!proposal) return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (!proposal) return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
 
   const bothSigned = proposal.brand_signed_at && proposal.influencer_signed_at
   const mySigned = isBrand ? proposal.brand_signed_at : proposal.influencer_signed_at
@@ -240,7 +240,7 @@ export default function ProposalDetail() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-xl font-bold text-gray-900">{proposal.campaign_title}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-aurora-ink">{proposal.campaign_title}</h1>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -250,7 +250,7 @@ export default function ProposalDetail() {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle>{proposal.campaign_title}</CardTitle>
-                  <p className="text-sm text-gray-500 mt-1">{isBrand ? proposal.influencer_name : proposal.brand_company_name}</p>
+                  <p className="text-sm text-aurora-ink-3 mt-1">{isBrand ? proposal.influencer_name : proposal.brand_company_name}</p>
                 </div>
                 <StatusBadge status={proposal.status as any} />
               </div>
@@ -258,28 +258,28 @@ export default function ProposalDetail() {
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-gray-500 text-xs">{t("campaigns.budget")}</p>
+                  <div className="p-3 bg-aurora-surface rounded-xl">
+                    <p className="text-aurora-ink-3 text-xs">{t("campaigns.budget")}</p>
                     <p className="font-semibold mt-1 text-green-700">€{proposal.proposed_price}</p>
                   </div>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-gray-500 text-xs">{t("common.status", "Statut")}</p>
+                  <div className="p-3 bg-aurora-surface rounded-xl">
+                    <p className="text-aurora-ink-3 text-xs">{t("common.status", "Statut")}</p>
                     <p className="font-semibold mt-1">{t(`status.${proposal.status}`, { defaultValue: formatStatusLabel(proposal.status) })}</p>
                   </div>
                 </div>
 
                 {proposal.campaign_description && (
                   <div className="p-3 bg-blue-50 rounded-xl">
-                    <p className="text-gray-700 text-sm">{proposal.campaign_description}</p>
+                    <p className="text-aurora-ink-2 text-sm">{proposal.campaign_description}</p>
                   </div>
                 )}
 
                 {proposal.campaign_target_networks && proposal.campaign_target_networks.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">{t("campaigns.target_networks", "Réseaux ciblés")}</p>
+                    <p className="text-xs text-aurora-ink-3 uppercase font-medium mb-2">{t("campaigns.target_networks", "Réseaux ciblés")}</p>
                     <div className="flex flex-wrap gap-2">
                       {proposal.campaign_target_networks.map((net) => (
-                        <span key={net} className="inline-block px-2.5 py-1 text-xs font-medium bg-indigo-100 text-indigo-700 rounded-full">{net}</span>
+                        <span key={net} className="inline-block px-2.5 py-1 text-xs font-medium bg-indigo-100 text-aurora-blue-deep rounded-full">{net}</span>
                       ))}
                     </div>
                   </div>
@@ -287,7 +287,7 @@ export default function ProposalDetail() {
 
                 {proposal.campaign_content_formats && proposal.campaign_content_formats.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">{t("campaigns.content_formats", "Formats demandés")}</p>
+                    <p className="text-xs text-aurora-ink-3 uppercase font-medium mb-2">{t("campaigns.content_formats", "Formats demandés")}</p>
                     <div className="flex flex-wrap gap-2">
                       {proposal.campaign_content_formats.map((fmt: any, idx: number) => (
                         typeof fmt === "string" ? (
@@ -302,7 +302,7 @@ export default function ProposalDetail() {
 
                 {proposal.campaign_target_filters?.content_themes && Array.isArray(proposal.campaign_target_filters.content_themes) && (
                   <div>
-                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">{t("campaigns.themes", "Thématiques")}</p>
+                    <p className="text-xs text-aurora-ink-3 uppercase font-medium mb-2">{t("campaigns.themes", "Thématiques")}</p>
                     <div className="flex flex-wrap gap-2">
                       {proposal.campaign_target_filters.content_themes.map((theme: string) => (
                         <span key={theme} className="inline-block px-2.5 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">{theme}</span>
@@ -313,8 +313,8 @@ export default function ProposalDetail() {
 
                 {proposal.campaign_deadline && (
                   <div className="p-3 bg-yellow-50 rounded-xl text-sm">
-                    <p className="text-gray-500 text-xs uppercase font-medium">{t("campaigns.deadline")}</p>
-                    <p className="font-semibold text-gray-900 mt-1">{new Date(proposal.campaign_deadline).toLocaleDateString()}</p>
+                    <p className="text-aurora-ink-3 text-xs uppercase font-medium">{t("campaigns.deadline")}</p>
+                    <p className="font-semibold text-aurora-ink mt-1">{new Date(proposal.campaign_deadline).toLocaleDateString()}</p>
                   </div>
                 )}
 
@@ -352,7 +352,7 @@ export default function ProposalDetail() {
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-amber-700">Contre-offre reçue</p>
-                      <p className="text-2xl font-bold text-amber-900 mt-1">€{proposal.counter_price}</p>
+                      <p className="text-2xl font-semibold tracking-tight text-amber-900 mt-1">€{proposal.counter_price}</p>
                       {proposal.counter_message && (
                         <p className="text-sm text-amber-800 mt-2 italic">« {proposal.counter_message} »</p>
                       )}
@@ -399,7 +399,7 @@ export default function ProposalDetail() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500 p-2 rounded bg-gray-50">
+                    <div className="text-xs text-aurora-ink-3 p-2 rounded bg-aurora-surface">
                       {t("proposal_detail.contract_pending", "En attente de génération par la marque")}
                     </div>
                   )}
@@ -447,7 +447,7 @@ export default function ProposalDetail() {
                       />
                     )}
 
-                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <label className="flex items-center gap-2 text-sm text-aurora-ink-2">
                       <input
                         type="checkbox"
                         checked={prePublishReview}
@@ -506,10 +506,10 @@ export default function ProposalDetail() {
             <CardHeader><CardTitle className="text-base">{t("proposal_detail.brand_info")}</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3 text-sm">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg mb-3">
+                <div className="h-12 w-12 rounded-xl bg-aurora-blue flex items-center justify-center text-white font-bold text-lg mb-3">
                   {(proposal.brand_company_name || "?")[0].toUpperCase()}
                 </div>
-                <p className="font-semibold text-gray-900">{proposal.brand_company_name}</p>
+                <p className="font-semibold text-aurora-ink">{proposal.brand_company_name}</p>
                 {proposal.brand_id && !isBrand && (
                   <Button size="sm" variant="outline" className="w-full" onClick={() => navigate(`/influencer/brands/${proposal.brand_id}`)}>
                     {t("proposal_detail.view_brand")}

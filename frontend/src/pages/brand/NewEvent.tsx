@@ -155,7 +155,7 @@ export default function NewEvent() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-2xl font-bold text-gray-900">{t("events.new_event", "Créer un événement")}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink">{t("events.new_event", "Créer un événement")}</h1>
       </div>
 
       <form onSubmit={submit} className="space-y-4">
@@ -180,7 +180,7 @@ export default function NewEvent() {
         <Card className="card-base">
           <CardHeader><CardTitle>{t("events.select_influencers", "Choisir les influenceurs")}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-3 space-y-2">
+            <div className="rounded-xl border border-dashed border-aurora-blue/20 bg-indigo-50/40 p-3 space-y-2">
               <Label>{t("events.external_email_invites", "Inviter un email externe (hors plateforme)")}</Label>
               <div className="flex gap-2">
                 <Input
@@ -214,7 +214,7 @@ export default function NewEvent() {
             </div>
 
             <div>
-              <Label className="text-xs text-gray-500 uppercase">{t("events.filter_platforms", "Plateformes")}</Label>
+              <Label className="text-xs text-aurora-ink-3 uppercase">{t("events.filter_platforms", "Plateformes")}</Label>
               <div className="flex flex-wrap gap-2 mt-1">
                 {platformOptions.map((p) => (
                   <Badge key={p.code} variant={platforms.includes(p.code) ? "info" : "outline"} className="cursor-pointer" onClick={() => toggleArray("platforms", p.code)}>{p.label}</Badge>
@@ -223,7 +223,7 @@ export default function NewEvent() {
             </div>
 
             <div>
-              <Label className="text-xs text-gray-500 uppercase">{t("events.filter_themes", "Thèmes")}</Label>
+              <Label className="text-xs text-aurora-ink-3 uppercase">{t("events.filter_themes", "Thèmes")}</Label>
               <div className="flex flex-wrap gap-2 mt-1">
                 {themeOptions.map((th) => (
                   <Badge key={th.code} variant={themes.includes(th.code) ? "info" : "outline"} className="cursor-pointer" onClick={() => toggleArray("themes", th.code)}>{th.label}</Badge>
@@ -231,17 +231,17 @@ export default function NewEvent() {
               </div>
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto border rounded-lg p-3 bg-gray-50 grid sm:grid-cols-2 gap-2">
+            <div className="max-h-[420px] overflow-y-auto border rounded-lg p-3 bg-aurora-surface grid sm:grid-cols-2 gap-2">
               {filtered.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center col-span-full py-4">{t("events.no_results", "Aucun influenceur")}</p>
+                <p className="text-sm text-aurora-ink-3 text-center col-span-full py-4">{t("events.no_results", "Aucun influenceur")}</p>
               ) : filtered.map((inf) => {
                 const picked = selectedIds.has(inf.id)
                 return (
                   <div key={inf.id} className="bg-white border rounded-lg p-3 flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-sm text-gray-900 truncate">{inf.display_name || `#${inf.id}`}</p>
-                      <p className="text-xs text-gray-500 truncate">{inf.city || "-"}</p>
-                      <div className="text-[11px] text-gray-400 mt-1">
+                      <p className="font-medium text-sm text-aurora-ink truncate">{inf.display_name || `#${inf.id}`}</p>
+                      <p className="text-xs text-aurora-ink-3 truncate">{inf.city || "-"}</p>
+                      <div className="text-[11px] text-aurora-ink-3 mt-1">
                         {(inf.social_networks || []).slice(0, 3).map((sn) => sn.platform).join(" · ")}
                       </div>
                     </div>

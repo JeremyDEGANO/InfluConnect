@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Aurora — InfluConnect</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { brand: { DEFAULT:'#007AFF', 50:'#EFF6FF', 600:'#0066D6' } },
+      fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','SF Pro Display','Inter','system-ui','sans-serif'] },
+      boxShadow: { soft:'0 1px 2px rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,0,0,0.08)' }
+    }}
+  }
+</script>
+<style>
+  html,body{ -webkit-font-smoothing:antialiased; letter-spacing:-0.011em; }
+  .glass{ background:rgba(255,255,255,0.72); backdrop-filter:saturate(180%) blur(20px); -webkit-backdrop-filter:saturate(180%) blur(20px); }
+  .ease-apple{ transition-timing-function:cubic-bezier(.32,.72,0,1); }
+  .num{ font-variant-numeric:tabular-nums; letter-spacing:-0.02em; }
+  .hero-bg{ background:
+    radial-gradient(60% 50% at 50% 0%, rgba(0,122,255,0.10), transparent 70%),
+    radial-gradient(40% 30% at 80% 20%, rgba(175,82,222,0.08), transparent 70%),
+    #fff;
+  }
+</style>
+</head>
+<body class="bg-white text-neutral-900 font-sans">
+
+<!-- Switcher -->
+<div class="sticky top-0 z-50 glass border-b border-neutral-200/70">
+  <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="text-sm text-neutral-500 hover:text-neutral-900">←</a>
+      <div class="w-7 h-7 rounded-lg bg-brand"></div>
+      <span class="font-semibold tracking-tight">Aurora</span>
+      <span class="text-xs text-neutral-500 ml-2">Proposition 1 · Apple-like</span>
+    </div>
+    <nav class="flex items-center gap-1 text-sm">
+      <button data-tab="landing" class="tab px-3 py-1.5 rounded-full font-medium">Landing</button>
+      <button data-tab="brand"   class="tab px-3 py-1.5 rounded-full font-medium">Marque</button>
+      <button data-tab="influ"   class="tab px-3 py-1.5 rounded-full font-medium">Influenceur</button>
+      <button data-tab="admin"   class="tab px-3 py-1.5 rounded-full font-medium">Admin</button>
+      <button data-tab="agency"  class="tab px-3 py-1.5 rounded-full font-medium">Agence</button>
+    </nav>
+  </div>
+</div>
+
+<!-- ============ LANDING ============ -->
+<section data-pane="landing" class="pane">
+  <!-- Top nav of fake site -->
+  <div class="hero-bg">
+    <div class="glass border-b border-neutral-200/60">
+      <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-md bg-brand"></div>
+          <span class="font-semibold">InfluConnect</span>
+        </div>
+        <div class="flex items-center gap-7 text-sm text-neutral-700">
+          <a class="hover:text-neutral-900">Marques</a>
+          <a class="hover:text-neutral-900">Créateurs</a>
+          <a class="hover:text-neutral-900">Agences</a>
+          <a class="hover:text-neutral-900">Tarifs</a>
+          <a class="text-neutral-500 hover:text-neutral-900">Connexion</a>
+          <a class="px-4 h-9 inline-flex items-center rounded-full bg-neutral-900 text-white font-medium">Commencer</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero -->
+    <div class="max-w-5xl mx-auto px-6 pt-28 pb-24 text-center">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-neutral-200 text-xs font-medium text-neutral-700 mb-8">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        Nouveau · Paiements escrow instantanés
+      </div>
+      <h1 class="text-6xl md:text-7xl font-semibold tracking-tight leading-[1.05] text-balance">
+        Là où les marques<br/>rencontrent les créateurs<br/><span class="text-neutral-400">qui livrent.</span>
+      </h1>
+      <p class="mt-7 text-xl text-neutral-600 max-w-2xl mx-auto">
+        La plateforme française pour lancer des campagnes d'influence, signer, payer et mesurer — sans friction.
+      </p>
+      <div class="mt-10 flex items-center justify-center gap-3">
+        <a class="h-12 px-6 inline-flex items-center rounded-full bg-brand text-white font-medium hover:brightness-95 ease-apple transition">Démarrer gratuitement</a>
+        <a class="h-12 px-6 inline-flex items-center rounded-full bg-white border border-neutral-200 font-medium hover:bg-neutral-50 ease-apple transition">Voir la démo →</a>
+      </div>
+      <p class="mt-5 text-sm text-neutral-500">Sans carte bancaire · Configuration en 2 minutes</p>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="max-w-6xl mx-auto px-6 -mt-8">
+    <div class="rounded-2xl bg-white shadow-soft border border-neutral-100 grid grid-cols-2 md:grid-cols-4 divide-x divide-neutral-100">
+      <div class="p-6 text-center"><div class="text-3xl font-semibold num">2 847</div><div class="text-sm text-neutral-500 mt-1">Créateurs vérifiés</div></div>
+      <div class="p-6 text-center"><div class="text-3xl font-semibold num">412</div><div class="text-sm text-neutral-500 mt-1">Marques actives</div></div>
+      <div class="p-6 text-center"><div class="text-3xl font-semibold num">1,3 M€</div><div class="text-sm text-neutral-500 mt-1">Versés aux créateurs</div></div>
+      <div class="p-6 text-center"><div class="text-3xl font-semibold num">98 %</div><div class="text-sm text-neutral-500 mt-1">Campagnes livrées</div></div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <div class="max-w-6xl mx-auto px-6 py-28">
+    <div class="text-center mb-16">
+      <p class="text-xs uppercase tracking-widest text-brand font-medium mb-3">Tout-en-un</p>
+      <h2 class="text-4xl md:text-5xl font-semibold tracking-tight">Conçu pour avancer vite.</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-5">
+      <!-- card template repeated -->
+      <div class="rounded-2xl bg-white border border-neutral-100 p-7 shadow-soft hover:-translate-y-0.5 transition ease-apple">
+        <div class="w-10 h-10 rounded-xl bg-brand/10 text-brand flex items-center justify-center mb-5">⌘</div>
+        <h3 class="font-semibold text-lg tracking-tight">Matching intelligent</h3>
+        <p class="mt-2 text-neutral-600 text-sm leading-relaxed">L'IA analyse audience, ton et performances pour proposer les bons créateurs en quelques secondes.</p>
+      </div>
+      <div class="rounded-2xl bg-white border border-neutral-100 p-7 shadow-soft hover:-translate-y-0.5 transition ease-apple">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-5">€</div>
+        <h3 class="font-semibold text-lg tracking-tight">Paiements escrow</h3>
+        <p class="mt-2 text-neutral-600 text-sm leading-relaxed">Les fonds sont sécurisés à la signature, libérés à la livraison validée. Zéro impayé.</p>
+      </div>
+      <div class="rounded-2xl bg-white border border-neutral-100 p-7 shadow-soft hover:-translate-y-0.5 transition ease-apple">
+        <div class="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center mb-5">§</div>
+        <h3 class="font-semibold text-lg tracking-tight">Contrats automatiques</h3>
+        <p class="mt-2 text-neutral-600 text-sm leading-relaxed">Modèles juridiques FR pré‑remplis, signature électronique conforme eIDAS.</p>
+      </div>
+      <div class="rounded-2xl bg-white border border-neutral-100 p-7 shadow-soft hover:-translate-y-0.5 transition ease-apple">
+        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-5">↗</div>
+        <h3 class="font-semibold text-lg tracking-tight">ROI mesurable</h3>
+        <p class="mt-2 text-neutral-600 text-sm leading-relaxed">Reach, engagement, conversions et CPM consolidés en temps réel.</p>
+      </div>
+      <div class="rounded-2xl bg-white border border-neutral-100 p-7 shadow-soft hover:-translate-y-0.5 transition ease-apple">
+        <div class="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center mb-5">✓</div>
+        <h3 class="font-semibold text-lg tracking-tight">Vérification d'audience</h3>
+        <p class="mt-2 text-neutral-600 text-sm leading-relaxed">Bots, fake followers, géo et démographie analysés automatiquement.</p>
+      </div>
+      <div class="rounded-2xl bg-white border border-neutral-100 p-7 shadow-soft hover:-translate-y-0.5 transition ease-apple">
+        <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-5">◐</div>
+        <h3 class="font-semibold text-lg tracking-tight">Messagerie unifiée</h3>
+        <p class="mt-2 text-neutral-600 text-sm leading-relaxed">Brief, négociation, livrables — toute la conversation à un seul endroit.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing teaser -->
+  <div class="bg-neutral-50 border-y border-neutral-200/70">
+    <div class="max-w-5xl mx-auto px-6 py-24 text-center">
+      <h2 class="text-4xl font-semibold tracking-tight">Trois rôles. Une plateforme.</h2>
+      <p class="mt-4 text-neutral-600 text-lg">Choisissez votre point d'entrée.</p>
+      <div class="mt-12 grid md:grid-cols-3 gap-5">
+        <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-left">
+          <div class="text-xs uppercase tracking-widest text-brand font-medium">Créateur</div>
+          <div class="mt-3 text-2xl font-semibold tracking-tight">Gratuit</div>
+          <p class="mt-2 text-sm text-neutral-600">Reçois des propositions, signe, sois payé.</p>
+          <button class="mt-6 w-full h-11 rounded-xl bg-neutral-900 text-white font-medium">Je suis créateur</button>
+        </div>
+        <div class="rounded-2xl bg-neutral-900 text-white border border-neutral-900 p-8 text-left relative">
+          <div class="absolute -top-2 right-6 px-2 py-0.5 rounded-full bg-brand text-[10px] font-semibold">POPULAIRE</div>
+          <div class="text-xs uppercase tracking-widest text-brand-50 font-medium">Marque</div>
+          <div class="mt-3 text-2xl font-semibold tracking-tight">à partir de 49€<span class="text-neutral-400 text-base">/mois</span></div>
+          <p class="mt-2 text-sm text-neutral-300">Lance des campagnes en 5 minutes.</p>
+          <button class="mt-6 w-full h-11 rounded-xl bg-white text-neutral-900 font-medium">Je suis une marque</button>
+        </div>
+        <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-left">
+          <div class="text-xs uppercase tracking-widest text-violet-600 font-medium">Agence</div>
+          <div class="mt-3 text-2xl font-semibold tracking-tight">Sur mesure</div>
+          <p class="mt-2 text-sm text-neutral-600">Gère ton portefeuille de talents et tes commissions.</p>
+          <button class="mt-6 w-full h-11 rounded-xl bg-neutral-900 text-white font-medium">Je suis une agence</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="max-w-6xl mx-auto px-6 py-12 text-sm text-neutral-500 flex justify-between">
+    <div>© 2026 InfluConnect</div>
+    <div class="flex gap-6"><a>Confidentialité</a><a>CGU</a><a>Contact</a></div>
+  </footer>
+</section>
+
+<!-- ============ COMMON APP SHELL TEMPLATE ============ -->
+<!-- Reused via duplication; each role pane has its own sidebar -->
+
+<!-- ============ BRAND ============ -->
+<section data-pane="brand" class="pane hidden bg-neutral-50 min-h-screen">
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-60 shrink-0 bg-white border-r border-neutral-200 min-h-screen px-3 py-5">
+      <div class="px-3 mb-7 flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-brand"></div>
+        <span class="font-semibold tracking-tight">InfluConnect</span>
+      </div>
+      <div class="px-3 mb-2 text-[11px] uppercase tracking-widest text-neutral-400 font-medium">Marque</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg bg-brand/10 text-brand font-medium">▦ Tableau de bord</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⚑ Campagnes <span class="ml-auto text-xs text-neutral-400">12</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">＋ Nouvelle campagne</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">◇ Marketplace</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⌬ Castings</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✦ Évènements</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✉ Messages <span class="ml-auto px-1.5 rounded-full bg-brand text-white text-[10px] font-semibold">3</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">★ Ambassadeurs</a>
+      </nav>
+      <div class="px-3 mt-6 mb-2 text-[11px] uppercase tracking-widest text-neutral-400 font-medium">Compte</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⚙ Paramètres</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">◷ Abonnement</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">? Support</a>
+      </nav>
+      <div class="absolute bottom-5 w-[210px] rounded-xl bg-neutral-50 border border-neutral-200 p-3 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-violet-500"></div>
+        <div class="leading-tight"><div class="text-sm font-medium">L'Atelier Paris</div><div class="text-xs text-neutral-500">Plan Growth</div></div>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="flex-1 px-10 py-8">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <p class="text-sm text-neutral-500">Bonjour Camille,</p>
+          <h1 class="text-3xl font-semibold tracking-tight mt-0.5">Voici votre activité.</h1>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="h-10 px-4 rounded-xl bg-white border border-neutral-200 text-sm font-medium hover:bg-neutral-50">Exporter</button>
+          <button class="h-10 px-4 rounded-xl bg-brand text-white text-sm font-medium hover:brightness-95 ease-apple transition">＋ Nouvelle campagne</button>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft">
+          <div class="text-xs text-neutral-500">Campagnes actives</div>
+          <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold num">7</span><span class="text-xs text-emerald-600 font-medium">+2</span></div>
+          <div class="mt-3 h-1 rounded-full bg-neutral-100 overflow-hidden"><div class="h-full w-2/3 bg-brand"></div></div>
+        </div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft">
+          <div class="text-xs text-neutral-500">Propositions reçues</div>
+          <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold num">142</span><span class="text-xs text-emerald-600 font-medium">+18 %</span></div>
+          <div class="mt-3 h-1 rounded-full bg-neutral-100 overflow-hidden"><div class="h-full w-4/5 bg-emerald-500"></div></div>
+        </div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft">
+          <div class="text-xs text-neutral-500">Dépensé ce mois</div>
+          <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold num">12 480 €</span></div>
+          <div class="mt-3 h-1 rounded-full bg-neutral-100 overflow-hidden"><div class="h-full w-1/2 bg-violet-500"></div></div>
+        </div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft">
+          <div class="text-xs text-neutral-500">Taux de livraison</div>
+          <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold num">96 %</span></div>
+          <div class="mt-3 h-1 rounded-full bg-neutral-100 overflow-hidden"><div class="h-full w-[96%] bg-amber-500"></div></div>
+        </div>
+      </div>
+
+      <!-- Chart + side -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 rounded-2xl bg-white border border-neutral-100 p-6 shadow-soft">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <h3 class="font-semibold tracking-tight">Performance des campagnes</h3>
+              <p class="text-xs text-neutral-500 mt-0.5">30 derniers jours</p>
+            </div>
+            <div class="flex bg-neutral-100 p-0.5 rounded-lg text-xs">
+              <button class="px-3 py-1 rounded-md bg-white shadow-sm font-medium">7j</button>
+              <button class="px-3 py-1 rounded-md text-neutral-600">30j</button>
+              <button class="px-3 py-1 rounded-md text-neutral-600">90j</button>
+            </div>
+          </div>
+          <!-- Fake chart -->
+          <svg viewBox="0 0 600 200" class="w-full h-48">
+            <defs>
+              <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#007AFF" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#007AFF" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,160 C60,140 100,120 150,110 C200,100 240,90 290,70 C340,50 380,80 430,60 C480,40 520,30 600,20 L600,200 L0,200 Z" fill="url(#g1)"/>
+            <path d="M0,160 C60,140 100,120 150,110 C200,100 240,90 290,70 C340,50 380,80 430,60 C480,40 520,30 600,20" stroke="#007AFF" stroke-width="2" fill="none"/>
+          </svg>
+          <div class="flex justify-between text-[11px] text-neutral-400 mt-2"><span>1 mai</span><span>8</span><span>15</span><span>22</span><span>29</span></div>
+        </div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-6 shadow-soft">
+          <h3 class="font-semibold tracking-tight mb-4">Répartition</h3>
+          <div class="space-y-4">
+            <div><div class="flex justify-between text-sm mb-1"><span>Actives</span><span class="num font-medium">7</span></div><div class="h-1.5 rounded-full bg-neutral-100"><div class="h-full w-[58%] rounded-full bg-brand"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Brouillons</span><span class="num font-medium">3</span></div><div class="h-1.5 rounded-full bg-neutral-100"><div class="h-full w-[25%] rounded-full bg-amber-500"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Terminées</span><span class="num font-medium">21</span></div><div class="h-1.5 rounded-full bg-neutral-100"><div class="h-full w-[80%] rounded-full bg-emerald-500"></div></div></div>
+          </div>
+          <div class="mt-6 pt-6 border-t border-neutral-100">
+            <div class="text-xs text-neutral-500">Prochain paiement</div>
+            <div class="mt-1 text-2xl font-semibold num">3 200 €</div>
+            <div class="text-xs text-neutral-500 mt-0.5">à 4 créateurs · 18 mai</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent campaigns -->
+      <div class="mt-6 rounded-2xl bg-white border border-neutral-100 shadow-soft overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
+          <h3 class="font-semibold tracking-tight">Campagnes récentes</h3>
+          <a class="text-sm text-brand font-medium">Voir tout →</a>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="text-xs text-neutral-500 uppercase tracking-widest">
+            <tr><th class="text-left font-medium px-6 py-3">Campagne</th><th class="text-left font-medium">Statut</th><th class="text-left font-medium">Créateurs</th><th class="text-left font-medium">Budget</th><th class="text-left font-medium">Livraison</th></tr>
+          </thead>
+          <tbody class="divide-y divide-neutral-100">
+            <tr class="hover:bg-neutral-50/60"><td class="px-6 py-4"><div class="font-medium">Collection Été 2026</div><div class="text-xs text-neutral-500">Mode · Instagram, TikTok</div></td><td><span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">Active</span></td><td class="num">8/10</td><td class="num font-medium">5 400 €</td><td class="num text-neutral-500">28 mai</td></tr>
+            <tr class="hover:bg-neutral-50/60"><td class="px-6 py-4"><div class="font-medium">Lancement parfum N°7</div><div class="text-xs text-neutral-500">Beauté · Reels</div></td><td><span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">En revue</span></td><td class="num">4/6</td><td class="num font-medium">3 800 €</td><td class="num text-neutral-500">2 juin</td></tr>
+            <tr class="hover:bg-neutral-50/60"><td class="px-6 py-4"><div class="font-medium">Pop‑up store Marais</div><div class="text-xs text-neutral-500">Évènement · Stories</div></td><td><span class="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 text-xs font-medium">Brouillon</span></td><td class="num">0/12</td><td class="num font-medium">2 200 €</td><td class="num text-neutral-500">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ INFLUENCEUR ============ -->
+<section data-pane="influ" class="pane hidden bg-neutral-50 min-h-screen">
+  <div class="flex">
+    <aside class="w-60 shrink-0 bg-white border-r border-neutral-200 min-h-screen px-3 py-5">
+      <div class="px-3 mb-7 flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-brand"></div><span class="font-semibold tracking-tight">InfluConnect</span>
+      </div>
+      <div class="px-3 mb-2 text-[11px] uppercase tracking-widest text-neutral-400 font-medium">Créateur</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg bg-brand/10 text-brand font-medium">▦ Tableau de bord</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✉ Propositions <span class="ml-auto px-1.5 rounded-full bg-brand text-white text-[10px] font-semibold">5</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⌬ Castings</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">€ Revenus</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">◈ Media kit</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✦ Évènements</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✉ Messages</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⚐ Délégations</a>
+      </nav>
+      <div class="px-3 mt-6 mb-2 text-[11px] uppercase tracking-widest text-neutral-400 font-medium">Compte</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⚙ Profil</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">? Support</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 px-10 py-8">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <p class="text-sm text-neutral-500">Bienvenue Léa,</p>
+          <h1 class="text-3xl font-semibold tracking-tight mt-0.5">Vous avez 5 nouvelles propositions.</h1>
+        </div>
+        <button class="h-10 px-4 rounded-xl bg-brand text-white text-sm font-medium">Voir mon profil public</button>
+      </div>
+
+      <!-- Profile completion banner -->
+      <div class="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-5 mb-6 flex items-center gap-5">
+        <div class="relative w-14 h-14">
+          <svg viewBox="0 0 36 36" class="w-14 h-14 -rotate-90"><circle cx="18" cy="18" r="15" fill="none" stroke="#dbeafe" stroke-width="3"/><circle cx="18" cy="18" r="15" fill="none" stroke="#007AFF" stroke-width="3" stroke-dasharray="94" stroke-dashoffset="19" stroke-linecap="round"/></svg>
+          <div class="absolute inset-0 flex items-center justify-center text-sm font-semibold num">80%</div>
+        </div>
+        <div class="flex-1">
+          <div class="font-semibold">Complétez votre profil pour débloquer plus de campagnes</div>
+          <div class="text-sm text-neutral-600">Il manque : statistiques TikTok, deux photos pour le media kit.</div>
+        </div>
+        <button class="h-10 px-4 rounded-xl bg-white border border-blue-200 text-sm font-medium text-brand">Compléter →</button>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Revenus 2026</div><div class="mt-2 text-3xl font-semibold num">8 740 €</div><div class="text-xs text-emerald-600 mt-1">+24 % vs 2025</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Campagnes actives</div><div class="mt-2 text-3xl font-semibold num">3</div><div class="text-xs text-neutral-500 mt-1">2 en livraison</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Propositions en attente</div><div class="mt-2 text-3xl font-semibold num">5</div><div class="text-xs text-amber-600 mt-1">2 expirent demain</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Note moyenne</div><div class="mt-2 text-3xl font-semibold num">4,9 ★</div><div class="text-xs text-neutral-500 mt-1">sur 27 avis</div></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <!-- Earnings chart -->
+        <div class="col-span-2 rounded-2xl bg-white border border-neutral-100 p-6 shadow-soft">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="font-semibold tracking-tight">Revenus mensuels</h3>
+            <span class="text-xs text-neutral-500">2026</span>
+          </div>
+          <div class="flex items-end gap-3 h-44">
+            <!-- bars -->
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/15 rounded-md" style="height:30%"></div><span class="text-[10px] text-neutral-400">J</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/30 rounded-md" style="height:50%"></div><span class="text-[10px] text-neutral-400">F</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/40 rounded-md" style="height:45%"></div><span class="text-[10px] text-neutral-400">M</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/50 rounded-md" style="height:65%"></div><span class="text-[10px] text-neutral-400">A</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand rounded-md" style="height:90%"></div><span class="text-[10px] text-neutral-900 font-semibold">M</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-neutral-100 rounded-md" style="height:0%"></div><span class="text-[10px] text-neutral-400">J</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-neutral-100 rounded-md" style="height:0%"></div><span class="text-[10px] text-neutral-400">J</span></div>
+          </div>
+        </div>
+        <!-- Next payment -->
+        <div class="rounded-2xl bg-neutral-900 text-white p-6 flex flex-col">
+          <div class="text-xs text-neutral-400 uppercase tracking-widest">Prochain virement</div>
+          <div class="mt-3 text-4xl font-semibold num">1 240 €</div>
+          <div class="mt-1 text-sm text-neutral-400">prévu le 18 mai</div>
+          <div class="mt-auto pt-6 border-t border-neutral-800 text-xs text-neutral-400">Compte vérifié · IBAN •••• 4827</div>
+        </div>
+      </div>
+
+      <!-- Proposals -->
+      <div class="mt-6 rounded-2xl bg-white border border-neutral-100 shadow-soft">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-100"><h3 class="font-semibold tracking-tight">Propositions à traiter</h3><a class="text-sm text-brand font-medium">Tout voir →</a></div>
+        <div class="divide-y divide-neutral-100">
+          <div class="px-6 py-4 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500"></div>
+            <div class="flex-1"><div class="font-medium">Sézane — Collection Été</div><div class="text-xs text-neutral-500">2 reels + 4 stories · livraison 28 mai</div></div>
+            <div class="text-right"><div class="font-semibold num">850 €</div><div class="text-xs text-amber-600">expire dans 1j</div></div>
+            <div class="flex gap-2 ml-4"><button class="h-9 px-4 rounded-lg border border-neutral-200 text-sm font-medium">Refuser</button><button class="h-9 px-4 rounded-lg bg-brand text-white text-sm font-medium">Accepter</button></div>
+          </div>
+          <div class="px-6 py-4 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500"></div>
+            <div class="flex-1"><div class="font-medium">Le Slip Français — Ambassadeurs</div><div class="text-xs text-neutral-500">Programme 6 mois · contenu mensuel</div></div>
+            <div class="text-right"><div class="font-semibold num">3 600 €</div><div class="text-xs text-neutral-500">6 mois</div></div>
+            <div class="flex gap-2 ml-4"><button class="h-9 px-4 rounded-lg border border-neutral-200 text-sm font-medium">Refuser</button><button class="h-9 px-4 rounded-lg bg-brand text-white text-sm font-medium">Accepter</button></div>
+          </div>
+          <div class="px-6 py-4 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500"></div>
+            <div class="flex-1"><div class="font-medium">Respire — Lancement déo</div><div class="text-xs text-neutral-500">1 reel produit · livraison 10 juin</div></div>
+            <div class="text-right"><div class="font-semibold num">420 €</div><div class="text-xs text-neutral-500">3 jours</div></div>
+            <div class="flex gap-2 ml-4"><button class="h-9 px-4 rounded-lg border border-neutral-200 text-sm font-medium">Refuser</button><button class="h-9 px-4 rounded-lg bg-brand text-white text-sm font-medium">Accepter</button></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ ADMIN ============ -->
+<section data-pane="admin" class="pane hidden bg-neutral-50 min-h-screen">
+  <div class="flex">
+    <aside class="w-60 shrink-0 bg-white border-r border-neutral-200 min-h-screen px-3 py-5">
+      <div class="px-3 mb-7 flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-neutral-900"></div><span class="font-semibold tracking-tight">Admin Console</span>
+      </div>
+      <div class="px-3 mb-2 text-[11px] uppercase tracking-widest text-neutral-400 font-medium">Pilotage</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg bg-neutral-900 text-white font-medium">▦ Vue d'ensemble</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⌂ Entreprises</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⌬ Marques</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">☺ Utilisateurs</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">★ Avis</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">◷ Audit log</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">? Support <span class="ml-auto px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-semibold">7</span></a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 px-10 py-8">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-3xl font-semibold tracking-tight">Vue d'ensemble</h1>
+          <p class="text-sm text-neutral-500 mt-1">Mis à jour il y a 3 minutes</p>
+        </div>
+        <div class="flex bg-neutral-100 p-0.5 rounded-lg text-xs"><button class="px-3 py-1.5 rounded-md bg-white shadow-sm font-medium">7j</button><button class="px-3 py-1.5">30j</button><button class="px-3 py-1.5">12m</button></div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Utilisateurs</div><div class="mt-2 text-3xl font-semibold num">3 259</div><div class="text-xs text-emerald-600 mt-1">+128 (30j)</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Revenu plateforme</div><div class="mt-2 text-3xl font-semibold num">48 920 €</div><div class="text-xs text-emerald-600 mt-1">+12,4 %</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">KYC en attente</div><div class="mt-2 text-3xl font-semibold num">14</div><div class="text-xs text-amber-600 mt-1">2 &gt; 48h</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Tickets ouverts</div><div class="mt-2 text-3xl font-semibold num">7</div><div class="text-xs text-neutral-500 mt-1">3 prioritaires</div></div>
+      </div>
+
+      <!-- Brands moderation -->
+      <div class="rounded-2xl bg-white border border-neutral-100 shadow-soft overflow-hidden mb-6">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
+          <div><h3 class="font-semibold tracking-tight">Marques en attente de validation</h3><p class="text-xs text-neutral-500 mt-0.5">14 dossiers · tri par ancienneté</p></div>
+          <button class="h-9 px-4 rounded-lg bg-neutral-900 text-white text-sm font-medium">Tout examiner</button>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="text-xs text-neutral-500 uppercase tracking-widest"><tr><th class="text-left font-medium px-6 py-3">Marque</th><th class="text-left font-medium">SIRET</th><th class="text-left font-medium">Plan</th><th class="text-left font-medium">Reçu</th><th></th></tr></thead>
+          <tbody class="divide-y divide-neutral-100">
+            <tr><td class="px-6 py-3"><div class="font-medium">Maison Lurel</div></td><td class="num text-neutral-600">812 456 789 00012</td><td><span class="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 text-xs font-medium">Pro</span></td><td class="text-neutral-500">il y a 2j</td><td class="text-right pr-6"><button class="h-8 px-3 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium mr-1">Approuver</button><button class="h-8 px-3 rounded-md bg-red-50 text-red-700 text-xs font-medium">Rejeter</button></td></tr>
+            <tr><td class="px-6 py-3"><div class="font-medium">Studio Bleu Marine</div></td><td class="num text-neutral-600">901 234 567 00033</td><td><span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">Growth</span></td><td class="text-neutral-500">il y a 1j</td><td class="text-right pr-6"><button class="h-8 px-3 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium mr-1">Approuver</button><button class="h-8 px-3 rounded-md bg-red-50 text-red-700 text-xs font-medium">Rejeter</button></td></tr>
+            <tr><td class="px-6 py-3"><div class="font-medium">Café & Co</div></td><td class="num text-neutral-600">543 210 987 00021</td><td><span class="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 text-xs font-medium">Starter</span></td><td class="text-neutral-500">il y a 4h</td><td class="text-right pr-6"><button class="h-8 px-3 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium mr-1">Approuver</button><button class="h-8 px-3 rounded-md bg-red-50 text-red-700 text-xs font-medium">Rejeter</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 rounded-2xl bg-white border border-neutral-100 p-6 shadow-soft">
+          <h3 class="font-semibold tracking-tight mb-5">Croissance utilisateurs</h3>
+          <svg viewBox="0 0 600 180" class="w-full h-44">
+            <defs><linearGradient id="g2" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#10b981" stop-opacity="0.3"/><stop offset="100%" stop-color="#10b981" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,150 L60,140 L120,130 L180,115 L240,105 L300,90 L360,75 L420,60 L480,50 L540,30 L600,20 L600,180 L0,180 Z" fill="url(#g2)"/>
+            <path d="M0,150 L60,140 L120,130 L180,115 L240,105 L300,90 L360,75 L420,60 L480,50 L540,30 L600,20" stroke="#10b981" stroke-width="2" fill="none"/>
+          </svg>
+        </div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-6 shadow-soft">
+          <h3 class="font-semibold tracking-tight mb-4">Activité système</h3>
+          <ul class="space-y-3 text-sm">
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-emerald-500 mt-1.5"></span><div><div>15 nouvelles marques validées</div><div class="text-xs text-neutral-500">aujourd'hui</div></div></li>
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-blue-500 mt-1.5"></span><div><div>2 348 € versés en escrow</div><div class="text-xs text-neutral-500">il y a 2h</div></div></li>
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-amber-500 mt-1.5"></span><div><div>3 signalements à traiter</div><div class="text-xs text-neutral-500">il y a 5h</div></div></li>
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-red-500 mt-1.5"></span><div><div>1 anomalie de paiement</div><div class="text-xs text-neutral-500">hier</div></div></li>
+          </ul>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ AGENCE ============ -->
+<section data-pane="agency" class="pane hidden bg-neutral-50 min-h-screen">
+  <div class="flex">
+    <aside class="w-60 shrink-0 bg-white border-r border-neutral-200 min-h-screen px-3 py-5">
+      <div class="px-3 mb-7 flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-violet-600"></div><span class="font-semibold tracking-tight">InfluConnect</span>
+      </div>
+      <div class="px-3 mb-2 text-[11px] uppercase tracking-widest text-neutral-400 font-medium">Agence</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg bg-violet-50 text-violet-700 font-medium">▦ Tableau de bord</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">☺ Talents <span class="ml-auto text-xs text-neutral-400">24</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⚐ Délégations</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">€ Commissions</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">✉ Messagerie</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">▤ Rapports</a>
+      </nav>
+      <div class="px-3 mt-6 mb-2 text-[11px] uppercase tracking-widest text-neutral-400 font-medium">Compte</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">⚙ Paramètres</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-lg hover:bg-neutral-100 text-neutral-700">＋ Inviter un talent</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 px-10 py-8">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <p class="text-sm text-neutral-500">Agence</p>
+          <h1 class="text-3xl font-semibold tracking-tight mt-0.5">Studio Atlas — 24 talents.</h1>
+        </div>
+        <div class="flex gap-2">
+          <button class="h-10 px-4 rounded-xl bg-white border border-neutral-200 text-sm font-medium">Exporter rapport</button>
+          <button class="h-10 px-4 rounded-xl bg-violet-600 text-white text-sm font-medium hover:brightness-95 transition">＋ Inviter un talent</button>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Talents actifs</div><div class="mt-2 text-3xl font-semibold num">24</div><div class="text-xs text-emerald-600 mt-1">+3 ce mois</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">CA brut talents</div><div class="mt-2 text-3xl font-semibold num">62 480 €</div><div class="text-xs text-emerald-600 mt-1">+18 %</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Commissions agence</div><div class="mt-2 text-3xl font-semibold num">9 372 €</div><div class="text-xs text-neutral-500 mt-1">15 % moyen</div></div>
+        <div class="rounded-2xl bg-white border border-neutral-100 p-5 shadow-soft"><div class="text-xs text-neutral-500">Campagnes en cours</div><div class="mt-2 text-3xl font-semibold num">17</div><div class="text-xs text-neutral-500 mt-1">8 marques</div></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <!-- Top talents -->
+        <div class="col-span-2 rounded-2xl bg-white border border-neutral-100 shadow-soft">
+          <div class="px-6 py-4 border-b border-neutral-100 flex items-center justify-between"><h3 class="font-semibold tracking-tight">Top talents — 30 derniers jours</h3><a class="text-sm text-violet-600 font-medium">Tout voir →</a></div>
+          <table class="w-full text-sm">
+            <thead class="text-xs text-neutral-500 uppercase tracking-widest"><tr><th class="text-left font-medium px-6 py-3">Talent</th><th class="text-left font-medium">Followers</th><th class="text-left font-medium">Campagnes</th><th class="text-right font-medium pr-6">Commission</th></tr></thead>
+            <tbody class="divide-y divide-neutral-100">
+              <tr class="hover:bg-neutral-50/60"><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-rose-500"></div><div><div class="font-medium">@lea.parisienne</div><div class="text-xs text-neutral-500">Mode · Lifestyle</div></div></div></td><td class="num">128k</td><td class="num">5</td><td class="text-right pr-6 font-semibold num">1 240 €</td></tr>
+              <tr class="hover:bg-neutral-50/60"><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500"></div><div><div class="font-medium">@thomas.cooks</div><div class="text-xs text-neutral-500">Food</div></div></div></td><td class="num">86k</td><td class="num">4</td><td class="text-right pr-6 font-semibold num">980 €</td></tr>
+              <tr class="hover:bg-neutral-50/60"><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500"></div><div><div class="font-medium">@maya.travel</div><div class="text-xs text-neutral-500">Voyage</div></div></div></td><td class="num">214k</td><td class="num">3</td><td class="text-right pr-6 font-semibold num">875 €</td></tr>
+              <tr class="hover:bg-neutral-50/60"><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500"></div><div><div class="font-medium">@nicolas.fit</div><div class="text-xs text-neutral-500">Sport</div></div></div></td><td class="num">52k</td><td class="num">3</td><td class="text-right pr-6 font-semibold num">620 €</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Pending invites -->
+        <div class="rounded-2xl bg-white border border-neutral-100 shadow-soft p-6">
+          <h3 class="font-semibold tracking-tight mb-4">Invitations en attente</h3>
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl border border-neutral-100 bg-neutral-50/60"><div class="text-sm font-medium">@julie.makeup</div><div class="text-xs text-neutral-500 mt-0.5">envoyée il y a 3j · 18%</div></div>
+            <div class="p-3 rounded-xl border border-neutral-100 bg-neutral-50/60"><div class="text-sm font-medium">@chef_arthur</div><div class="text-xs text-neutral-500 mt-0.5">envoyée il y a 1j · 15%</div></div>
+            <div class="p-3 rounded-xl border border-neutral-100 bg-neutral-50/60"><div class="text-sm font-medium">@petitsmoments</div><div class="text-xs text-neutral-500 mt-0.5">envoyée hier · 20%</div></div>
+          </div>
+          <button class="mt-4 w-full h-10 rounded-xl border border-dashed border-neutral-300 text-sm text-neutral-600 hover:bg-neutral-50">＋ Nouvelle invitation</button>
+        </div>
+      </div>
+
+      <!-- Commissions chart -->
+      <div class="rounded-2xl bg-white border border-neutral-100 shadow-soft p-6">
+        <div class="flex items-center justify-between mb-5"><div><h3 class="font-semibold tracking-tight">Commissions encaissées</h3><p class="text-xs text-neutral-500 mt-0.5">12 derniers mois</p></div><div class="text-right"><div class="text-2xl font-semibold num">112 480 €</div><div class="text-xs text-emerald-600">+22 % YoY</div></div></div>
+        <div class="flex items-end gap-2 h-40">
+          <template id="bartmpl"></template>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-200 rounded-md" style="height:35%"></div><span class="text-[10px] text-neutral-400">J</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-300 rounded-md" style="height:42%"></div><span class="text-[10px] text-neutral-400">F</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-400 rounded-md" style="height:55%"></div><span class="text-[10px] text-neutral-400">M</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-400 rounded-md" style="height:50%"></div><span class="text-[10px] text-neutral-400">A</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-500 rounded-md" style="height:65%"></div><span class="text-[10px] text-neutral-400">M</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-500 rounded-md" style="height:60%"></div><span class="text-[10px] text-neutral-400">J</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-500 rounded-md" style="height:70%"></div><span class="text-[10px] text-neutral-400">J</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-600 rounded-md" style="height:78%"></div><span class="text-[10px] text-neutral-400">A</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-600 rounded-md" style="height:72%"></div><span class="text-[10px] text-neutral-400">S</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-600 rounded-md" style="height:80%"></div><span class="text-[10px] text-neutral-400">O</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-700 rounded-md" style="height:88%"></div><span class="text-[10px] text-neutral-400">N</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-violet-800 rounded-md" style="height:96%"></div><span class="text-[10px] text-neutral-900 font-semibold">D</span></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const panes = document.querySelectorAll('.pane');
+  function activate(name){
+    panes.forEach(p => p.classList.toggle('hidden', p.dataset.pane !== name));
+    tabs.forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle('bg-neutral-900', on);
+      t.classList.toggle('text-white', on);
+      t.classList.toggle('text-neutral-600', !on);
+    });
+    window.scrollTo({top:0});
+  }
+  tabs.forEach(t => t.addEventListener('click', ()=>activate(t.dataset.tab)));
+  activate('landing');
+</script>
+
+</body>
+</html>

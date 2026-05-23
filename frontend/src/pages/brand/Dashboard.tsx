@@ -5,10 +5,11 @@ import { useNavigate } from "react-router-dom"
 import api from "@/lib/api"
 import { StatsCard } from "@/components/shared/StatsCard"
 import { CampaignCard } from "@/components/shared/CampaignCard"
+import { PageHeader } from "@/components/shared/PageHeader"
 import { SimpleLineChart, DonutChart } from "@/components/shared/Charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Briefcase, DollarSign, Users, TrendingUp, Plus, Loader2, AlertTriangle } from "lucide-react"
+import { Plus, Loader2, AlertTriangle } from "lucide-react"
 import { Link } from "react-router-dom"
 import { fetchBrandOnboarding, type BrandOnboardingStatus } from "@/lib/apiExtra"
 
@@ -74,22 +75,22 @@ export default function BrandDashboard() {
     localStorage.setItem(storageKey, "1")
   }, [user?.id])
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="px-6 sm:px-8 py-8 max-w-7xl mx-auto space-y-8">
       {brandStatus && brandStatus.validation_status !== "approved" && (
-        <Card className="card-base border-l-4 border-l-purple-500">
+        <Card className="card-base border-l-4 border-l-aurora-blue">
           <CardContent className="py-4 flex items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-purple-600 mt-0.5" />
+              <AlertTriangle className="h-5 w-5 text-aurora-blue mt-0.5" />
               <div>
-                <p className="font-semibold text-gray-900">
+                <p className="font-semibold text-aurora-ink">
                   {brandStatus.validation_status === "rejected"
                     ? t("brand_dashboard.banner_rejected_title", "Inscription refusée")
                     : t("brand_dashboard.banner_pending_title", "Validation en attente")}
                 </p>
-                <p className="text-sm text-gray-600 mt-0.5">
+                <p className="text-sm text-aurora-ink-3 mt-0.5">
                   {brandStatus.validation_status === "rejected" && brandStatus.validation_notes
                     ? brandStatus.validation_notes
                     : t("brand_dashboard.banner_pending_desc", "Vous ne pouvez pas créer de campagnes tant que votre profil n'est pas approuvé.")}
@@ -102,21 +103,24 @@ export default function BrandDashboard() {
           </CardContent>
         </Card>
       )}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t(isFirstWelcome ? "dashboard.welcome_first" : "dashboard.welcome_back")}, {user?.first_name}! 👋</h1>
-          <p className="text-gray-500 mt-1">{t("brand_dashboard.subtitle")}</p>
-        </div>
-        <Button variant="gradient" onClick={() => navigate("/brand/campaigns/new")}>
-          <Plus className="h-4 w-4 mr-2" />{t("campaigns.new_campaign")}
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow={<>Bonjour {user?.first_name},</>}
+        title={t("brand_dashboard.headline", "Voici votre activité.")}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => navigate("/brand/campaigns")}>{t("common.view_all", "Tout voir")}</Button>
+            <Button variant="gradient" onClick={() => navigate("/brand/campaigns/new")}>
+              <Plus className="h-4 w-4 mr-2" />{t("campaigns.new_campaign")}
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title={t("dashboard.active_campaigns")} value={stats?.active_campaigns ?? 0} icon={Briefcase} />
-        <StatsCard title={t("dashboard.total_spent")} value={`€${stats?.total_spent ?? 0}`} icon={DollarSign} />
-        <StatsCard title={t("dashboard.influencers_contacted")} value={stats?.total_proposals_received ?? 0} icon={Users} />
-        <StatsCard title={t("brand_dashboard.avg_roi")} value={stats?.total_campaigns ?? 0} icon={TrendingUp} />
+        <StatsCard title={t("dashboard.active_campaigns")} value={stats?.active_campaigns ?? 0} progress={Math.min(100, ((stats?.active_campaigns ?? 0) / 10) * 100)} progressColor="bg-aurora-blue" />
+        <StatsCard title={t("dashboard.influencers_contacted")} value={stats?.total_proposals_received ?? 0} progress={70} progressColor="bg-emerald-500" />
+        <StatsCard title={t("dashboard.total_spent")} value={`€${Number(stats?.total_spent ?? 0).toLocaleString("fr-FR")}`} progress={50} progressColor="bg-aurora-blue-deep" />
+        <StatsCard title={t("brand_dashboard.avg_roi", "Taux de livraison")} value={`${stats?.total_campaigns ?? 0}`} progress={96} progressColor="bg-amber-500" />
       </div>
 
       {/* Analytics */}
@@ -124,22 +128,22 @@ export default function BrandDashboard() {
         <div className="grid lg:grid-cols-3 gap-4">
           <Card className="card-base lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-base">Dépenses & campagnes (6 derniers mois)</CardTitle>
+              <CardTitle className="text-base font-semibold tracking-tight">Dépenses & campagnes (6 derniers mois)</CardTitle>
             </CardHeader>
             <CardContent>
               <SimpleLineChart
                 data={stats.timeseries.map((m) => ({ label: m.label, value: m.spend }))}
                 height={180}
                 formatValue={(n) => `€${Math.round(n)}`}
-                stroke="#059669"
+                stroke="hsl(var(--aurora-blue))"
               />
-              <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />Dépenses</span>
+              <div className="flex items-center gap-4 mt-4 text-xs text-aurora-ink-3">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-aurora-blue" />Dépenses</span>
               </div>
             </CardContent>
           </Card>
           <Card className="card-base">
-            <CardHeader><CardTitle className="text-base">Propositions par statut</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base font-semibold tracking-tight">Propositions par statut</CardTitle></CardHeader>
             <CardContent>
               <DonutChart
                 slices={[
@@ -156,13 +160,18 @@ export default function BrandDashboard() {
         </div>
       )}
 
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">{t("campaigns.title")}</h2>
+      <section>
+        <div className="flex items-end justify-between mb-4">
+          <h2 className="text-xl font-semibold tracking-tight text-aurora-ink">{t("campaigns.title")}</h2>
+          <Link to="/brand/campaigns" className="text-sm font-medium text-aurora-blue hover:text-aurora-blue-deep">Tout voir →</Link>
+        </div>
         {campaigns.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <p className="text-lg mb-4">{t("campaigns_page.no_campaigns")}</p>
-            <Button variant="gradient" onClick={() => navigate("/brand/campaigns/new")}><Plus className="h-4 w-4 mr-2" />{t("campaigns_page.create")}</Button>
-          </div>
+          <Card className="card-base">
+            <CardContent className="text-center py-16">
+              <p className="text-lg mb-4 text-aurora-ink-3">{t("campaigns_page.no_campaigns")}</p>
+              <Button variant="gradient" onClick={() => navigate("/brand/campaigns/new")}><Plus className="h-4 w-4 mr-2" />{t("campaigns_page.create")}</Button>
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {campaigns.slice(0, 6).map((c) => (
@@ -180,7 +189,7 @@ export default function BrandDashboard() {
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

@@ -40,20 +40,20 @@ export function MessageThread({ messages, onSend }: MessageThreadProps) {
           <div key={msg.id} className={cn("flex gap-2", msg.is_mine && "flex-row-reverse")}>
             <Avatar className="h-8 w-8 shrink-0">
               <AvatarImage src={resolveMediaUrl(msg.sender_avatar)} alt={msg.sender_name || "User"} />
-              <AvatarFallback className={cn("text-xs text-white font-semibold", msg.is_mine ? "bg-gradient-to-br from-indigo-500 to-violet-600" : "bg-gray-400")}>
+              <AvatarFallback className={cn("text-xs text-white font-semibold", msg.is_mine ? "bg-aurora-blue" : "bg-aurora-ink-3")}>
                 {getInitials(msg.sender_name)}
               </AvatarFallback>
             </Avatar>
-            <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", msg.is_mine ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-tr-sm" : "bg-gray-100 text-gray-900 rounded-tl-sm")}>
+            <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", msg.is_mine ? "bg-aurora-blue text-white rounded-tr-sm" : "bg-aurora-surface text-aurora-ink rounded-tl-sm")}>
               <p className="text-sm">{msg.content || ""}</p>
-              <p className={cn("text-xs mt-1", msg.is_mine ? "text-indigo-200" : "text-gray-400")}>
+              <p className={cn("text-xs mt-1", msg.is_mine ? "text-indigo-200" : "text-aurora-ink-3")}>
                 {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--"}
               </p>
             </div>
           </div>
         ))}
         {messages.length === 0 && (
-          <div className="text-center text-gray-400 text-sm py-8">No messages yet. Start the conversation!</div>
+          <div className="text-center text-aurora-ink-3 text-sm py-8">No messages yet. Start the conversation!</div>
         )}
       </div>
       <div className="border-t p-3 flex gap-2">

@@ -45,11 +45,11 @@ export default function PasswordResetConfirm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-50 px-4">
+    <div className="min-h-screen flex items-center justify-center hero-aurora-bg px-4 py-16">
       <div className="w-full max-w-md">
-        <Card className="card-base shadow-xl shadow-indigo-500/5">
+        <Card className="card-base shadow-soft-xl">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold">{t("auth.reset.confirm_title")}</CardTitle>
+            <CardTitle className="text-2xl font-semibold tracking-tight">{t("auth.reset.confirm_title")}</CardTitle>
             <CardDescription>{t("auth.reset.confirm_subtitle")}</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
@@ -58,7 +58,7 @@ export default function PasswordResetConfirm() {
             ) : done ? (
               <div className="text-center space-y-3">
                 <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
-                <p className="text-sm text-gray-700">{t("auth.reset.success")}</p>
+                <p className="text-sm text-aurora-ink-2">{t("auth.reset.success")}</p>
               </div>
             ) : (
               <form onSubmit={submit} className="space-y-4">
@@ -73,8 +73,8 @@ export default function PasswordResetConfirm() {
                 <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
                   {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.loading")}</> : t("auth.reset.update")}
                 </Button>
-                <p className="text-center text-xs text-gray-500">
-                  <Link to="/login" className="text-indigo-600 hover:underline">{t("auth.reset.back_to_login")}</Link>
+                <p className="text-center text-xs text-aurora-ink-3">
+                  <Link to="/login" className="text-aurora-blue hover:underline">{t("auth.reset.back_to_login")}</Link>
                 </p>
               </form>
             )}

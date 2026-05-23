@@ -3,7 +3,20 @@ import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
 import { openProtectedFile } from "@/lib/apiExtra"
-import { fetchProposalMessages, sendProposalMessage, cancelProposal, deleteCampaign, generateContractPdf, fetchContractTemplates, fundEscrow } from "@/lib/apiExtra"
+import {
+  fetchProposalMessages,
+  sendProposalMessage,
+  cancelProposal,
+  deleteCampaign,
+  generateContractPdf,
+  fetchContractTemplates,
+  fundEscrow,
+  fetchCampaignEmv,
+  fetchCampaignLookalikes,
+  exportCampaignReport,
+  type CampaignEmv,
+  type CampaignLookalikeResult,
+} from "@/lib/apiExtra"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
@@ -16,7 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { resolveMediaUrl } from "@/lib/utils"
 import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
-import { ArrowLeft, Eye, Calendar, DollarSign, Loader2, Send, Users, CheckCircle2, MessageSquare, Trash2, XCircle, FileText } from "lucide-react"
+import { ArrowLeft, Eye, Calendar, DollarSign, Loader2, Send, Users, CheckCircle2, MessageSquare, Trash2, XCircle, FileText, Sparkles, Download } from "lucide-react"
 
 interface ChatMessage {
   id: number
@@ -113,6 +126,12 @@ export default function CampaignDetail() {
   const [fundingProposal, setFundingProposal] = useState<number | null>(null)
   const [showSignDialog, setShowSignDialog] = useState(false)
   const [proposalForSigning, setProposalForSigning] = useState<number | null>(null)
+  const [emv, setEmv] = useState<CampaignEmv | null>(null)
+  const [emvLoading, setEmvLoading] = useState(false)
+  const [lookalikeReferenceId, setLookalikeReferenceId] = useState<number | null>(null)
+  const [lookalikes, setLookalikes] = useState<CampaignLookalikeResult[]>([])
+  const [lookalikeLoading, setLookalikeLoading] = useState(false)
+  const [exportingFormat, setExportingFormat] = useState<"pdf" | "pptx" | "google_slides" | null>(null)
 
   const handleDeleteCampaign = async () => {
     if (!campaign) return
@@ -260,6 +279,48 @@ export default function CampaignDetail() {
     }
   }
 
+  const loadEmv = async () => {
+    if (!id) return
+    setEmvLoading(true)
+    try {
+      const data = await fetchCampaignEmv(Number(id))
+      setEmv(data)
+    } catch {
+      setEmv(null)
+    } finally {
+      setEmvLoading(false)
+    }
+  }
+
+  const runLookalike = async () => {
+    if (!id || !lookalikeReferenceId) {
+      toast({ variant: "destructive", title: t("common.error"), description: t("campaign_insights.select_reference", "Choisissez un influenceur de référence") })
+      return
+    }
+    setLookalikeLoading(true)
+    try {
+      const data = await fetchCampaignLookalikes(Number(id), { reference_influencer_id: lookalikeReferenceId, limit: 12, min_score: 0.35 })
+      setLookalikes(data.results || [])
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    } finally {
+      setLookalikeLoading(false)
+    }
+  }
+
+  const handleExportReport = async (format: "pdf" | "pptx" | "google_slides") => {
+    if (!id) return
+    setExportingFormat(format)
+    try {
+      await exportCampaignReport(Number(id), format)
+      toast({ title: t("campaign_insights.export_done", "Export généré") })
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    } finally {
+      setExportingFormat(null)
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -285,7 +346,20 @@ export default function CampaignDetail() {
     }
     load()
     loadTemplates()
+    loadEmv()
   }, [id])
+
+  useEffect(() => {
+    if (lookalikeReferenceId) return
+    const proposalCandidate = proposals.find((p) => !!p.influencer)
+    if (proposalCandidate?.influencer) {
+      setLookalikeReferenceId(proposalCandidate.influencer)
+      return
+    }
+    if (matches[0]?.id) {
+      setLookalikeReferenceId(matches[0].id)
+    }
+  }, [lookalikeReferenceId, proposals, matches])
 
   const sendProposal = async (influencerId: number) => {
     setSending((prev) => new Set(prev).add(influencerId))
@@ -364,8 +438,8 @@ export default function CampaignDetail() {
     return labels[v] || theme
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
-  if (!campaign) return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (!campaign) return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
 
   const unsent = matches.filter((m) => {
     const proposal = proposals.find((p) => p.influencer === m.id)
@@ -383,7 +457,7 @@ export default function CampaignDetail() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-xl font-bold text-gray-900 flex-1">{campaign.title}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-aurora-ink flex-1">{campaign.title}</h1>
         <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setConfirmDelete(true)}>
           <Trash2 className="h-4 w-4 mr-1" />{t("campaign_detail.delete")}
         </Button>
@@ -399,16 +473,16 @@ export default function CampaignDetail() {
               </div>
             </CardHeader>
             <CardContent>
-              {campaign.description && <p className="text-gray-600 text-sm leading-relaxed mb-4">{campaign.description}</p>}
+              {campaign.description && <p className="text-aurora-ink-2 text-sm leading-relaxed mb-4">{campaign.description}</p>}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {[
                   { icon: DollarSign, label: t("campaign_detail.budget"), value: `€${campaign.price_per_influencer ?? 0}` },
                   { icon: Calendar, label: t("campaign_detail.deadline"), value: campaign.deadline ? new Date(campaign.deadline).toLocaleDateString() : "—" },
                   { icon: Eye, label: t("campaign_detail.views"), value: `${proposals.length} ${t("campaign_detail.proposals").toLowerCase()}` },
                 ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} className="p-3 bg-gray-50 rounded-xl text-sm">
-                    <div className="flex items-center gap-1 text-gray-400 mb-1"><Icon className="h-3.5 w-3.5" /><span className="text-xs">{label}</span></div>
-                    <p className="font-semibold text-gray-900">{value}</p>
+                  <div key={label} className="p-3 bg-aurora-surface rounded-xl text-sm">
+                    <div className="flex items-center gap-1 text-aurora-ink-3 mb-1"><Icon className="h-3.5 w-3.5" /><span className="text-xs">{label}</span></div>
+                    <p className="font-semibold text-aurora-ink">{value}</p>
                   </div>
                 ))}
               </div>
@@ -439,7 +513,7 @@ export default function CampaignDetail() {
               </CardHeader>
               <CardContent>
                 {matches.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-6">Aucun influenceur ne correspond pour l'instant à vos critères.</p>
+                  <p className="text-sm text-aurora-ink-3 text-center py-6">Aucun influenceur ne correspond pour l'instant à vos critères.</p>
                 ) : (
                   <div className="space-y-3">
                     {matches.map((m) => {
@@ -450,7 +524,7 @@ export default function CampaignDetail() {
                       const isSending = sending.has(m.id)
                       const totalFollowers = m.social_networks.reduce((sum, sn) => sum + sn.followers_count, 0)
                       return (
-                        <div key={m.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
+                        <div key={m.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-aurora-surface transition-colors border border-aurora-line">
                           <InfluencerHoverCard
                             influencerId={m.id}
                             influencerPseudo={m.pseudo}
@@ -463,13 +537,13 @@ export default function CampaignDetail() {
                             <button type="button" onClick={() => openProfilePreview(m.id, m.pseudo)} className="flex items-center gap-3 min-w-0 group cursor-pointer text-left">
                               <Avatar className="h-10 w-10 shrink-0">
                                 {m.avatar && <AvatarImage src={resolveMediaUrl(m.avatar)} />}
-                                <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
+                                <AvatarFallback className="bg-aurora-ink text-white text-sm font-semibold">
                                   {(m.display_name || "??").slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="min-w-0">
-                                <p className="font-medium text-sm text-gray-900 truncate group-hover:text-indigo-600 transition-colors">{m.display_name || `Influencer #${m.id}`}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <p className="font-medium text-sm text-aurora-ink truncate group-hover:text-aurora-blue transition-colors">{m.display_name || `Influencer #${m.id}`}</p>
+                                <div className="flex items-center gap-2 text-xs text-aurora-ink-3">
                                   {m.city && <span>{m.city}</span>}
                                   <span>{fmtFollowers(totalFollowers)} abonnes</span>
                                   {m.social_networks.map((sn) => (
@@ -481,7 +555,7 @@ export default function CampaignDetail() {
                                     {m.content_themes.slice(0, 4).map((th) => (
                                       <Badge key={th} variant="info" className="text-[10px] px-1.5 py-0">{th}</Badge>
                                     ))}
-                                    {m.content_themes.length > 4 && <span className="text-[10px] text-gray-400">+{m.content_themes.length - 4}</span>}
+                                    {m.content_themes.length > 4 && <span className="text-[10px] text-aurora-ink-3">+{m.content_themes.length - 4}</span>}
                                   </div>
                                 )}
                               </div>
@@ -512,13 +586,65 @@ export default function CampaignDetail() {
             </Card>
           )}
 
+          <Card className="card-base">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-aurora-blue" />
+                {t("campaign_insights.lookalike_title", "Lookalike d'influenceurs")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={lookalikeReferenceId || ""}
+                  onChange={(e) => setLookalikeReferenceId(Number(e.target.value) || null)}
+                  className="h-9 min-w-[280px] rounded-md border border-aurora-line bg-white px-3 text-sm"
+                >
+                  <option value="">{t("campaign_insights.select_reference", "Sélectionner un influenceur de référence")}</option>
+                  {matches.map((m) => (
+                    <option key={`m-${m.id}`} value={m.id}>{m.display_name || `Influencer #${m.id}`}</option>
+                  ))}
+                  {proposals
+                    .filter((p) => !matches.some((m) => m.id === p.influencer))
+                    .map((p) => (
+                      <option key={`p-${p.influencer}`} value={p.influencer}>{p.influencer_display_name || `Influencer #${p.influencer}`}</option>
+                    ))}
+                </select>
+                <Button variant="outline" size="sm" onClick={runLookalike} disabled={lookalikeLoading}>
+                  {lookalikeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                  {t("campaign_insights.find_similar", "Trouver des profils similaires")}
+                </Button>
+              </div>
+
+              {lookalikes.length === 0 ? (
+                <p className="text-sm text-aurora-ink-3">{t("campaign_insights.lookalike_empty", "Lancez une recherche lookalike pour obtenir des recommandations.")}</p>
+              ) : (
+                <div className="space-y-2">
+                  {lookalikes.map((r) => (
+                    <div key={r.influencer_id} className="flex items-center justify-between rounded-lg border border-aurora-line p-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-aurora-ink truncate">{r.display_name}</p>
+                        <p className="text-xs text-aurora-ink-3 truncate">
+                          {t("campaign_insights.score", "Score")}: {(r.score * 100).toFixed(1)}% · {t("campaign_insights.reasons", "Raisons")}: {r.reasons.join(", ")}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => sendProposal(r.influencer_id)} disabled={sending.has(r.influencer_id)}>
+                        <Send className="h-3.5 w-3.5 mr-1" />{t("campaign_insights.propose", "Proposer")}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Propositions */}
           <Card className="card-base">
             <CardHeader><CardTitle className="text-base">{t("campaign_detail.proposals")} ({proposals.length})</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {proposals.map((p) => (
-                  <div key={p.id} className="rounded-xl border border-gray-100 bg-white p-3 space-y-3">
+                  <div key={p.id} className="rounded-xl border border-aurora-line bg-white p-3 space-y-3">
                     <div className="flex items-center justify-between gap-4">
                       <InfluencerHoverCard
                         influencerId={p.influencer}
@@ -529,13 +655,13 @@ export default function CampaignDetail() {
                         <button type="button" onClick={() => openProfilePreview(p.influencer, p.influencer_pseudo)} className="flex items-center gap-3 group cursor-pointer text-left min-w-0">
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={resolveMediaUrl(p.influencer_avatar)} alt={p.influencer_display_name} />
-                            <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-sm font-semibold">
+                            <AvatarFallback className="bg-aurora-ink text-white text-sm font-semibold">
                               {(p.influencer_display_name || "??").slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-semibold text-sm text-gray-900 group-hover:text-indigo-600 transition-colors">{p.influencer_display_name || `Influencer #${p.id}`}</p>
-                            <p className="text-xs text-gray-500">Proposition active</p>
+                            <p className="font-semibold text-sm text-aurora-ink group-hover:text-aurora-blue transition-colors">{p.influencer_display_name || `Influencer #${p.id}`}</p>
+                            <p className="text-xs text-aurora-ink-3">Proposition active</p>
                           </div>
                         </button>
                       </InfluencerHoverCard>
@@ -594,6 +720,55 @@ export default function CampaignDetail() {
 
         <div className="space-y-4">
           <Card className="card-base">
+            <CardHeader>
+              <CardTitle className="text-base">{t("campaign_insights.emv_title", "Earned Media Value (EMV)")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {emvLoading ? (
+                <div className="flex items-center text-sm text-aurora-ink-3"><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.loading")}</div>
+              ) : emv ? (
+                <>
+                  <div className="rounded-xl border border-aurora-line bg-aurora-surface p-3">
+                    <p className="text-xs text-aurora-ink-3">{t("campaign_insights.emv_total", "EMV total")}</p>
+                    <p className="text-xl font-semibold text-aurora-ink">€{Number(emv.emv_total_eur || 0).toLocaleString("fr-FR")}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-lg border border-aurora-line p-2">
+                      <p className="text-aurora-ink-3 text-xs">{t("campaign_insights.submissions", "Soumissions")}</p>
+                      <p className="font-semibold text-aurora-ink">{emv.submissions_count}</p>
+                    </div>
+                    <div className="rounded-lg border border-aurora-line p-2">
+                      <p className="text-aurora-ink-3 text-xs">{t("campaign_insights.emv_ratio", "EMV / Spend")}</p>
+                      <p className="font-semibold text-aurora-ink">{emv.emv_vs_spend_ratio ?? "-"}</p>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={loadEmv}>{t("campaign_insights.refresh_emv", "Recalculer EMV")}</Button>
+                </>
+              ) : (
+                <p className="text-sm text-aurora-ink-3">{t("campaign_insights.no_emv_data", "Pas assez de données de contenu pour calculer l'EMV.")}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="card-base">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Download className="h-4 w-4" />{t("campaign_insights.export_title", "Export reporting")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button className="w-full" variant="outline" size="sm" disabled={!!exportingFormat} onClick={() => handleExportReport("pdf")}>
+                {exportingFormat === "pdf" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}PDF
+              </Button>
+              <Button className="w-full" variant="outline" size="sm" disabled={!!exportingFormat} onClick={() => handleExportReport("pptx")}>
+                {exportingFormat === "pptx" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}PPTX
+              </Button>
+              <Button className="w-full" variant="outline" size="sm" disabled={!!exportingFormat} onClick={() => handleExportReport("google_slides")}>
+                {exportingFormat === "google_slides" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+                {t("campaign_insights.google_slides", "Google Slides")}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="card-base">
             <CardHeader><CardTitle className="text-base">{t("campaign_detail.quick_stats")}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {[
@@ -603,8 +778,8 @@ export default function CampaignDetail() {
                 { label: "Influenceurs matchés", value: matches.length },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">{label}</span>
-                  <span className="font-semibold text-gray-900">{value}</span>
+                  <span className="text-aurora-ink-3">{label}</span>
+                  <span className="font-semibold text-aurora-ink">{value}</span>
                 </div>
               ))}
             </CardContent>
@@ -616,14 +791,14 @@ export default function CampaignDetail() {
               <CardContent className="space-y-2 text-sm">
                 {Array.isArray(campaign.target_filters.age_ranges) && campaign.target_filters.age_ranges.length > 0 && (
                   <div>
-                    <span className="text-gray-500">{t("audience.age_ranges", "Tranches d'âge")} : </span>
-                    <span className="font-medium text-gray-900">{campaign.target_filters.age_ranges.join(", ")}</span>
+                    <span className="text-aurora-ink-3">{t("audience.age_ranges", "Tranches d'âge")} : </span>
+                    <span className="font-medium text-aurora-ink">{campaign.target_filters.age_ranges.join(", ")}</span>
                   </div>
                 )}
                 {Array.isArray(campaign.target_filters.audience_genders) && campaign.target_filters.audience_genders.length > 0 && (
                   <div>
-                    <span className="text-gray-500">{t("audience.gender", "Genre")} : </span>
-                    <span className="font-medium text-gray-900">
+                    <span className="text-aurora-ink-3">{t("audience.gender", "Genre")} : </span>
+                    <span className="font-medium text-aurora-ink">
                       {campaign.target_filters.audience_genders
                         .map((g: string) => t(`audience.gender_${g}`, g))
                         .join(", ")}
@@ -632,28 +807,28 @@ export default function CampaignDetail() {
                 )}
                 {Array.isArray(campaign.target_filters.audience_languages) && campaign.target_filters.audience_languages.length > 0 && (
                   <div>
-                    <span className="text-gray-500">{t("audience.languages", "Langues")} : </span>
-                    <span className="font-medium text-gray-900">{campaign.target_filters.audience_languages.join(", ").toUpperCase()}</span>
+                    <span className="text-aurora-ink-3">{t("audience.languages", "Langues")} : </span>
+                    <span className="font-medium text-aurora-ink">{campaign.target_filters.audience_languages.join(", ").toUpperCase()}</span>
                   </div>
                 )}
                 {Array.isArray(campaign.target_filters.audience_cities) && campaign.target_filters.audience_cities.length > 0 && (
                   <div>
-                    <span className="text-gray-500">{t("audience.cities", "Villes")} : </span>
-                    <span className="font-medium text-gray-900">{campaign.target_filters.audience_cities.join(", ")}</span>
+                    <span className="text-aurora-ink-3">{t("audience.cities", "Villes")} : </span>
+                    <span className="font-medium text-aurora-ink">{campaign.target_filters.audience_cities.join(", ")}</span>
                   </div>
                 )}
                 {campaign.target_filters.target_audience && (
                   <div>
-                    <span className="text-gray-500">{t("audience.notes", "Notes")} : </span>
-                    <span className="font-medium text-gray-900">{formatAudience(campaign.target_filters.target_audience)}</span>
+                    <span className="text-aurora-ink-3">{t("audience.notes", "Notes")} : </span>
+                    <span className="font-medium text-aurora-ink">{formatAudience(campaign.target_filters.target_audience)}</span>
                   </div>
                 )}
                 {campaign.target_filters.min_followers && (
-                  <div><span className="text-gray-500">{t("campaign_detail.min_followers_label", "Min. abonnés")} : </span><span className="font-medium text-gray-900">{fmtFollowers(campaign.target_filters.min_followers)}</span></div>
+                  <div><span className="text-aurora-ink-3">{t("campaign_detail.min_followers_label", "Min. abonnés")} : </span><span className="font-medium text-aurora-ink">{fmtFollowers(campaign.target_filters.min_followers)}</span></div>
                 )}
                 {Array.isArray(campaign.target_filters.content_themes) && campaign.target_filters.content_themes.length > 0 && (
                   <div className="pt-1">
-                    <div className="text-gray-500 mb-1">{t("campaign_detail.target_themes", "Thèmes cibles")} :</div>
+                    <div className="text-aurora-ink-3 mb-1">{t("campaign_detail.target_themes", "Thèmes cibles")} :</div>
                     <div className="flex flex-wrap gap-1.5">
                       {campaign.target_filters.content_themes.map((th: string) => (
                         <Badge key={th} variant="info" className="text-[11px]">{formatThemeLabel(th)}</Badge>
@@ -691,7 +866,7 @@ export default function CampaignDetail() {
             </DialogTitle>
           </DialogHeader>
           {chatLoading ? (
-            <div className="flex items-center justify-center h-96 text-gray-400">
+            <div className="flex items-center justify-center h-96 text-aurora-ink-3">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />{t("common.loading")}
             </div>
           ) : (
@@ -706,23 +881,23 @@ export default function CampaignDetail() {
             <DialogTitle className="text-base">Profil influenceur</DialogTitle>
           </DialogHeader>
           {profilePreviewLoading ? (
-            <div className="flex items-center justify-center h-72 text-gray-400"><Loader2 className="h-5 w-5 animate-spin mr-2" />{t("common.loading")}</div>
+            <div className="flex items-center justify-center h-72 text-aurora-ink-3"><Loader2 className="h-5 w-5 animate-spin mr-2" />{t("common.loading")}</div>
           ) : profilePreview ? (
             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16">
                   {profilePreview.avatar && <AvatarImage src={resolveMediaUrl(profilePreview.avatar)} />}
-                  <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white font-semibold">
+                  <AvatarFallback className="bg-aurora-ink text-white font-semibold">
                     {(profilePreview.display_name || "??").slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="text-lg font-semibold text-gray-900 truncate">{profilePreview.display_name}</p>
-                  <p className="text-sm text-gray-500">{profilePreview.city || "-"}</p>
+                  <p className="text-lg font-semibold text-aurora-ink truncate">{profilePreview.display_name}</p>
+                  <p className="text-sm text-aurora-ink-3">{profilePreview.city || "-"}</p>
                 </div>
               </div>
 
-              {profilePreview.bio && <p className="text-sm text-gray-700 whitespace-pre-wrap">{profilePreview.bio}</p>}
+              {profilePreview.bio && <p className="text-sm text-aurora-ink-2 whitespace-pre-wrap">{profilePreview.bio}</p>}
 
               {profilePreview.social_networks?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -764,13 +939,13 @@ export default function CampaignDetail() {
                 className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
                   selectedTemplate === template.id 
                     ? 'border-indigo-500 bg-indigo-50' 
-                    : 'border-gray-200 hover:border-indigo-300'
+                    : 'border-aurora-line hover:border-indigo-300'
                 }`}
                 onClick={() => setSelectedTemplate(template.id)}
               >
                 <div className="font-medium text-sm">{template.name}</div>
                 {template.description && (
-                  <div className="text-xs text-gray-500 mt-1">{template.description}</div>
+                  <div className="text-xs text-aurora-ink-3 mt-1">{template.description}</div>
                 )}
               </div>
             ))}

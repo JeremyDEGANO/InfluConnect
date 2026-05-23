@@ -44,20 +44,20 @@ export default function EventRsvp() {
     }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
-  if (!invitation) return <div className="min-h-screen flex items-center justify-center text-gray-500">{t("events.invitation_not_found", "Invitation introuvable")}</div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (!invitation) return <div className="min-h-screen flex items-center justify-center text-aurora-ink-3">{t("events.invitation_not_found", "Invitation introuvable")}</div>
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
+    <div className="min-h-screen bg-aurora-surface p-4 sm:p-8">
       <div className="max-w-xl mx-auto">
         <Card className="card-base">
           <CardHeader>
             <CardTitle>{invitation.event_title}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-gray-600">{new Date(invitation.event_starts_at).toLocaleString()}</p>
-            <p className="text-sm text-gray-600">{invitation.event_address}</p>
-            <p className="text-sm text-gray-700">{t("events.current_status", "Statut actuel")} : {invitation.status}</p>
+            <p className="text-sm text-aurora-ink-2">{new Date(invitation.event_starts_at).toLocaleString()}</p>
+            <p className="text-sm text-aurora-ink-2">{invitation.event_address}</p>
+            <p className="text-sm text-aurora-ink-2">{t("events.current_status", "Statut actuel")} : {invitation.status}</p>
 
             <div className="grid sm:grid-cols-2 gap-2">
               <Input

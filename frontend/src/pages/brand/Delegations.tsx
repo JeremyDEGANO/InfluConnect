@@ -53,11 +53,12 @@ export default function AgencyDelegations() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("agency.title", "Délégations agence")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("agency.title", "Délégations agence")}</h1>
 
       {isAgency && (
         <Card className="card-base">
@@ -89,17 +90,17 @@ export default function AgencyDelegations() {
         <CardHeader><CardTitle className="text-base">{t("agency.list_title", isAgency ? "Mes influenceurs sous gestion" : "Invitations reçues")}</CardTitle></CardHeader>
         <CardContent>
           {list.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">{t("agency.empty", "Aucune délégation pour le moment.")}</p>
+            <p className="text-sm text-aurora-ink-3 text-center py-4">{t("agency.empty", "Aucune délégation pour le moment.")}</p>
           ) : (
             <div className="space-y-2">
               {list.map((d) => (
-                <div key={d.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50">
+                <div key={d.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-aurora-surface">
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">
+                    <p className="font-medium text-aurora-ink text-sm">
                       {isAgency ? d.influencer_name : d.agency_name}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      {t("agency.commission", "Commission")} : {d.commission_percent}% · {t(`agency.status_${d.status}`, d.status)}
+                    <p className="text-xs text-aurora-ink-3">
+                      {t("agency.commission", "Commission")} : {d.commission_percent}% Â· {t(`agency.status_${d.status}`, d.status)}
                     </p>
                   </div>
                   <div className="flex gap-2">

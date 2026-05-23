@@ -158,7 +158,7 @@ export default function Messages() {
 
   const searchGifs = useCallback(async (query: string) => {
     setGifLoading(true)
-    const key = (import.meta as { env: Record<string, string> }).env.VITE_GIPHY_API_KEY || 'dc6zaTOxFJmzC'
+    const key = (import.meta as { env: Record<string, string> }).env.VITE_GIPHY_API_KEY
     const endpoint = query
       ? `https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(query)}&limit=24&rating=g`
       : `https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=24&rating=g`
@@ -307,26 +307,27 @@ export default function Messages() {
   return (
     <div className="h-screen flex flex-col max-w-6xl mx-auto">
       {/* Header */}
-      <div className="border-b border-gray-200 p-4 sm:p-6">
+      <div className="border-b border-aurora-line p-4 sm:p-6">
         <div className="flex items-center gap-3">
-          <MessageCircle className="h-6 w-6 text-indigo-600" />
-          <h1 className="text-2xl font-bold text-gray-900">{t("messages.title", "Messages")}</h1>
+          <MessageCircle className="h-6 w-6 text-aurora-blue" />
+          <p className="text-sm text-aurora-ink-3">{t("common.workspace", "Espace de travail")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("messages.title", "Messages")}</h1>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Conversations list */}
         <div className={cn(
-          "w-full sm:w-96 border-r border-gray-200 flex flex-col",
+          "w-full sm:w-96 border-r border-aurora-line flex flex-col",
           activeConversationId && "hidden sm:flex"
         )}>
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-gray-400">
+            <div className="flex items-center justify-center py-8 text-aurora-ink-3">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
               {t("common.loading")}
             </div>
           ) : conversations.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-gray-400 text-sm">
+            <div className="flex items-center justify-center py-8 text-aurora-ink-3 text-sm">
               {t("messages.no_conversations", "Aucune conversation")}
             </div>
           ) : (
@@ -336,7 +337,7 @@ export default function Messages() {
                   key={conv.id}
                   onClick={() => setSelectedConversationId(conv.id)}
                   className={cn(
-                    "w-full p-4 text-left border-b border-gray-100 hover:bg-gray-50 transition-colors",
+                    "w-full p-4 text-left border-b border-aurora-line hover:bg-aurora-surface transition-colors",
                     activeConversationId === conv.id && "bg-indigo-50"
                   )}
                 >
@@ -350,10 +351,10 @@ export default function Messages() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="font-semibold text-gray-900 truncate flex-1">
+                        <div className="font-semibold text-aurora-ink truncate flex-1">
                           {conv.other_user?.username || conv.campaign}
                         </div>
-                        <span className="text-[11px] text-gray-400 shrink-0">{formatConversationTime(conv.created_at)}</span>
+                        <span className="text-[11px] text-aurora-ink-3 shrink-0">{formatConversationTime(conv.created_at)}</span>
                         {(conv.unread_count || 0) > 0 && (
                           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white shrink-0">
                             {(conv.unread_count || 0) > 99 ? '99+' : conv.unread_count}
@@ -361,9 +362,9 @@ export default function Messages() {
                         )}
                       </div>
                       {conv.campaign && (
-                        <div className="text-xs text-gray-500 truncate">{conv.campaign}</div>
+                        <div className="text-xs text-aurora-ink-3 truncate">{conv.campaign}</div>
                       )}
-                      <p className="text-xs text-gray-600 line-clamp-1">{conv.last_message}</p>
+                      <p className="text-xs text-aurora-ink-2 line-clamp-1">{conv.last_message}</p>
                     </div>
                   </div>
                 </button>
@@ -376,10 +377,10 @@ export default function Messages() {
         {activeConversationId ? (
           <div className="flex-1 flex flex-col">
             {/* Messages header */}
-            <div className="border-b border-gray-200 p-4 sm:p-6 flex items-center gap-3">
+            <div className="border-b border-aurora-line p-4 sm:p-6 flex items-center gap-3">
               <button
                 onClick={() => setSelectedConversationId(null)}
-                className="sm:hidden p-2 hover:bg-gray-100 rounded-lg"
+                className="sm:hidden p-2 hover:bg-aurora-surface rounded-lg"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
@@ -393,11 +394,11 @@ export default function Messages() {
                     </div>
                   )}
                   <div className="flex-1">
-                    <div className="font-semibold text-gray-900">
+                    <div className="font-semibold text-aurora-ink">
                       {currentConversation.other_user?.username || currentConversation.campaign}
                     </div>
                     {currentConversation.campaign && (
-                      <div className="text-sm text-gray-500">{currentConversation.campaign}</div>
+                      <div className="text-sm text-aurora-ink-3">{currentConversation.campaign}</div>
                     )}
                   </div>
                 </>
@@ -407,11 +408,11 @@ export default function Messages() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               {messageLoading ? (
-                <div className="flex items-center justify-center h-full text-gray-400">
+                <div className="flex items-center justify-center h-full text-aurora-ink-3">
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                <div className="flex items-center justify-center h-full text-aurora-ink-3 text-sm">
                   {t("messages.no_messages", "Aucun message")}
                 </div>
               ) : (
@@ -428,7 +429,7 @@ export default function Messages() {
                         'max-w-xs px-4 py-2 rounded-lg',
                         msg.sender === user?.id
                           ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-100 text-gray-900'
+                          : 'bg-aurora-surface text-aurora-ink'
                       )}
                     >
                       {msg.content && (
@@ -460,14 +461,14 @@ export default function Messages() {
                               download
                               className={cn(
                                 "inline-flex items-center gap-1 text-xs underline",
-                                msg.sender === user?.id ? "text-indigo-100" : "text-indigo-700"
+                                msg.sender === user?.id ? "text-indigo-100" : "text-aurora-blue-deep"
                               )}
                             >
                               <Paperclip className="h-3 w-3" />
                               {t("messages.open_attachment", "Open attachment")}
                             </a>
                           ) : (
-                            <span className={cn("text-xs", msg.sender === user?.id ? "text-indigo-100" : "text-gray-500")}>
+                            <span className={cn("text-xs", msg.sender === user?.id ? "text-indigo-100" : "text-aurora-ink-3")}>
                               {t("common.loading")}
                             </span>
                           )}
@@ -475,7 +476,7 @@ export default function Messages() {
                       )}
                       <p className={cn(
                         'text-xs mt-1',
-                        msg.sender === user?.id ? 'text-indigo-100' : 'text-gray-500'
+                        msg.sender === user?.id ? 'text-indigo-100' : 'text-aurora-ink-3'
                       )}>
                         {new Date(msg.created_at).toLocaleTimeString([], {
                           hour: '2-digit',
@@ -490,7 +491,7 @@ export default function Messages() {
             </div>
 
             {/* Message input */}
-            <div className="border-t border-gray-200 p-4 sm:p-6 relative">
+            <div className="border-t border-aurora-line p-4 sm:p-6 relative">
               {/* Emoji picker */}
               {showEmojiPicker && (
                 <div
@@ -514,26 +515,26 @@ export default function Messages() {
               {showGifPicker && (
                 <div
                   ref={gifPickerRef}
-                  className="absolute bottom-full left-4 right-4 mb-2 z-50 bg-white dark:bg-gray-900 border border-gray-200 rounded-xl shadow-xl flex flex-col"
+                  className="absolute bottom-full left-4 right-4 mb-2 z-50 bg-white dark:bg-gray-900 border border-aurora-line rounded-xl shadow-xl flex flex-col"
                   style={{ height: 340 }}
                 >
-                  <div className="p-2 border-b border-gray-100">
+                  <div className="p-2 border-b border-aurora-line">
                     <input
                       type="text"
                       value={gifSearch}
                       onChange={e => setGifSearch(e.target.value)}
                       placeholder={t('messages.search_gif', 'Rechercher un GIF...')}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      className="w-full rounded-lg border border-aurora-line px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                       autoFocus
                     />
                   </div>
                   <div className="flex-1 overflow-y-auto p-2">
                     {gifLoading ? (
-                      <div className="flex items-center justify-center h-full text-gray-400">
+                      <div className="flex items-center justify-center h-full text-aurora-ink-3">
                         <Loader2 className="h-5 w-5 animate-spin" />
                       </div>
                     ) : gifs.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                      <div className="flex items-center justify-center h-full text-aurora-ink-3 text-sm">
                         {t('messages.no_gifs', 'Aucun GIF trouvé')}
                       </div>
                     ) : (
@@ -555,14 +556,14 @@ export default function Messages() {
                       </div>
                     )}
                   </div>
-                  <div className="px-3 py-1.5 border-t border-gray-100 text-xs text-gray-400 text-right">
+                  <div className="px-3 py-1.5 border-t border-aurora-line text-xs text-aurora-ink-3 text-right">
                     Powered by GIPHY
                   </div>
                 </div>
               )}
 
               {selectedFile && (
-                <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-aurora-line bg-aurora-surface px-2 py-1 text-xs text-aurora-ink-2">
                   <Paperclip className="h-3 w-3" />
                   <span className="max-w-[220px] truncate">{selectedFile.name}</span>
                   <button
@@ -631,7 +632,7 @@ export default function Messages() {
             </div>
           </div>
         ) : (
-          <div className="hidden sm:flex flex-1 items-center justify-center text-gray-400">
+          <div className="hidden sm:flex flex-1 items-center justify-center text-aurora-ink-3">
             <p className="text-center">
               {t("messages.select_conversation", "Sélectionnez une conversation")}
             </p>

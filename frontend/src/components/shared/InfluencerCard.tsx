@@ -25,13 +25,13 @@ export function InfluencerCard({ id, name, avatar, followers, engagement_rate, t
         <div className="flex items-start gap-3">
           <Avatar className="h-12 w-12">
             <AvatarImage src={avatar} />
-            <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-semibold">
+            <AvatarFallback className="bg-aurora-ink text-white font-semibold">
               {name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 truncate">{name}</h3>
-            <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+            <h3 className="font-semibold text-aurora-ink truncate">{name}</h3>
+            <div className="flex items-center gap-3 mt-1 text-sm text-aurora-ink-3">
               <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{formatFollowers(followers)}</span>
               <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />{avg_rating.toFixed(1)}</span>
               <span className="text-green-600 font-medium">{engagement_rate}%</span>
@@ -46,7 +46,7 @@ export function InfluencerCard({ id, name, avatar, followers, engagement_rate, t
           ))}
         </div>
         <div className="flex items-center justify-between mt-4">
-          <span className="text-sm text-gray-500">From <span className="font-semibold text-gray-900">€{min_price}</span></span>
+          <span className="text-sm text-aurora-ink-3">From <span className="font-semibold text-aurora-ink">€{min_price}</span></span>
           <Button size="sm" variant="gradient" onClick={() => onContact?.(id)}>Contact</Button>
         </div>
       </CardContent>

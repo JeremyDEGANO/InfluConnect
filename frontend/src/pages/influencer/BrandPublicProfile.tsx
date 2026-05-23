@@ -33,9 +33,9 @@ export default function BrandPublicProfile() {
   }, [id])
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+    return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
   }
-  if (!brand) return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
+  if (!brand) return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
 
   const ratingValue = Number((brand as any).average_rating)
   const ratingLabel = Number.isFinite(ratingValue) ? ratingValue.toFixed(1) : null
@@ -44,7 +44,7 @@ export default function BrandPublicProfile() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-xl font-bold text-gray-900">{t("brand_public.title")}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-aurora-ink">{t("brand_public.title")}</h1>
       </div>
 
       <Card className="card-base">
@@ -52,13 +52,13 @@ export default function BrandPublicProfile() {
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
               {brand.logo && <AvatarImage src={resolveMediaUrl(brand.logo)} />}
-              <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-violet-600 text-white text-lg font-semibold">
+              <AvatarFallback className="bg-aurora-ink text-white text-lg font-semibold">
                 {(brand.company_name || "??").slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <CardTitle className="text-xl">{brand.company_name}</CardTitle>
-              {brand.sector && <p className="text-sm text-gray-500 flex items-center gap-1 mt-1"><Briefcase className="h-3.5 w-3.5" />{brand.sector}</p>}
+              {brand.sector && <p className="text-sm text-aurora-ink-3 flex items-center gap-1 mt-1"><Briefcase className="h-3.5 w-3.5" />{brand.sector}</p>}
             </div>
             {ratingLabel && (
               <div className="flex items-center gap-1 text-amber-500">
@@ -71,14 +71,14 @@ export default function BrandPublicProfile() {
         <CardContent className="space-y-4">
           {brand.description && (
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{t("brand_public.about")}</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{brand.description}</p>
+              <p className="text-sm font-medium text-aurora-ink-3 mb-1">{t("brand_public.about")}</p>
+              <p className="text-sm text-aurora-ink-2 whitespace-pre-wrap leading-relaxed">{brand.description}</p>
             </div>
           )}
           {brand.website && (
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{t("brand_public.website")}</p>
-              <a href={brand.website} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+              <p className="text-sm font-medium text-aurora-ink-3 mb-1">{t("brand_public.website")}</p>
+              <a href={brand.website} target="_blank" rel="noreferrer" className="text-sm text-aurora-blue hover:underline flex items-center gap-1">
                 <Globe className="h-3.5 w-3.5" />{brand.website}
               </a>
             </div>

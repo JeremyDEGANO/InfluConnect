@@ -45,11 +45,19 @@ import BrandPublicProfile from "@/pages/influencer/BrandPublicProfile"
 import Terms from "@/pages/legal/Terms"
 import Privacy from "@/pages/legal/Privacy"
 import LegalNotice from "@/pages/legal/LegalNotice"
+import CGV from "@/pages/legal/CGV"
+import CookiesPolicy from "@/pages/legal/Cookies"
+import About from "@/pages/About"
+import Contact from "@/pages/Contact"
+import FAQ from "@/pages/FAQ"
+import Help from "@/pages/Help"
+import Compare from "@/pages/Compare"
 import EventRsvp from "@/pages/EventRsvp"
 import Admin from "@/pages/Admin"
 import AdminBrands from "@/pages/admin/Brands"
 import AdminCompanies from "@/pages/admin/Companies"
 import AdminUsers from "@/pages/admin/Users"
+import AdminCampaigns from "@/pages/admin/Campaigns"
 import AdminReviews from "@/pages/admin/Reviews"
 import AdminAuditLog from "@/pages/admin/AuditLog"
 import AdminSupport from "@/pages/admin/Support"
@@ -74,11 +82,14 @@ function DashboardLayout() {
   const hideSidebar = user?.user_type === "brand" && brandValidationStatus !== "approved"
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-aurora-surface">
       <Header />
       <div className="flex flex-1">
         {!hideSidebar && <Sidebar />}
-        <main className="flex-1 bg-gray-50 overflow-auto"><Outlet /></main>
+        <main className="flex-1 overflow-auto relative">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-aurora-blue/[0.04] via-transparent to-transparent" />
+          <div className="relative"><Outlet /></div>
+        </main>
       </div>
     </div>
   )
@@ -121,10 +132,21 @@ export default function App() {
           <Route path="/reset-password/confirm" element={<PasswordResetConfirm />} />
           <Route path="/security/reset-mfa" element={<MfaResetConfirm />} />
           <Route path="/marketplace/:pseudo" element={<InfluencerPublicProfile />} />
-          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/pricing" element={<Navigate to="/pricing/brands" replace />} />
+          <Route path="/pricing/brands" element={<Pricing />} />
+          <Route path="/pricing/agencies" element={<Pricing />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/notice" element={<LegalNotice />} />
+          <Route path="/legal/cgv" element={<CGV />} />
+          <Route path="/legal/cookies" element={<CookiesPolicy />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/help" element={<Help />} />
+          <Route path="/compare" element={<Compare />} />
           <Route path="/events/rsvp/:token" element={<EventRsvp />} />
           <Route path="/sign/mobile/:token" element={<SignMobile />} />
         </Route>
@@ -183,6 +205,7 @@ export default function App() {
               <Route path="/admin/brands" element={<AdminBrands />} />
               <Route path="/admin/companies" element={<AdminCompanies />} />
               <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/reviews" element={<AdminReviews />} />
               <Route path="/admin/audit-log" element={<AdminAuditLog />} />
               <Route path="/admin/support" element={<AdminSupport />} />

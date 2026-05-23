@@ -39,6 +39,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'api.middleware.RequestLogMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -111,6 +112,11 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_RATES': {
+        'auth_login': '10/min',
+        'auth_password_reset': '5/hour',
+        'auth_mfa_reset': '5/hour',
+    },
 }
 
 SIMPLE_JWT = {
@@ -162,6 +168,7 @@ PLATFORM_COMMISSION_RATE = config('PLATFORM_COMMISSION_RATE', default=15, cast=f
 # Frontend URL (for email links, QR codes, etc.)
 # ---------------------------------------------------------------------------
 FRONTEND_URL = config('FRONTEND_URL', default='https://influconnect.fr')
+LOG_LEVEL = config('LOG_LEVEL', default='INFO')
 
 # ---------------------------------------------------------------------------
 # Social network OAuth credentials (CDC §8 — auto stats import)
@@ -181,3 +188,35 @@ META_APP_ID = config('META_APP_ID', default='')
 META_APP_SECRET = config('META_APP_SECRET', default='')
 TWITCH_CLIENT_ID = config('TWITCH_CLIENT_ID', default='')
 TWITCH_CLIENT_SECRET = config('TWITCH_CLIENT_SECRET', default='')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '[%(asctime)s] %(levelname)s %(name)s: %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'api.request': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+    },
+}

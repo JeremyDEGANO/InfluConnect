@@ -188,11 +188,11 @@ export default function ValidateContent() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+    return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
   }
 
   if (!proposal || !submission) {
-    return <div className="p-6 text-center text-gray-400">{t("common.error")}</div>
+    return <div className="p-6 text-center text-aurora-ink-3">{t("common.error")}</div>
   }
 
   const publicationUrl = submission.publication_url || ""
@@ -215,13 +215,13 @@ export default function ValidateContent() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4 mr-1" />{t("common.back")}</Button>
-        <h1 className="text-xl font-bold text-gray-900">{t("brand_proposal.validate_content")} — #{proposalId}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-aurora-ink">{t("brand_proposal.validate_content")} — #{proposalId}</h1>
       </div>
 
       <Card className="card-base">
         <CardHeader><CardTitle>{t("brand_proposal.validate_content")}</CardTitle></CardHeader>
         <CardContent>
-          <div className="rounded-xl mb-4 overflow-hidden bg-gray-100">
+          <div className="rounded-xl mb-4 overflow-hidden bg-aurora-surface">
             {youtubeEmbed ? (
               <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
                 <iframe
@@ -253,12 +253,12 @@ export default function ValidateContent() {
             ) : screenshotUrl ? (
               <img src={screenshotUrl} alt={t("brand_proposal.submission_screenshot_alt")} className="w-full max-h-96 object-contain" />
             ) : (
-              <div className="aspect-video flex items-center justify-center text-gray-400">
+              <div className="aspect-video flex items-center justify-center text-aurora-ink-3">
                 <div className="text-center">
                   <ExternalLink className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">{t("brand_proposal.view_submitted_content")}</p>
                   {publicationUrl && (
-                    <a href={publicationUrl} target="_blank" rel="noreferrer" className="text-indigo-600 text-sm hover:underline mt-1 block">
+                    <a href={publicationUrl} target="_blank" rel="noreferrer" className="text-aurora-blue text-sm hover:underline mt-1 block">
                       {t("common.view")} →
                     </a>
                   )}
@@ -268,9 +268,9 @@ export default function ValidateContent() {
           </div>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3 text-sm">
-              <div className="p-3 bg-gray-50 rounded-xl text-center"><p className="text-gray-500 text-xs">{t("common.platform")}</p><p className="font-semibold">{getPlatformLabel(publicationUrl)}</p></div>
-              <div className="p-3 bg-gray-50 rounded-xl text-center"><p className="text-gray-500 text-xs">{t("common.type")}</p><p className="font-semibold">{t(`submission.kind_${submissionTypeKey}`)}</p></div>
-              <div className="p-3 bg-gray-50 rounded-xl text-center"><p className="text-gray-500 text-xs">{t("common.status")}</p><p className="font-semibold">{new Date(submittedAt).toLocaleDateString()}</p></div>
+              <div className="p-3 bg-aurora-surface rounded-xl text-center"><p className="text-aurora-ink-3 text-xs">{t("common.platform")}</p><p className="font-semibold">{getPlatformLabel(publicationUrl)}</p></div>
+              <div className="p-3 bg-aurora-surface rounded-xl text-center"><p className="text-aurora-ink-3 text-xs">{t("common.type")}</p><p className="font-semibold">{t(`submission.kind_${submissionTypeKey}`)}</p></div>
+              <div className="p-3 bg-aurora-surface rounded-xl text-center"><p className="text-aurora-ink-3 text-xs">{t("common.status")}</p><p className="font-semibold">{new Date(submittedAt).toLocaleDateString()}</p></div>
             </div>
             {beforePublish && (
               <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-800">
@@ -278,15 +278,15 @@ export default function ValidateContent() {
               </div>
             )}
             {publicationUrl && (
-              <div className="p-3 bg-gray-50 rounded-xl text-sm">
-                <p className="font-semibold text-gray-700 mb-1">{t("common.url")}</p>
-                <a href={publicationUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline break-all">{publicationUrl}</a>
+              <div className="p-3 bg-aurora-surface rounded-xl text-sm">
+                <p className="font-semibold text-aurora-ink-2 mb-1">{t("common.url")}</p>
+                <a href={publicationUrl} target="_blank" rel="noreferrer" className="text-aurora-blue hover:underline break-all">{publicationUrl}</a>
               </div>
             )}
             {fileUrl && (
-              <div className="p-3 bg-gray-50 rounded-xl text-sm">
-                <p className="font-semibold text-gray-700 mb-1">{t("common.file")}</p>
-                <a href={fileUrl} target="_blank" rel="noreferrer" download className="text-indigo-600 hover:underline break-all">
+              <div className="p-3 bg-aurora-surface rounded-xl text-sm">
+                <p className="font-semibold text-aurora-ink-2 mb-1">{t("common.file")}</p>
+                <a href={fileUrl} target="_blank" rel="noreferrer" download className="text-aurora-blue hover:underline break-all">
                   {t("common.view")} →
                 </a>
               </div>
@@ -299,7 +299,7 @@ export default function ValidateContent() {
         <CardHeader><CardTitle className="text-base">{t("proposal_detail.request_correction")}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700">{t("brand_proposal.correction_reason_label")}</label>
+            <label className="text-sm font-medium text-aurora-ink-2">{t("brand_proposal.correction_reason_label")}</label>
             <select
               className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
               value={rejectionReason}

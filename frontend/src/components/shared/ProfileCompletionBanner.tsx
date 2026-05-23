@@ -37,16 +37,16 @@ export function ProfileCompletionBanner() {
   const missing = (status.missing_fields ?? []).map((f) => labels[f] ?? f)
 
   return (
-    <Card className="card-base border-indigo-200 bg-gradient-to-r from-indigo-50 via-violet-50 to-pink-50">
+    <Card className="card-base border-aurora-blue/20 bg-aurora-blue/5">
       <CardContent className="p-4 flex items-center gap-4">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0">
+        <div className="h-10 w-10 rounded-xl bg-aurora-blue flex items-center justify-center shrink-0">
           <Sparkles className="h-5 w-5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 text-sm">
+          <p className="font-semibold text-aurora-ink text-sm">
             {t("banner.title", "Complétez votre profil")} — {status.completion_percent}%
           </p>
-          <p className="text-xs text-gray-600 mt-0.5 truncate">
+          <p className="text-xs text-aurora-ink-2 mt-0.5 truncate">
             {missing.length > 0
               ? t("banner.missing", "Manquant") + " : " + missing.slice(0, 4).join(", ")
               : t("banner.almost", "Presque terminé !")}
@@ -61,7 +61,7 @@ export function ProfileCompletionBanner() {
         <button
           aria-label="dismiss"
           onClick={() => { localStorage.setItem(DISMISS_KEY, String(Date.now())); setHidden(true) }}
-          className="text-gray-400 hover:text-gray-600 p-1"
+          className="text-aurora-ink-3 hover:text-aurora-ink-2 p-1"
         >
           <X className="h-4 w-4" />
         </button>

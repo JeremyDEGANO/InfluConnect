@@ -2,7 +2,7 @@ export default function Privacy() {
   return (
     <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
       <h1>Politique de Confidentialité</h1>
-      <p className="text-sm text-gray-500">Dernière mise à jour : 21 avril 2026</p>
+      <p className="text-sm text-aurora-ink-3">Dernière mise à jour : 21 avril 2026</p>
 
       <p>
         InfluConnect SAS (« nous », « notre », « la Plateforme ») accorde une importance
@@ -57,7 +57,9 @@ export default function Privacy() {
       </ul>
       <p>
         <strong>Finalité&nbsp;:</strong> constituer un dossier de presse vérifié à
-        destination des marques et leur permettre de prendre une décision éclairée.
+        destination des marques, permettre la mise en relation commerciale entre
+        influenceurs et marques, et calculer des indicateurs d'analytics (performance,
+        engagement, EMV).
         <br />
         <strong>Base légale&nbsp;:</strong> consentement explicite (vous initiez
         manuellement la connexion OAuth).
@@ -92,6 +94,7 @@ export default function Privacy() {
       <h2>3. Durées de conservation</h2>
       <ul>
         <li>Compte actif : pendant toute la durée de la relation contractuelle ;</li>
+        <li>Après suppression du compte : conservation limitée à 12 mois, puis suppression/anonymisation ;</li>
         <li>Compte inactif : suppression automatique après 3 ans d'inactivité ;</li>
         <li>Données de facturation : 10 ans (obligation comptable) ;</li>
         <li>Jetons OAuth : supprimés immédiatement à la déconnexion ou à la révocation ;</li>
@@ -102,13 +105,17 @@ export default function Privacy() {
       <p>Les données ne sont communiquées qu'aux destinataires suivants :</p>
       <ul>
         <li>Personnel autorisé d'InfluConnect (support, modération) ;</li>
-        <li>Marques avec lesquelles vous concluez un partenariat (données de contact uniquement) ;</li>
+        <li>Marques avec lesquelles l'influenceur collabore activement sur la plateforme ;</li>
         <li>Sous-traitants techniques : Stripe (paiement), OVHcloud (hébergement, France), SendGrid (e-mails transactionnels) ;</li>
         <li>Autorités compétentes sur réquisition légale.</li>
       </ul>
       <p>
         Aucune donnée n'est vendue. Aucun transfert hors Union Européenne n'est effectué
         sans garanties appropriées (clauses contractuelles types de la Commission européenne).
+      </p>
+      <p>
+        InfluConnect est établi en France, au sein de l'Union européenne, et applique les
+        exigences du RGPD pour l'ensemble des traitements de données personnelles.
       </p>
 
       <h2>5. Vos droits (RGPD)</h2>

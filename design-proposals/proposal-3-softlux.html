@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Soft Lux — InfluConnect</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme:{ extend:{
+    colors:{
+      bg:'#FBF9F4', surface:'#F4EFE6', card:'#FFFFFF',
+      ink:{ 900:'#1A1612', 700:'#3A332A', 500:'#6B6157', 400:'#8C8276', 300:'#B8AEA0', 200:'#DDD3C2' },
+      line:'#E8DFCE',
+      brand:{ DEFAULT:'#0F5132', soft:'#E7F0EA', deep:'#0A3D24' },
+      gold:'#B89968'
+    },
+    fontFamily:{ serif:['Fraunces','Georgia','serif'], sans:['Inter','-apple-system','sans-serif'] }
+  }}}
+</script>
+<style>
+  body{ font-family:'Inter',-apple-system,sans-serif; -webkit-font-smoothing:antialiased; letter-spacing:-0.011em; }
+  .serif{ font-family:'Fraunces',Georgia,serif; font-optical-sizing:auto; letter-spacing:-0.025em; }
+  .num{ font-variant-numeric:tabular-nums; letter-spacing:-0.02em; }
+  .grain{ background-image: radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px); background-size: 3px 3px; }
+  .shadow-paper{ box-shadow: 0 1px 0 rgba(26,22,18,0.04), 0 1px 3px rgba(26,22,18,0.06), 0 8px 24px -12px rgba(26,22,18,0.10); }
+</style>
+</head>
+<body class="bg-bg text-ink-900">
+
+<!-- Switcher -->
+<div class="sticky top-0 z-50 bg-bg/80 backdrop-blur border-b border-line">
+  <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="text-sm text-ink-500 hover:text-ink-900">←</a>
+      <div class="w-7 h-7 rounded-full bg-brand grid place-items-center text-white serif text-sm">i</div>
+      <span class="font-semibold tracking-tight">Soft Lux</span>
+      <span class="text-xs text-ink-500 ml-2">Proposition 3 · Stripe / Notion</span>
+    </div>
+    <nav class="flex items-center gap-1 text-sm">
+      <button data-tab="landing" class="tab px-3 py-1.5 rounded-full font-medium">Landing</button>
+      <button data-tab="brand"   class="tab px-3 py-1.5 rounded-full font-medium">Marque</button>
+      <button data-tab="influ"   class="tab px-3 py-1.5 rounded-full font-medium">Influenceur</button>
+      <button data-tab="admin"   class="tab px-3 py-1.5 rounded-full font-medium">Admin</button>
+      <button data-tab="agency"  class="tab px-3 py-1.5 rounded-full font-medium">Agence</button>
+    </nav>
+  </div>
+</div>
+
+<!-- ============ LANDING ============ -->
+<section data-pane="landing" class="pane">
+  <div class="border-b border-line">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2"><div class="w-7 h-7 rounded-full bg-brand grid place-items-center text-white serif text-sm">i</div><span class="serif text-xl font-semibold">InfluConnect</span></div>
+      <nav class="flex items-center gap-7 text-sm text-ink-700">
+        <a class="hover:text-ink-900">Marques</a><a class="hover:text-ink-900">Créateurs</a><a class="hover:text-ink-900">Agences</a><a class="hover:text-ink-900">Histoires</a><a class="hover:text-ink-900">Tarifs</a>
+      </nav>
+      <div class="flex items-center gap-3 text-sm">
+        <a class="text-ink-700 hover:text-ink-900">Connexion</a>
+        <a class="px-4 h-9 inline-flex items-center rounded-full bg-ink-900 text-bg font-medium">S'inscrire →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div class="grain">
+    <div class="max-w-6xl mx-auto px-6 pt-24 pb-20 grid md:grid-cols-12 gap-10 items-center">
+      <div class="md:col-span-7">
+        <div class="inline-flex items-center gap-2 text-xs text-brand font-medium tracking-widest uppercase mb-6">
+          <span class="w-6 h-px bg-brand"></span> Édition 2026
+        </div>
+        <h1 class="serif text-6xl md:text-7xl font-semibold leading-[1.02] text-balance">
+          L'élégance d'une <em class="italic text-brand">collaboration</em><br/>qui fonctionne.
+        </h1>
+        <p class="mt-7 text-lg text-ink-700 max-w-xl leading-relaxed">
+          InfluConnect réunit marques de caractère et créateurs de talent autour d'un standard simple : un brief clair, un contrat juste, un paiement sûr.
+        </p>
+        <div class="mt-10 flex items-center gap-4">
+          <a class="h-12 px-6 inline-flex items-center rounded-full bg-brand text-white font-medium hover:bg-brand-deep transition">Commencer l'aventure</a>
+          <a class="h-12 px-2 inline-flex items-center text-ink-900 font-medium hover:text-brand transition">Voir une démo en 90 sec →</a>
+        </div>
+        <div class="mt-12 flex items-center gap-6 text-xs text-ink-500">
+          <div class="flex -space-x-2"><div class="w-7 h-7 rounded-full bg-gradient-to-br from-pink-300 to-rose-400 border-2 border-bg"></div><div class="w-7 h-7 rounded-full bg-gradient-to-br from-amber-300 to-orange-400 border-2 border-bg"></div><div class="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-300 to-teal-400 border-2 border-bg"></div><div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-300 to-indigo-400 border-2 border-bg"></div></div>
+          <div>Rejoint par <span class="text-ink-900 font-medium">2 847 créateurs</span> et <span class="text-ink-900 font-medium">412 marques</span></div>
+        </div>
+      </div>
+      <!-- Mockup card -->
+      <div class="md:col-span-5">
+        <div class="relative">
+          <div class="absolute -top-4 -right-4 w-32 h-32 rounded-full bg-gold/20 blur-2xl"></div>
+          <div class="absolute -bottom-6 -left-6 w-40 h-40 rounded-full bg-brand/10 blur-2xl"></div>
+          <div class="relative rounded-3xl bg-card shadow-paper border border-line p-6">
+            <div class="flex items-center gap-3 pb-4 border-b border-line">
+              <div class="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-rose-500"></div>
+              <div class="flex-1"><div class="font-medium">Sézane</div><div class="text-xs text-ink-500">Nouvelle proposition</div></div>
+              <span class="px-2 py-0.5 rounded-full bg-brand-soft text-brand text-xs font-medium">Premium</span>
+            </div>
+            <div class="py-5">
+              <p class="serif text-2xl leading-snug">"Collection Été — 2 reels & 4 stories sur ton univers parisien."</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 pb-4 border-b border-line">
+              <div class="rounded-xl bg-surface p-3"><div class="text-[10px] uppercase tracking-widest text-ink-500">Cachet</div><div class="num text-xl font-semibold mt-1">850 €</div></div>
+              <div class="rounded-xl bg-surface p-3"><div class="text-[10px] uppercase tracking-widest text-ink-500">Livraison</div><div class="num text-xl font-semibold mt-1">28 mai</div></div>
+            </div>
+            <div class="pt-4 flex gap-2">
+              <button class="flex-1 h-10 rounded-full border border-line text-sm font-medium hover:bg-surface">Discuter</button>
+              <button class="flex-1 h-10 rounded-full bg-brand text-white text-sm font-medium hover:bg-brand-deep">Accepter</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="bg-surface border-y border-line">
+    <div class="max-w-6xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div><div class="serif text-5xl font-semibold num">2 847</div><div class="text-sm text-ink-500 mt-2 uppercase tracking-widest">Créateurs vérifiés</div></div>
+      <div><div class="serif text-5xl font-semibold num">412</div><div class="text-sm text-ink-500 mt-2 uppercase tracking-widest">Marques actives</div></div>
+      <div><div class="serif text-5xl font-semibold num">1,3 M€</div><div class="text-sm text-ink-500 mt-2 uppercase tracking-widest">Versés en 2025</div></div>
+      <div><div class="serif text-5xl font-semibold num">98 %</div><div class="text-sm text-ink-500 mt-2 uppercase tracking-widest">Campagnes livrées</div></div>
+    </div>
+  </div>
+
+  <!-- Features as editorial -->
+  <div class="max-w-6xl mx-auto px-6 py-24">
+    <div class="grid md:grid-cols-2 gap-16 items-end mb-16">
+      <div>
+        <p class="text-xs text-brand uppercase tracking-widest font-medium mb-4">Notre méthode</p>
+        <h2 class="serif text-5xl font-semibold leading-[1.05]">Six gestes essentiels pour une collaboration réussie.</h2>
+      </div>
+      <p class="text-ink-700 text-lg leading-relaxed">Chaque outil est pensé pour disparaître au profit de la relation entre une marque et son créateur. Moins d'écrans, plus de résultats.</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-px bg-line rounded-2xl overflow-hidden border border-line">
+      <div class="bg-bg p-8"><div class="serif text-2xl text-brand mb-3">01</div><h3 class="font-semibold text-lg mb-2">Matching IA</h3><p class="text-sm text-ink-700 leading-relaxed">Trouvez les créateurs alignés à votre marque, en quelques instants.</p></div>
+      <div class="bg-bg p-8"><div class="serif text-2xl text-brand mb-3">02</div><h3 class="font-semibold text-lg mb-2">Brief & messagerie</h3><p class="text-sm text-ink-700 leading-relaxed">Échangez, négociez, clarifiez — sans quitter la plateforme.</p></div>
+      <div class="bg-bg p-8"><div class="serif text-2xl text-brand mb-3">03</div><h3 class="font-semibold text-lg mb-2">Contrats sur mesure</h3><p class="text-sm text-ink-700 leading-relaxed">Modèles juridiques FR, signature électronique conforme.</p></div>
+      <div class="bg-bg p-8"><div class="serif text-2xl text-brand mb-3">04</div><h3 class="font-semibold text-lg mb-2">Paiements sécurisés</h3><p class="text-sm text-ink-700 leading-relaxed">Escrow Stripe : libération à la livraison validée.</p></div>
+      <div class="bg-bg p-8"><div class="serif text-2xl text-brand mb-3">05</div><h3 class="font-semibold text-lg mb-2">Mesure honnête</h3><p class="text-sm text-ink-700 leading-relaxed">Reach, engagement, conversions — vérifiés, pas estimés.</p></div>
+      <div class="bg-bg p-8"><div class="serif text-2xl text-brand mb-3">06</div><h3 class="font-semibold text-lg mb-2">Communauté</h3><p class="text-sm text-ink-700 leading-relaxed">Avis publics, programme ambassadeurs, gifting.</p></div>
+    </div>
+  </div>
+
+  <!-- Testimonial -->
+  <div class="bg-ink-900 text-bg">
+    <div class="max-w-4xl mx-auto px-6 py-24 text-center">
+      <p class="serif text-3xl md:text-4xl leading-relaxed font-medium">
+        « Pour la première fois, gérer 30 collaborations par trimestre ne ressemble plus à un casse‑tête. <span class="text-gold italic">Tout est à sa place.</span> »
+      </p>
+      <div class="mt-10 flex items-center justify-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-300 to-orange-400"></div>
+        <div class="text-left"><div class="font-medium">Camille Aubert</div><div class="text-sm text-ink-300">Directrice marketing · Maison Lurel</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roles -->
+  <div class="max-w-6xl mx-auto px-6 py-24">
+    <div class="text-center mb-14">
+      <p class="text-xs text-brand uppercase tracking-widest font-medium mb-4">Trois portes d'entrée</p>
+      <h2 class="serif text-5xl font-semibold">Choisissez votre <em class="italic text-brand">rôle</em>.</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-5">
+      <div class="rounded-3xl bg-card border border-line p-8 shadow-paper">
+        <div class="text-xs text-ink-500 uppercase tracking-widest mb-3">Créateur</div>
+        <div class="serif text-3xl font-semibold">Gratuit</div>
+        <p class="mt-3 text-ink-700">Recevez, signez, livrez, encaissez.</p>
+        <button class="mt-8 w-full h-12 rounded-full bg-ink-900 text-bg font-medium">Je suis créateur →</button>
+      </div>
+      <div class="rounded-3xl bg-brand text-white p-8 shadow-paper relative overflow-hidden">
+        <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-gold/20 blur-3xl"></div>
+        <div class="text-xs text-brand-soft uppercase tracking-widest mb-3">Marque</div>
+        <div class="serif text-3xl font-semibold">49 € <span class="text-base text-brand-soft font-normal">/ mois</span></div>
+        <p class="mt-3 text-brand-soft">Lancez vos campagnes en quelques clics.</p>
+        <button class="mt-8 w-full h-12 rounded-full bg-bg text-brand font-medium">Je suis une marque →</button>
+      </div>
+      <div class="rounded-3xl bg-card border border-line p-8 shadow-paper">
+        <div class="text-xs text-gold uppercase tracking-widest mb-3 font-medium">Agence</div>
+        <div class="serif text-3xl font-semibold">Sur mesure</div>
+        <p class="mt-3 text-ink-700">Pilotez votre roster et vos commissions.</p>
+        <button class="mt-8 w-full h-12 rounded-full bg-ink-900 text-bg font-medium">Je suis une agence →</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="border-t border-line py-10 bg-surface">
+    <div class="max-w-6xl mx-auto px-6 flex justify-between text-sm text-ink-500">
+      <div class="serif text-base text-ink-900">InfluConnect — Édité avec soin à Paris</div>
+      <div class="flex gap-6"><a>Confidentialité</a><a>CGU</a><a>Contact</a></div>
+    </div>
+  </footer>
+</section>
+
+<!-- ============ APP SHELL ============ -->
+
+<!-- ============ BRAND ============ -->
+<section data-pane="brand" class="pane hidden bg-bg min-h-screen">
+  <div class="flex">
+    <aside class="w-64 shrink-0 bg-surface border-r border-line min-h-screen px-3 py-5">
+      <div class="px-3 mb-8 flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full bg-brand grid place-items-center text-white serif text-base">i</div>
+        <div class="leading-tight"><div class="serif font-semibold tracking-tight">InfluConnect</div><div class="text-[11px] text-ink-500">Maison Lurel · Pro</div></div>
+      </div>
+      <div class="px-3 mb-2 text-[10px] uppercase tracking-widest text-ink-500 font-medium">Espace marque</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl bg-card text-ink-900 font-medium border border-line">▦ Tableau de bord</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⚑ Campagnes <span class="ml-auto text-xs text-ink-500">12</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">＋ Nouvelle campagne</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">◇ Marketplace</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⌬ Castings</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✉ Messages <span class="ml-auto px-1.5 rounded-full bg-brand text-white text-[10px] font-semibold">3</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">★ Ambassadeurs</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✦ Évènements</a>
+      </nav>
+      <div class="px-3 mt-6 mb-2 text-[10px] uppercase tracking-widest text-ink-500 font-medium">Compte</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⚙ Paramètres</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">◷ Abonnement</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">? Support</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 px-10 py-10">
+      <div class="flex items-end justify-between mb-10">
+        <div>
+          <p class="text-sm text-ink-500 uppercase tracking-widest mb-2">Mardi 15 mai · Bonjour</p>
+          <h1 class="serif text-4xl font-semibold tracking-tight">Camille,<br/><span class="text-ink-500">vos campagnes vont bien.</span></h1>
+        </div>
+        <div class="flex gap-2">
+          <button class="h-11 px-5 rounded-full bg-card border border-line text-sm font-medium">Exporter PDF</button>
+          <button class="h-11 px-5 rounded-full bg-brand text-white text-sm font-medium hover:bg-brand-deep">＋ Nouvelle campagne</button>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid grid-cols-4 gap-4 mb-5">
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Actives</div><div class="serif text-4xl mt-2 num font-semibold">7</div><div class="text-xs text-brand mt-2">+2 ce mois</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Propositions</div><div class="serif text-4xl mt-2 num font-semibold">142</div><div class="text-xs text-brand mt-2">+18 % vs mois -1</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Dépensé</div><div class="serif text-4xl mt-2 num font-semibold">12 480 €</div><div class="text-xs text-ink-500 mt-2">/ 40 000 € budget</div></div>
+        <div class="rounded-2xl bg-ink-900 text-bg p-5 shadow-paper relative overflow-hidden"><div class="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-gold/20 blur-2xl"></div><div class="text-xs uppercase tracking-widest text-ink-300">Livraison</div><div class="serif text-4xl mt-2 num font-semibold">96 %</div><div class="text-xs text-gold mt-2">objectif 95 %</div></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 rounded-2xl bg-card border border-line p-6 shadow-paper">
+          <div class="flex items-center justify-between mb-5"><div><h3 class="serif text-xl font-semibold">Performance</h3><p class="text-xs text-ink-500 mt-0.5">Reach & engagement · 30j</p></div><div class="flex bg-surface p-0.5 rounded-full text-xs"><button class="px-3 py-1 rounded-full bg-card shadow-sm font-medium">7j</button><button class="px-3 py-1 text-ink-500">30j</button><button class="px-3 py-1 text-ink-500">90j</button></div></div>
+          <svg viewBox="0 0 600 200" class="w-full h-48">
+            <defs><linearGradient id="gs1" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#0F5132" stop-opacity="0.2"/><stop offset="100%" stop-color="#0F5132" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,160 C60,140 100,120 150,110 C200,100 240,90 290,70 C340,50 380,80 430,60 C480,40 520,30 600,20 L600,200 L0,200 Z" fill="url(#gs1)"/>
+            <path d="M0,160 C60,140 100,120 150,110 C200,100 240,90 290,70 C340,50 380,80 430,60 C480,40 520,30 600,20" stroke="#0F5132" stroke-width="2" fill="none"/>
+          </svg>
+          <div class="flex gap-6 text-xs mt-2"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-brand"></span>Reach 2,4M</span><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-gold"></span>Engagement 4,8 %</span></div>
+        </div>
+        <div class="rounded-2xl bg-card border border-line p-6 shadow-paper">
+          <h3 class="serif text-xl font-semibold mb-4">Pipeline</h3>
+          <div class="space-y-4">
+            <div><div class="flex justify-between text-sm mb-1.5"><span>Brouillons</span><span class="num font-medium">3</span></div><div class="h-1.5 rounded-full bg-surface"><div class="h-full w-[15%] rounded-full bg-ink-300"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1.5"><span>En revue</span><span class="num font-medium">5</span></div><div class="h-1.5 rounded-full bg-surface"><div class="h-full w-[28%] rounded-full bg-gold"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1.5"><span>Actives</span><span class="num font-medium">7</span></div><div class="h-1.5 rounded-full bg-surface"><div class="h-full w-[40%] rounded-full bg-brand"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1.5"><span>Livrées</span><span class="num font-medium">21</span></div><div class="h-1.5 rounded-full bg-surface"><div class="h-full w-full rounded-full bg-brand-deep"></div></div></div>
+          </div>
+          <div class="mt-6 pt-5 border-t border-line">
+            <div class="text-xs uppercase tracking-widest text-ink-500">Prochain paiement</div>
+            <div class="serif text-3xl mt-1 num font-semibold">3 200 €</div>
+            <div class="text-xs text-ink-500 mt-0.5">à 4 créateurs · 18 mai</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-2xl bg-card border border-line shadow-paper overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line"><h3 class="serif text-xl font-semibold">Campagnes récentes</h3><a class="text-sm text-brand font-medium">Voir tout →</a></div>
+        <table class="w-full text-sm">
+          <thead><tr class="text-[10px] uppercase tracking-widest text-ink-500"><th class="text-left font-medium px-6 py-3">Campagne</th><th class="text-left font-medium">Statut</th><th class="text-left font-medium">Créateurs</th><th class="text-left font-medium">Budget</th><th class="text-left font-medium">Livraison</th></tr></thead>
+          <tbody class="divide-y divide-line">
+            <tr class="hover:bg-surface/50"><td class="px-6 py-4"><div class="font-medium">Collection Été 2026</div><div class="text-xs text-ink-500 italic serif">Mode · Instagram, TikTok</div></td><td><span class="px-2.5 py-1 rounded-full bg-brand-soft text-brand text-xs font-medium">Active</span></td><td class="num">8/10</td><td class="num font-medium">5 400 €</td><td class="num text-ink-500">28 mai</td></tr>
+            <tr class="hover:bg-surface/50"><td class="px-6 py-4"><div class="font-medium">Lancement parfum N°7</div><div class="text-xs text-ink-500 italic serif">Beauté · Reels</div></td><td><span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">En revue</span></td><td class="num">4/6</td><td class="num font-medium">3 800 €</td><td class="num text-ink-500">2 juin</td></tr>
+            <tr class="hover:bg-surface/50"><td class="px-6 py-4"><div class="font-medium">Pop‑up store Marais</div><div class="text-xs text-ink-500 italic serif">Évènement · Stories</div></td><td><span class="px-2.5 py-1 rounded-full bg-surface text-ink-700 text-xs font-medium">Brouillon</span></td><td class="num">0/12</td><td class="num font-medium">2 200 €</td><td class="num text-ink-500">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ INFLUENCEUR ============ -->
+<section data-pane="influ" class="pane hidden bg-bg min-h-screen">
+  <div class="flex">
+    <aside class="w-64 shrink-0 bg-surface border-r border-line min-h-screen px-3 py-5">
+      <div class="px-3 mb-8 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-rose-500"></div>
+        <div class="leading-tight"><div class="serif font-semibold">@lea.parisienne</div><div class="text-[11px] text-ink-500">Mode · Lifestyle</div></div>
+      </div>
+      <div class="px-3 mb-2 text-[10px] uppercase tracking-widest text-ink-500 font-medium">Espace créateur</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl bg-card text-ink-900 font-medium border border-line">▦ Tableau de bord</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✉ Propositions <span class="ml-auto px-1.5 rounded-full bg-brand text-white text-[10px] font-semibold">5</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⌬ Castings</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">€ Revenus</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">◈ Media kit</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✦ Évènements</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✉ Messages</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⚐ Délégations</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 px-10 py-10">
+      <div class="flex items-end justify-between mb-8">
+        <div>
+          <p class="text-sm text-ink-500 uppercase tracking-widest mb-2">Bonjour Léa</p>
+          <h1 class="serif text-4xl font-semibold tracking-tight">5 marques vous attendent <span class="italic text-brand">aujourd'hui</span>.</h1>
+        </div>
+      </div>
+
+      <!-- Profile completion banner -->
+      <div class="rounded-2xl bg-brand-soft border border-brand/10 p-5 mb-5 flex items-center gap-5">
+        <div class="relative w-16 h-16 shrink-0">
+          <svg viewBox="0 0 36 36" class="w-16 h-16 -rotate-90"><circle cx="18" cy="18" r="15" fill="none" stroke="#fff" stroke-width="3"/><circle cx="18" cy="18" r="15" fill="none" stroke="#0F5132" stroke-width="3" stroke-dasharray="94" stroke-dashoffset="19" stroke-linecap="round"/></svg>
+          <div class="absolute inset-0 flex items-center justify-center serif text-base font-semibold num">80%</div>
+        </div>
+        <div class="flex-1"><div class="font-semibold serif text-lg text-brand-deep">Profil presque parfait</div><div class="text-sm text-ink-700 mt-0.5">Ajoutez vos statistiques TikTok et 2 photos pour atteindre 100 % et débloquer plus de propositions premium.</div></div>
+        <button class="h-10 px-5 rounded-full bg-brand text-white text-sm font-medium">Compléter →</button>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid grid-cols-4 gap-4 mb-5">
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Revenus 2026</div><div class="serif text-4xl mt-2 num font-semibold">8 740 €</div><div class="text-xs text-brand mt-2">+24 % vs 2025</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Campagnes</div><div class="serif text-4xl mt-2 num font-semibold">3</div><div class="text-xs text-ink-500 mt-2">2 en livraison</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Propositions</div><div class="serif text-4xl mt-2 num font-semibold">5</div><div class="text-xs text-amber-700 mt-2">2 expirent demain</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Note</div><div class="serif text-4xl mt-2 num font-semibold">4,9 ★</div><div class="text-xs text-ink-500 mt-2">27 avis</div></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 rounded-2xl bg-card border border-line p-6 shadow-paper">
+          <div class="flex items-center justify-between mb-5"><h3 class="serif text-xl font-semibold">Revenus mensuels</h3><span class="text-xs text-ink-500">2026</span></div>
+          <div class="flex items-end gap-3 h-44">
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand-soft rounded-md" style="height:30%"></div><span class="text-[10px] text-ink-500">JAN</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/40 rounded-md" style="height:50%"></div><span class="text-[10px] text-ink-500">FÉV</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/50 rounded-md" style="height:45%"></div><span class="text-[10px] text-ink-500">MAR</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/70 rounded-md" style="height:65%"></div><span class="text-[10px] text-ink-500">AVR</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand rounded-md" style="height:90%"></div><span class="text-[10px] font-semibold">MAI</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-surface rounded-md border border-dashed border-line" style="height:60%"></div><span class="text-[10px] text-ink-400">JUI</span></div>
+            <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-surface rounded-md border border-dashed border-line" style="height:65%"></div><span class="text-[10px] text-ink-400">JUL</span></div>
+          </div>
+        </div>
+        <div class="rounded-2xl bg-ink-900 text-bg p-6 shadow-paper relative overflow-hidden">
+          <div class="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-gold/20 blur-3xl"></div>
+          <div class="text-xs uppercase tracking-widest text-ink-300">Prochain virement</div>
+          <div class="serif text-5xl mt-3 num font-semibold">1 240 €</div>
+          <div class="text-sm text-ink-300 mt-1">prévu le 18 mai</div>
+          <div class="mt-8 pt-5 border-t border-ink-700 text-xs text-ink-400">Compte vérifié<br/>IBAN •••• 4827</div>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-2xl bg-card border border-line shadow-paper">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line"><h3 class="serif text-xl font-semibold">Propositions à traiter</h3><a class="text-sm text-brand font-medium">Tout voir →</a></div>
+        <div class="divide-y divide-line">
+          <div class="px-6 py-4 flex items-center gap-4">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-pink-400 to-rose-500"></div>
+            <div class="flex-1"><div class="font-medium">Sézane <span class="text-ink-500 font-normal serif italic">— Collection Été</span></div><div class="text-xs text-ink-500 mt-0.5">2 reels + 4 stories · livraison 28 mai</div></div>
+            <div class="text-right"><div class="serif text-lg font-semibold num">850 €</div><div class="text-xs text-amber-700">expire dans 23h</div></div>
+            <div class="flex gap-2 ml-4"><button class="h-9 px-4 rounded-full border border-line text-sm font-medium">Refuser</button><button class="h-9 px-4 rounded-full bg-brand text-white text-sm font-medium">Accepter</button></div>
+          </div>
+          <div class="px-6 py-4 flex items-center gap-4">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500"></div>
+            <div class="flex-1"><div class="font-medium">Le Slip Français <span class="text-ink-500 font-normal serif italic">— Ambassadeurs</span></div><div class="text-xs text-ink-500 mt-0.5">Programme 6 mois · contenu mensuel</div></div>
+            <div class="text-right"><div class="serif text-lg font-semibold num">3 600 €</div><div class="text-xs text-ink-500">6 mois</div></div>
+            <div class="flex gap-2 ml-4"><button class="h-9 px-4 rounded-full border border-line text-sm font-medium">Refuser</button><button class="h-9 px-4 rounded-full bg-brand text-white text-sm font-medium">Accepter</button></div>
+          </div>
+          <div class="px-6 py-4 flex items-center gap-4">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500"></div>
+            <div class="flex-1"><div class="font-medium">Respire <span class="text-ink-500 font-normal serif italic">— Lancement déo</span></div><div class="text-xs text-ink-500 mt-0.5">1 reel produit · livraison 10 juin</div></div>
+            <div class="text-right"><div class="serif text-lg font-semibold num">420 €</div><div class="text-xs text-ink-500">3 jours</div></div>
+            <div class="flex gap-2 ml-4"><button class="h-9 px-4 rounded-full border border-line text-sm font-medium">Refuser</button><button class="h-9 px-4 rounded-full bg-brand text-white text-sm font-medium">Accepter</button></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ ADMIN ============ -->
+<section data-pane="admin" class="pane hidden bg-bg min-h-screen">
+  <div class="flex">
+    <aside class="w-64 shrink-0 bg-surface border-r border-line min-h-screen px-3 py-5">
+      <div class="px-3 mb-8 flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full bg-ink-900 grid place-items-center text-bg serif text-base">A</div>
+        <div class="leading-tight"><div class="serif font-semibold">Admin Console</div><div class="text-[11px] text-ink-500">Équipe interne</div></div>
+      </div>
+      <div class="px-3 mb-2 text-[10px] uppercase tracking-widest text-ink-500 font-medium">Pilotage</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl bg-card text-ink-900 font-medium border border-line">▦ Vue d'ensemble</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⌂ Entreprises</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⌬ Marques</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">☺ Utilisateurs</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">★ Avis</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">◷ Audit log</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">? Support <span class="ml-auto px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-semibold">7</span></a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 px-10 py-10">
+      <div class="flex items-end justify-between mb-8">
+        <div>
+          <p class="text-sm text-ink-500 uppercase tracking-widest mb-2">Console interne</p>
+          <h1 class="serif text-4xl font-semibold tracking-tight">Vue d'ensemble.</h1>
+        </div>
+        <div class="flex bg-surface p-0.5 rounded-full text-xs"><button class="px-3.5 py-1.5 rounded-full bg-card shadow-sm font-medium">7 jours</button><button class="px-3.5 py-1.5 text-ink-500">30 jours</button><button class="px-3.5 py-1.5 text-ink-500">12 mois</button></div>
+      </div>
+
+      <div class="grid grid-cols-4 gap-4 mb-5">
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Utilisateurs</div><div class="serif text-4xl mt-2 num font-semibold">3 259</div><div class="text-xs text-brand mt-2">+128 (30j)</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Revenu</div><div class="serif text-4xl mt-2 num font-semibold">48 920 €</div><div class="text-xs text-brand mt-2">+12,4 %</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">KYC en attente</div><div class="serif text-4xl mt-2 num font-semibold">14</div><div class="text-xs text-amber-700 mt-2">2 &gt; 48h</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Tickets</div><div class="serif text-4xl mt-2 num font-semibold">7</div><div class="text-xs text-red-600 mt-2">3 prioritaires</div></div>
+      </div>
+
+      <div class="rounded-2xl bg-card border border-line shadow-paper overflow-hidden mb-5">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line"><div><h3 class="serif text-xl font-semibold">File de modération · Marques</h3><p class="text-xs text-ink-500 mt-0.5">14 dossiers · ancienneté décroissante</p></div><button class="h-10 px-4 rounded-full bg-ink-900 text-bg text-sm font-medium">Examiner ▶</button></div>
+        <table class="w-full text-sm">
+          <thead><tr class="text-[10px] uppercase tracking-widest text-ink-500"><th class="text-left font-medium px-6 py-3">Marque</th><th class="text-left font-medium">SIRET</th><th class="text-left font-medium">Plan</th><th class="text-left font-medium">Reçu</th><th></th></tr></thead>
+          <tbody class="divide-y divide-line">
+            <tr><td class="px-6 py-3"><div class="font-medium">Maison Lurel</div></td><td class="num text-ink-500">812 456 789 00012</td><td><span class="px-2.5 py-1 rounded-full bg-brand-soft text-brand text-xs font-medium">Pro</span></td><td class="text-ink-500">il y a 2j</td><td class="text-right pr-6"><button class="h-8 px-3 rounded-full bg-brand-soft text-brand text-xs font-medium mr-1">Approuver</button><button class="h-8 px-3 rounded-full bg-red-50 text-red-700 text-xs font-medium">Rejeter</button></td></tr>
+            <tr><td class="px-6 py-3"><div class="font-medium">Studio Bleu Marine</div></td><td class="num text-ink-500">901 234 567 00033</td><td><span class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">Growth</span></td><td class="text-ink-500">il y a 1j</td><td class="text-right pr-6"><button class="h-8 px-3 rounded-full bg-brand-soft text-brand text-xs font-medium mr-1">Approuver</button><button class="h-8 px-3 rounded-full bg-red-50 text-red-700 text-xs font-medium">Rejeter</button></td></tr>
+            <tr><td class="px-6 py-3"><div class="font-medium">Café & Co</div></td><td class="num text-ink-500">543 210 987 00021</td><td><span class="px-2.5 py-1 rounded-full bg-surface text-ink-700 text-xs font-medium">Starter</span></td><td class="text-ink-500">il y a 4h</td><td class="text-right pr-6"><button class="h-8 px-3 rounded-full bg-brand-soft text-brand text-xs font-medium mr-1">Approuver</button><button class="h-8 px-3 rounded-full bg-red-50 text-red-700 text-xs font-medium">Rejeter</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 rounded-2xl bg-card border border-line p-6 shadow-paper">
+          <h3 class="serif text-xl font-semibold mb-5">Croissance utilisateurs</h3>
+          <svg viewBox="0 0 600 180" class="w-full h-44">
+            <defs><linearGradient id="gs2" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#0F5132" stop-opacity="0.25"/><stop offset="100%" stop-color="#0F5132" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,150 L60,140 L120,130 L180,115 L240,105 L300,90 L360,75 L420,60 L480,50 L540,30 L600,20 L600,180 L0,180 Z" fill="url(#gs2)"/>
+            <path d="M0,150 L60,140 L120,130 L180,115 L240,105 L300,90 L360,75 L420,60 L480,50 L540,30 L600,20" stroke="#0F5132" stroke-width="2" fill="none"/>
+          </svg>
+        </div>
+        <div class="rounded-2xl bg-card border border-line p-6 shadow-paper">
+          <h3 class="serif text-xl font-semibold mb-4">Activité</h3>
+          <ul class="space-y-3 text-sm">
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-brand mt-1.5"></span><div><div>15 marques validées</div><div class="text-xs text-ink-500">aujourd'hui</div></div></li>
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-blue-500 mt-1.5"></span><div><div>2 348 € versés en escrow</div><div class="text-xs text-ink-500">il y a 2h</div></div></li>
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-amber-500 mt-1.5"></span><div><div>3 signalements</div><div class="text-xs text-ink-500">il y a 5h</div></div></li>
+            <li class="flex gap-3"><span class="w-2 h-2 rounded-full bg-red-500 mt-1.5"></span><div><div>Anomalie de paiement</div><div class="text-xs text-ink-500">hier</div></div></li>
+          </ul>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ============ AGENCE ============ -->
+<section data-pane="agency" class="pane hidden bg-bg min-h-screen">
+  <div class="flex">
+    <aside class="w-64 shrink-0 bg-surface border-r border-line min-h-screen px-3 py-5">
+      <div class="px-3 mb-8 flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full bg-gold grid place-items-center text-white serif text-base">a</div>
+        <div class="leading-tight"><div class="serif font-semibold">Studio Atlas</div><div class="text-[11px] text-ink-500">Agence · 24 talents</div></div>
+      </div>
+      <div class="px-3 mb-2 text-[10px] uppercase tracking-widest text-ink-500 font-medium">Espace agence</div>
+      <nav class="text-sm space-y-0.5">
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl bg-card text-ink-900 font-medium border border-line">▦ Tableau de bord</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">☺ Talents <span class="ml-auto text-xs text-ink-500">24</span></a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">⚐ Délégations</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✎ Contrats</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">€ Commissions</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">✉ Messagerie</a>
+        <a class="flex items-center gap-2 px-3 h-9 rounded-xl text-ink-700 hover:bg-card">▤ Rapports</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 px-10 py-10">
+      <div class="flex items-end justify-between mb-8">
+        <div>
+          <p class="text-sm text-ink-500 uppercase tracking-widest mb-2">Studio Atlas</p>
+          <h1 class="serif text-4xl font-semibold tracking-tight">24 talents,<br/><em class="italic text-gold">une seule maison</em>.</h1>
+        </div>
+        <div class="flex gap-2"><button class="h-11 px-5 rounded-full bg-card border border-line text-sm font-medium">Exporter rapport</button><button class="h-11 px-5 rounded-full bg-brand text-white text-sm font-medium">＋ Inviter un talent</button></div>
+      </div>
+
+      <div class="grid grid-cols-4 gap-4 mb-5">
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Talents</div><div class="serif text-4xl mt-2 num font-semibold">24</div><div class="text-xs text-brand mt-2">+3 ce mois</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">CA brut</div><div class="serif text-4xl mt-2 num font-semibold">62 480 €</div><div class="text-xs text-brand mt-2">+18 %</div></div>
+        <div class="rounded-2xl bg-ink-900 text-bg p-5 shadow-paper relative overflow-hidden"><div class="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-gold/30 blur-2xl"></div><div class="text-xs uppercase tracking-widest text-gold">Commissions</div><div class="serif text-4xl mt-2 num font-semibold">9 372 €</div><div class="text-xs text-ink-300 mt-2">15 % moyen</div></div>
+        <div class="rounded-2xl bg-card border border-line p-5 shadow-paper"><div class="text-xs uppercase tracking-widest text-ink-500">Campagnes</div><div class="serif text-4xl mt-2 num font-semibold">17</div><div class="text-xs text-ink-500 mt-2">8 marques</div></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4 mb-5">
+        <div class="col-span-2 rounded-2xl bg-card border border-line shadow-paper">
+          <div class="px-6 py-4 border-b border-line flex items-center justify-between"><h3 class="serif text-xl font-semibold">Top talents <span class="text-ink-500 text-sm font-normal italic">— 30 derniers jours</span></h3><a class="text-sm text-brand font-medium">Tout voir →</a></div>
+          <table class="w-full text-sm">
+            <thead><tr class="text-[10px] uppercase tracking-widest text-ink-500"><th class="text-left font-medium px-6 py-3">Talent</th><th class="text-left font-medium">Followers</th><th class="text-left font-medium">Campagnes</th><th class="text-right font-medium pr-6">Commission</th></tr></thead>
+            <tbody class="divide-y divide-line">
+              <tr><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-rose-500"></div><div><div class="font-medium">@lea.parisienne</div><div class="text-xs text-ink-500 italic serif">Mode · Lifestyle</div></div></div></td><td class="num">128k</td><td class="num">5</td><td class="text-right pr-6 font-semibold serif num">1 240 €</td></tr>
+              <tr><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-orange-500"></div><div><div class="font-medium">@thomas.cooks</div><div class="text-xs text-ink-500 italic serif">Food</div></div></div></td><td class="num">86k</td><td class="num">4</td><td class="text-right pr-6 font-semibold serif num">980 €</td></tr>
+              <tr><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500"></div><div><div class="font-medium">@maya.travel</div><div class="text-xs text-ink-500 italic serif">Voyage</div></div></div></td><td class="num">214k</td><td class="num">3</td><td class="text-right pr-6 font-semibold serif num">875 €</td></tr>
+              <tr><td class="px-6 py-3"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500"></div><div><div class="font-medium">@nicolas.fit</div><div class="text-xs text-ink-500 italic serif">Sport</div></div></div></td><td class="num">52k</td><td class="num">3</td><td class="text-right pr-6 font-semibold serif num">620 €</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="rounded-2xl bg-card border border-line shadow-paper p-6">
+          <h3 class="serif text-xl font-semibold mb-4">Invitations</h3>
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl border border-line bg-surface/50"><div class="text-sm font-medium">@julie.makeup</div><div class="text-xs text-ink-500 mt-0.5 italic serif">envoyée il y a 3j · 18 %</div></div>
+            <div class="p-3 rounded-xl border border-line bg-surface/50"><div class="text-sm font-medium">@chef_arthur</div><div class="text-xs text-ink-500 mt-0.5 italic serif">envoyée il y a 1j · 15 %</div></div>
+            <div class="p-3 rounded-xl border border-line bg-surface/50"><div class="text-sm font-medium">@petitsmoments</div><div class="text-xs text-ink-500 mt-0.5 italic serif">envoyée hier · 20 %</div></div>
+          </div>
+          <button class="mt-4 w-full h-10 rounded-full border border-dashed border-line text-sm text-ink-700 hover:bg-surface">＋ Nouvelle invitation</button>
+        </div>
+      </div>
+
+      <div class="rounded-2xl bg-card border border-line shadow-paper p-6">
+        <div class="flex items-center justify-between mb-5"><div><h3 class="serif text-xl font-semibold">Commissions encaissées</h3><p class="text-xs text-ink-500 mt-0.5">12 derniers mois</p></div><div class="text-right"><div class="serif text-3xl num font-semibold">112 480 €</div><div class="text-xs text-brand">+22 % YoY</div></div></div>
+        <div class="flex items-end gap-2 h-40">
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/20 rounded-md" style="height:35%"></div><span class="text-[10px] text-ink-500">J</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/30 rounded-md" style="height:42%"></div><span class="text-[10px] text-ink-500">F</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/40 rounded-md" style="height:55%"></div><span class="text-[10px] text-ink-500">M</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/40 rounded-md" style="height:50%"></div><span class="text-[10px] text-ink-500">A</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/50 rounded-md" style="height:65%"></div><span class="text-[10px] text-ink-500">M</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/50 rounded-md" style="height:60%"></div><span class="text-[10px] text-ink-500">J</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/60 rounded-md" style="height:70%"></div><span class="text-[10px] text-ink-500">J</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/70 rounded-md" style="height:78%"></div><span class="text-[10px] text-ink-500">A</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/70 rounded-md" style="height:72%"></div><span class="text-[10px] text-ink-500">S</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand/80 rounded-md" style="height:80%"></div><span class="text-[10px] text-ink-500">O</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand rounded-md" style="height:88%"></div><span class="text-[10px] text-ink-500">N</span></div>
+          <div class="flex-1 flex flex-col items-center gap-2"><div class="w-full bg-brand-deep rounded-md" style="height:96%"></div><span class="text-[10px] font-semibold">D</span></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const panes = document.querySelectorAll('.pane');
+  function activate(name){
+    panes.forEach(p => p.classList.toggle('hidden', p.dataset.pane !== name));
+    tabs.forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle('bg-ink-900', on);
+      t.classList.toggle('text-bg', on);
+      t.classList.toggle('text-ink-700', !on);
+      t.classList.toggle('hover:bg-surface', !on);
+    });
+    window.scrollTo({top:0});
+  }
+  tabs.forEach(t => t.addEventListener('click', ()=>activate(t.dataset.tab)));
+  activate('landing');
+</script>
+
+</body>
+</html>

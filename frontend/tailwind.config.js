@@ -46,11 +46,34 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        aurora: {
+          blue: "hsl(var(--aurora-blue))",
+          "blue-soft": "hsl(var(--aurora-blue-soft))",
+          "blue-deep": "hsl(var(--aurora-blue-deep))",
+          ink: "hsl(var(--aurora-ink))",
+          "ink-2": "hsl(var(--aurora-ink-2))",
+          "ink-3": "hsl(var(--aurora-ink-3))",
+          line: "hsl(var(--aurora-line))",
+          surface: "hsl(var(--aurora-surface))",
+        },
+      },
+      fontFamily: {
+        sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Display",
+          "SF Pro Text",
+          "Inter",
+          "system-ui",
+          "sans-serif",
+        ],
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        "2xl": "1.125rem",
+        "3xl": "1.5rem",
       },
       keyframes: {
         "accordion-down": {

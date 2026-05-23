@@ -45,24 +45,24 @@ export function FilterPanel({ onFilterChange }: FilterPanelProps) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between text-base">
           <span className="flex items-center gap-2"><Filter className="h-4 w-4" />Filters</span>
-          <Button variant="ghost" size="sm" onClick={reset} className="text-xs text-gray-400 hover:text-gray-600"><X className="h-3 w-3 mr-1" />Clear</Button>
+          <Button variant="ghost" size="sm" onClick={reset} className="text-xs text-aurora-ink-3 hover:text-aurora-ink-2"><X className="h-3 w-3 mr-1" />Clear</Button>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Search</Label>
+          <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide">Search</Label>
           <Input className="mt-1" placeholder="Name, niche..." value={filters.search} onChange={(e) => update("search", e.target.value)} />
         </div>
         <div>
-          <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Min Followers</Label>
+          <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide">Min Followers</Label>
           <Input className="mt-1" type="number" placeholder="e.g. 10000" value={filters.minFollowers} onChange={(e) => update("minFollowers", e.target.value)} />
         </div>
         <div>
-          <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Max Price (€)</Label>
+          <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide">Max Price (€)</Label>
           <Input className="mt-1" type="number" placeholder="e.g. 500" value={filters.maxPrice} onChange={(e) => update("maxPrice", e.target.value)} />
         </div>
         <div>
-          <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Themes</Label>
+          <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-2 block">Themes</Label>
           <div className="flex flex-wrap gap-1.5">
             {THEME_OPTIONS.map((theme) => (
               <Badge
@@ -77,7 +77,7 @@ export function FilterPanel({ onFilterChange }: FilterPanelProps) {
           </div>
         </div>
         <div>
-          <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Min Rating</Label>
+          <Label className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide">Min Rating</Label>
           <Input className="mt-1" type="number" min="1" max="5" placeholder="1-5" value={filters.minRating} onChange={(e) => update("minRating", e.target.value)} />
         </div>
       </CardContent>

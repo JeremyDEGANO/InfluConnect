@@ -1,0 +1,18 @@
+export const BRAND_SECTOR_OPTIONS = [
+  "Mode & Beauté",
+  "Luxe",
+  "Cosmétiques",
+  "Santé & Bien-être",
+  "Sport & Fitness",
+  "Food & Boissons",
+  "Voyage & Tourisme",
+  "Tech & Électronique",
+  "Gaming",
+  "Finance & Assurance",
+  "Éducation",
+  "Automobile",
+  "Maison & Décoration",
+  "B2B / Services",
+  "Culture & Divertissement",
+  "Autre",
+] as const

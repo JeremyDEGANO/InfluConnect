@@ -79,7 +79,7 @@ export function SimpleLineChart({
   const gradId = `area-${stroke.replace(/[^a-z0-9]/gi, "")}`
 
   if (data.length === 0) {
-    return <div className="flex items-center justify-center py-10 text-sm text-slate-400">Aucune donnée</div>
+    return <div className="flex items-center justify-center py-10 text-sm text-aurora-ink-3">Aucune donnée</div>
   }
 
   return (
@@ -178,7 +178,7 @@ export function SimpleBarChart({
   const xFor = (i: number) => padL + slotW * i + slotW / 2
 
   if (data.length === 0) {
-    return <div className="flex items-center justify-center py-10 text-sm text-slate-400">Aucune donnée</div>
+    return <div className="flex items-center justify-center py-10 text-sm text-aurora-ink-3">Aucune donnée</div>
   }
 
   return (
@@ -241,7 +241,7 @@ export function DonutChart({ slices, size = 160 }: DonutProps) {
   const filtered = slices.filter((s) => s.value > 0)
 
   if (total === 0) {
-    return <div className="flex items-center justify-center py-10 text-sm text-slate-400">Aucune donnée</div>
+    return <div className="flex items-center justify-center py-10 text-sm text-aurora-ink-3">Aucune donnée</div>
   }
 
   const r = size / 2 - 14
@@ -292,8 +292,8 @@ export function DonutChart({ slices, size = 160 }: DonutProps) {
             onMouseLeave={() => setHovered(null)}
           >
             <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
-            <span className="text-slate-600 truncate">{s.label}</span>
-            <span className="text-slate-400 tabular-nums ml-auto font-medium">{s.value}</span>
+            <span className="text-aurora-ink-2 truncate">{s.label}</span>
+            <span className="text-aurora-ink-3 tabular-nums ml-auto font-medium">{s.value}</span>
           </div>
         ))}
       </div>

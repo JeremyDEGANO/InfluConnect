@@ -78,15 +78,15 @@ export default function SignMobile() {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500"><Loader2 className="h-5 w-5 animate-spin mr-2" />Chargement…</div>
+    return <div className="min-h-screen flex items-center justify-center text-aurora-ink-3"><Loader2 className="h-5 w-5 animate-spin mr-2" />Chargement…</div>
   }
 
   if (invalid) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
+      <div className="min-h-screen bg-aurora-surface p-4 flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardHeader><CardTitle className="text-base">Lien invalide ou expiré</CardTitle></CardHeader>
-          <CardContent className="text-sm text-gray-600">Ce lien de signature est invalide, expiré ou déjà utilisé.</CardContent>
+          <CardContent className="text-sm text-aurora-ink-2">Ce lien de signature est invalide, expiré ou déjà utilisé.</CardContent>
         </Card>
       </div>
     )
@@ -94,19 +94,19 @@ export default function SignMobile() {
 
   if (done) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
+      <div className="min-h-screen bg-aurora-surface p-4 flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-600" />Signature enregistrée</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-gray-600">Vous pouvez revenir sur votre ordinateur, la fenêtre de signature se met à jour automatiquement.</CardContent>
+          <CardContent className="text-sm text-aurora-ink-2">Vous pouvez revenir sur votre ordinateur, la fenêtre de signature se met à jour automatiquement.</CardContent>
         </Card>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-aurora-surface p-4">
       <div className="max-w-md mx-auto space-y-4">
         <Card>
           <CardHeader>
@@ -119,20 +119,20 @@ export default function SignMobile() {
             </div>
 
             <div className="space-y-2">
-              <button type="button" className={`w-full text-left p-2 rounded-lg border ${mode === "draw" ? "border-indigo-500 bg-indigo-50" : "border-gray-200"}`} onClick={() => setMode("draw")}>Signature manuscrite</button>
-              <button type="button" className={`w-full text-left p-2 rounded-lg border ${mode === "brand_name" ? "border-indigo-500 bg-indigo-50" : "border-gray-200"}`} onClick={() => setMode("brand_name")}>Signer avec {signAsLabel}</button>
-              <button type="button" className={`w-full text-left p-2 rounded-lg border ${mode === "person_name" ? "border-indigo-500 bg-indigo-50" : "border-gray-200"}`} onClick={() => setMode("person_name")}>Signer en nom propre</button>
+              <button type="button" className={`w-full text-left p-2 rounded-lg border ${mode === "draw" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line"}`} onClick={() => setMode("draw")}>Signature manuscrite</button>
+              <button type="button" className={`w-full text-left p-2 rounded-lg border ${mode === "brand_name" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line"}`} onClick={() => setMode("brand_name")}>Signer avec {signAsLabel}</button>
+              <button type="button" className={`w-full text-left p-2 rounded-lg border ${mode === "person_name" ? "border-indigo-500 bg-indigo-50" : "border-aurora-line"}`} onClick={() => setMode("person_name")}>Signer en nom propre</button>
             </div>
 
             {mode === "draw" ? (
               <SignaturePad onChange={setSignature} />
             ) : (
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-700">
-                Signature enregistrée sous : <span className="font-semibold text-gray-900">{signAsLabel}</span>
+              <div className="rounded-xl border border-aurora-line bg-aurora-surface px-3 py-4 text-sm text-aurora-ink-2">
+                Signature enregistrée sous : <span className="font-semibold text-aurora-ink">{signAsLabel}</span>
               </div>
             )}
 
-            <label className="flex items-start gap-2 text-sm text-gray-700">
+            <label className="flex items-start gap-2 text-sm text-aurora-ink-2">
               <input type="checkbox" className="mt-1" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
               <span>J'ai lu le contrat et j'accepte ses termes.</span>
             </label>

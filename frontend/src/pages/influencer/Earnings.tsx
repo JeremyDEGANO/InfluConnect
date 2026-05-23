@@ -26,7 +26,7 @@ export default function Earnings() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   const paid = proposals.filter((e) => e.status === "paid" || e.status === "completed")
   const total = paid.reduce((s, e) => s + Number(e.proposed_price), 0)
@@ -34,38 +34,39 @@ export default function Earnings() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t("nav.earnings")}</h1>
+      <p className="text-sm text-aurora-ink-3">{t("influencer_dashboard.eyebrow", "Espace créateur")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("nav.earnings")}</h1>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard title={t("earnings_page.total_earned")} value={`€${total}`} icon={DollarSign} iconBg="from-green-400 to-emerald-600" />
         <StatsCard title={t("earnings_page.pending")} value={`€${pending}`} icon={Clock} iconBg="from-yellow-400 to-orange-500" />
-        <StatsCard title={t("earnings_page.this_month")} value={`€${total}`} icon={TrendingUp} iconBg="from-indigo-500 to-violet-600" />
+        <StatsCard title={t("earnings_page.this_month")} value={`€${total}`} icon={TrendingUp} iconBg="from-aurora-blue to-aurora-blue-deep" />
         <StatsCard title={t("earnings_page.avg_per_campaign")} value={paid.length ? `€${Math.round(total / paid.length)}` : "€0"} icon={CreditCard} iconBg="from-blue-400 to-cyan-500" />
       </div>
       <Card className="card-base">
         <CardHeader><CardTitle>{t("earnings_page.payment_history")}</CardTitle></CardHeader>
         <CardContent>
           {proposals.length === 0 ? (
-            <p className="text-center py-8 text-gray-400">{t("proposals_page.no_proposals")}</p>
+            <p className="text-center py-8 text-aurora-ink-3">{t("proposals_page.no_proposals")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-semibold text-gray-500">{t("earnings_page.col_campaign")}</th>
-                    <th className="text-left py-3 px-2 font-semibold text-gray-500">{t("earnings_page.col_brand")}</th>
-                    <th className="text-right py-3 px-2 font-semibold text-gray-500">{t("earnings_page.col_amount")}</th>
-                    <th className="text-center py-3 px-2 font-semibold text-gray-500">{t("earnings_page.col_status")}</th>
-                    <th className="text-right py-3 px-2 font-semibold text-gray-500">{t("earnings_page.col_date")}</th>
+                    <th className="text-left py-3 px-2 font-semibold text-aurora-ink-3">{t("earnings_page.col_campaign")}</th>
+                    <th className="text-left py-3 px-2 font-semibold text-aurora-ink-3">{t("earnings_page.col_brand")}</th>
+                    <th className="text-right py-3 px-2 font-semibold text-aurora-ink-3">{t("earnings_page.col_amount")}</th>
+                    <th className="text-center py-3 px-2 font-semibold text-aurora-ink-3">{t("earnings_page.col_status")}</th>
+                    <th className="text-right py-3 px-2 font-semibold text-aurora-ink-3">{t("earnings_page.col_date")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {proposals.map((e) => (
-                    <tr key={e.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="py-3 px-2 font-medium text-gray-900">{e.campaign_title}</td>
-                      <td className="py-3 px-2 text-gray-500">{e.brand_company_name}</td>
-                      <td className="py-3 px-2 text-right font-semibold text-gray-900">€{e.proposed_price}</td>
+                    <tr key={e.id} className="border-b last:border-0 hover:bg-aurora-surface">
+                      <td className="py-3 px-2 font-medium text-aurora-ink">{e.campaign_title}</td>
+                      <td className="py-3 px-2 text-aurora-ink-3">{e.brand_company_name}</td>
+                      <td className="py-3 px-2 text-right font-semibold text-aurora-ink">€{e.proposed_price}</td>
                       <td className="py-3 px-2 text-center"><StatusBadge status={e.status as any} /></td>
-                      <td className="py-3 px-2 text-right text-gray-500">{new Date(e.created_at).toLocaleDateString()}</td>
+                      <td className="py-3 px-2 text-right text-aurora-ink-3">{new Date(e.created_at).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>

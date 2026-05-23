@@ -61,28 +61,29 @@ export default function Subscription() {
     } finally { setBusy(null) }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{t("nav.subscription")}</h1>
+        <p className="text-sm text-aurora-ink-3">{t("brand_dashboard.eyebrow", "Espace marque")}</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("nav.subscription")}</h1>
         <Button variant="outline" size="sm" onClick={handleCancel} disabled={busy !== null}>
           {t("subscription.cancel", "Annuler l'abonnement")}
         </Button>
       </div>
       <StripeModeBanner />
-      <Card className="card-base bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-100">
+      <Card className="card-base bg-aurora-blue/5 border-aurora-blue/15">
         <CardHeader><CardTitle className="text-base">{t("subscription.current_plan", "Plan actuel")}</CardTitle></CardHeader>
         <CardContent className="flex items-center justify-between">
           <div>
-            <p className="text-2xl font-bold text-gray-900 capitalize">{currentPlan}</p>
-            <p className="text-gray-500 text-sm">{plans.find((p) => p.code === currentPlan)?.price_eur ?? 49}€/mois HT</p>
+            <p className="text-3xl font-semibold tracking-tight text-aurora-ink capitalize">{currentPlan}</p>
+            <p className="text-aurora-ink-3 text-sm">{plans.find((p) => p.code === currentPlan)?.price_eur ?? 49}€/mois HT</p>
           </div>
           <Badge variant="purple" className="text-sm px-4 py-1.5">Actif</Badge>
         </CardContent>
       </Card>
-      <h2 className="text-lg font-semibold text-gray-900">{t("subscription.choose_plan", "Choisissez votre plan")}</h2>
+      <h2 className="text-lg font-semibold text-aurora-ink">{t("subscription.choose_plan", "Choisissez votre plan")}</h2>
       <div className="grid md:grid-cols-3 gap-6">
         {plans.map((p) => (
           <PricingCard

@@ -19,21 +19,21 @@ export function PricingCard({ name, price, period = "/mo", description, features
     <Card className={cn("relative card-base transition-all duration-300 hover:shadow-xl hover:-translate-y-1", highlighted && "border-2 border-indigo-500 shadow-xl shadow-indigo-500/10")}>
       {highlighted && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <span className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm">Most Popular</span>
+          <span className="bg-aurora-blue text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-soft">Most Popular</span>
         </div>
       )}
       <CardHeader className="text-center pb-2">
         <CardTitle className="text-xl">{name}</CardTitle>
         <div className="mt-2">
-          <span className="text-4xl font-bold text-gray-900">€{price}</span>
-          <span className="text-gray-500 text-sm">{period}</span>
+          <span className="text-4xl font-semibold text-aurora-ink">€{price}</span>
+          <span className="text-aurora-ink-3 text-sm">{period}</span>
         </div>
-        <p className="text-sm text-gray-500 mt-1">{description}</p>
+        <p className="text-sm text-aurora-ink-3 mt-1">{description}</p>
       </CardHeader>
       <CardContent>
         <ul className="space-y-3 mb-6">
           {features.map((feat, i) => (
-            <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
+            <li key={i} className="flex items-center gap-2 text-sm text-aurora-ink-2">
               <Check className="h-4 w-4 text-green-500 shrink-0" />
               {feat}
             </li>

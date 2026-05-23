@@ -22,7 +22,7 @@ const STATUS_COLOR: Record<SupportTicket["status"], string> = {
 }
 
 const PRIORITY_COLOR: Record<SupportTicket["priority"], string> = {
-  normal: "bg-gray-100 text-gray-600",
+  normal: "bg-aurora-surface text-aurora-ink-2",
   high: "bg-orange-100 text-orange-700",
   urgent: "bg-red-100 text-red-700",
 }
@@ -52,7 +52,7 @@ function ProtectedImageThumb({ imageUrl }: { imageUrl: string }) {
 
   return (
     <a href={blobUrl} target="_blank" rel="noopener noreferrer">
-      <img src={blobUrl} alt="" className="h-20 w-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
+      <img src={blobUrl} alt="" className="h-20 w-20 object-cover rounded-lg border border-aurora-line hover:opacity-80 transition-opacity" />
     </a>
   )
 }
@@ -196,7 +196,8 @@ export default function SupportPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LifeBuoy className="h-6 w-6 text-indigo-500" />
-          <h1 className="text-2xl font-bold text-gray-900">{t("support.title")}</h1>
+          <p className="text-sm text-aurora-ink-3">{t("common.workspace", "Espace de travail")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-aurora-ink mt-0.5">{t("support.title")}</h1>
         </div>
         <Button
           variant="gradient"
@@ -216,7 +217,7 @@ export default function SupportPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t("support.subject")}</label>
+                <label className="block text-sm font-medium text-aurora-ink-2 mb-1">{t("support.subject")}</label>
                 <Input
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
@@ -225,22 +226,22 @@ export default function SupportPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t("support.message")}</label>
+                <label className="block text-sm font-medium text-aurora-ink-2 mb-1">{t("support.message")}</label>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder={t("support.message_placeholder")}
                   rows={5}
                   required
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-md border border-aurora-line px-3 py-2 text-sm text-aurora-ink-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t("support.priority")}</label>
+                <label className="block text-sm font-medium text-aurora-ink-2 mb-1">{t("support.priority")}</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as SupportTicket["priority"])}
-                  className="h-9 rounded-md border border-gray-200 px-2 text-sm w-full"
+                  className="h-9 rounded-md border border-aurora-line px-2 text-sm w-full"
                 >
                   <option value="normal">{t("admin_support.priority_normal")}</option>
                   <option value="high">{t("admin_support.priority_high")}</option>
@@ -250,18 +251,18 @@ export default function SupportPage() {
 
               {/* Image attachments */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">{t("support.attachments")} ({pendingFiles.length}/5)</label>
+                <label className="block text-sm font-medium text-aurora-ink-2 mb-2">{t("support.attachments")} ({pendingFiles.length}/5)</label>
                 {previews.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {previews.map((src, i) => (
                       <div key={i} className="relative group">
-                        <img src={src} alt="" className="h-20 w-20 object-cover rounded-lg border border-gray-200" />
+                        <img src={src} alt="" className="h-20 w-20 object-cover rounded-lg border border-aurora-line" />
                         <button
                           type="button"
                           onClick={() => removeFile(i)}
-                          className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-gray-200 p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-aurora-line p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <X className="h-3 w-3 text-gray-600" />
+                          <X className="h-3 w-3 text-aurora-ink-2" />
                         </button>
                       </div>
                     ))}
@@ -280,7 +281,7 @@ export default function SupportPage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 text-sm text-indigo-600 border border-dashed border-indigo-300 rounded-lg px-4 py-2 hover:bg-indigo-50 transition-colors"
+                      className="flex items-center gap-2 text-sm text-aurora-blue border border-dashed border-indigo-300 rounded-lg px-4 py-2 hover:bg-indigo-50 transition-colors"
                     >
                       <ImagePlus className="h-4 w-4" />
                       {t("support.add_image")}
@@ -303,11 +304,11 @@ export default function SupportPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-gray-400">
+        <div className="flex items-center justify-center h-48 text-aurora-ink-3">
           <Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}
         </div>
       ) : tickets.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-aurora-ink-3">
           <LifeBuoy className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p>{t("support.no_tickets")}</p>
           <p className="text-sm mt-1">{t("support.no_tickets_desc")}</p>
@@ -323,8 +324,8 @@ export default function SupportPage() {
               >
                 <div className="p-4 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{ticket.subject}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="font-medium text-aurora-ink truncate">{ticket.subject}</p>
+                    <p className="text-xs text-aurora-ink-3 mt-0.5">
                       {new Date(ticket.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -336,18 +337,18 @@ export default function SupportPage() {
                       {t(`admin_support.status_${ticket.status}`)}
                     </span>
                     {expandedId === String(ticket.id)
-                      ? <ChevronUp className="h-4 w-4 text-gray-400" />
-                      : <ChevronDown className="h-4 w-4 text-gray-400" />
+                      ? <ChevronUp className="h-4 w-4 text-aurora-ink-3" />
+                      : <ChevronDown className="h-4 w-4 text-aurora-ink-3" />
                     }
                   </div>
                 </div>
               </button>
 
               {expandedId === String(ticket.id) && (
-                <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
+                <div className="border-t border-aurora-line px-4 pb-4 pt-3 space-y-3">
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{t("support.your_message")}</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.message}</p>
+                    <p className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-1">{t("support.your_message")}</p>
+                    <p className="text-sm text-aurora-ink-2 whitespace-pre-wrap">{ticket.message}</p>
                   </div>
 
                   {/* Images du ticket */}
@@ -361,15 +362,15 @@ export default function SupportPage() {
 
                   {/* Follow-up note + extra images */}
                   {ticket.status !== "closed" && (
-                    <div className="space-y-3 rounded-lg border border-dashed border-indigo-200 bg-indigo-50/30 p-3">
+                    <div className="space-y-3 rounded-lg border border-dashed border-aurora-blue/20 bg-indigo-50/30 p-3">
                       <div>
-                        <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-1">{t("support.followup_label")}</p>
+                        <p className="text-xs font-medium text-aurora-blue uppercase tracking-wide mb-1">{t("support.followup_label")}</p>
                         <textarea
                           value={followUps[ticket.id] ?? ""}
                           onChange={(e) => setFollowUps((prev) => ({ ...prev, [ticket.id]: e.target.value }))}
                           rows={3}
                           placeholder={t("support.followup_placeholder")}
-                          className="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full rounded-md border border-aurora-blue/20 bg-white px-3 py-2 text-sm text-aurora-ink-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                         <div className="mt-2 flex justify-end">
                           <Button size="sm" variant="gradient" onClick={() => submitFollowUp(ticket.id)} disabled={!(followUps[ticket.id] || "").trim()}>
@@ -379,7 +380,7 @@ export default function SupportPage() {
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{t("support.extra_images")}</p>
+                        <p className="text-xs font-medium text-aurora-ink-3 uppercase tracking-wide mb-1">{t("support.extra_images")}</p>
                         <input
                           ref={(el) => { imageInputRefs.current[ticket.id] = el }}
                           type="file"
@@ -401,7 +402,7 @@ export default function SupportPage() {
                     <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
                       <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">{t("support.rating_title")}</p>
                       {ticket.rating ? (
-                        <p className="text-sm text-gray-700">{t("support.rating_current", { rating: ticket.rating })}</p>
+                        <p className="text-sm text-aurora-ink-2">{t("support.rating_current", { rating: ticket.rating })}</p>
                       ) : (
                         <>
                           <select
@@ -428,12 +429,12 @@ export default function SupportPage() {
 
                   {/* Réponse admin */}
                   {ticket.admin_reply ? (
-                    <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-3">
-                      <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-1">{t("support.admin_reply")}</p>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.admin_reply}</p>
+                    <div className="rounded-lg bg-indigo-50 border border-aurora-blue/15 p-3">
+                      <p className="text-xs font-medium text-aurora-blue uppercase tracking-wide mb-1">{t("support.admin_reply")}</p>
+                      <p className="text-sm text-aurora-ink-2 whitespace-pre-wrap">{ticket.admin_reply}</p>
                     </div>
                   ) : ticket.status !== "closed" ? (
-                    <p className="text-xs text-gray-400 italic">{t("support.awaiting_reply")}</p>
+                    <p className="text-xs text-aurora-ink-3 italic">{t("support.awaiting_reply")}</p>
                   ) : null}
                 </div>
               )}

@@ -22,6 +22,7 @@ from rest_framework.views import APIView
 
 from .models import User
 from .services import email_service
+from .throttling import MFAResetRateThrottle, PasswordResetRateThrottle
 
 
 TOTP_ISSUER = "InfluConnect"
@@ -36,6 +37,41 @@ def _signer() -> TimestampSigner:
 
 def _totp_reset_signer() -> TimestampSigner:
     return TimestampSigner(salt="totp-reset")
+
+
+def _password_reset_cache_key(user_id: int) -> str:
+    return f"password-reset:{user_id}"
+
+
+def _totp_reset_cache_key(user_id: int) -> str:
+    return f"totp-reset:{user_id}"
+
+
+def _issue_one_time_token(*, signer: TimestampSigner, cache_key: str, user_id: int, ttl: int) -> str:
+    nonce = secrets.token_urlsafe(16)
+    cache.set(cache_key, nonce, timeout=ttl)
+    return signer.sign(f"{user_id}:{nonce}")
+
+
+def _consume_signed_token(*, token: str, signer: TimestampSigner, cache_key_builder, max_age: int):
+    try:
+        unsigned = signer.unsign(token, max_age=max_age)
+    except SignatureExpired:
+        return None, "expired"
+    except BadSignature:
+        return None, "invalid"
+
+    try:
+        user_pk_str, nonce = str(unsigned).split(":", 1)
+        user_pk = int(user_pk_str)
+    except (TypeError, ValueError):
+        return None, "invalid"
+
+    cache_key = cache_key_builder(user_pk)
+    expected_nonce = cache.get(cache_key)
+    if not expected_nonce or expected_nonce != nonce:
+        return None, "invalid"
+    return user_pk, cache_key
 
 
 def _verify_totp(secret: str, code: str) -> bool:
@@ -185,6 +221,7 @@ class PasswordResetRequestView(APIView):
     Always returns 200 to avoid leaking account existence."""
 
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         email = (request.data.get("email") or "").strip().lower()
@@ -194,26 +231,18 @@ class PasswordResetRequestView(APIView):
             except User.DoesNotExist:
                 user = None
             if user is not None and user.is_active:
-                token = _signer().sign(str(user.pk))
+                token = _issue_one_time_token(
+                    signer=_signer(),
+                    cache_key=_password_reset_cache_key(user.pk),
+                    user_id=user.pk,
+                    ttl=PASSWORD_RESET_MAX_AGE,
+                )
                 frontend = getattr(settings, "FRONTEND_URL", "https://influconnect.fr").rstrip("/")
                 link = f"{frontend}/reset-password/confirm?token={token}"
-                email_service.send(
-                    to=user.email,
-                    subject="InfluConnect — Password reset",
-                    body_text=(
-                        f"Hello {user.first_name or user.username},\n\n"
-                        f"A password reset was requested for your account. "
-                        f"Click the link below within 1 hour to set a new password:\n\n"
-                        f"{link}\n\n"
-                        f"If you did not request this, you can ignore this email.\n"
-                    ),
-                    body_html=(
-                        f"<p>Hello {user.first_name or user.username},</p>"
-                        f"<p>A password reset was requested for your account. "
-                        f"Click the link below within 1 hour to set a new password:</p>"
-                        f"<p><a href=\"{link}\">Reset my password</a></p>"
-                        f"<p>If you did not request this, you can ignore this email.</p>"
-                    ),
+                email_service.send_password_reset(
+                    user.email,
+                    link,
+                    language=user.language_preference,
                 )
         return Response({"detail": "If that email exists, a reset link has been sent."})
 
@@ -229,11 +258,15 @@ class PasswordResetConfirmView(APIView):
                 {"detail": "Token and new password are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        try:
-            user_pk = _signer().unsign(token, max_age=PASSWORD_RESET_MAX_AGE)
-        except SignatureExpired:
+        user_pk, cache_key = _consume_signed_token(
+            token=token,
+            signer=_signer(),
+            cache_key_builder=_password_reset_cache_key,
+            max_age=PASSWORD_RESET_MAX_AGE,
+        )
+        if cache_key == "expired":
             return Response({"detail": "Reset link expired."}, status=status.HTTP_400_BAD_REQUEST)
-        except BadSignature:
+        if cache_key == "invalid":
             return Response({"detail": "Invalid reset link."}, status=status.HTTP_400_BAD_REQUEST)
         try:
             user = User.objects.get(pk=user_pk)
@@ -245,6 +278,7 @@ class PasswordResetConfirmView(APIView):
             return Response({"detail": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
         user.set_password(new_password)
         user.save(update_fields=["password"])
+        cache.delete(cache_key)
         return Response({"detail": "Password updated. You can now log in."})
 
 
@@ -266,23 +300,53 @@ def issue_user_email_login_code(user: User) -> None:
         return
     code = f"{secrets.randbelow(1_000_000):06d}"
     cache.set(_email_otp_cache_key(user.id), code, timeout=EMAIL_OTP_MAX_AGE)
+    is_fr = (user.language_preference or "").lower().startswith("fr")
 
     email_service.send(
         to=user.email,
-        subject="InfluConnect — Code de connexion",
+        subject=("InfluConnect — Code de connexion" if is_fr else "InfluConnect — Login code"),
         body_text=(
-            f"Bonjour {user.first_name or user.username},\n\n"
-            "Votre code de verification pour vous connecter est :\n\n"
-            f"{code}\n\n"
-            "Ce code expire dans 10 minutes.\n"
-            "Si vous n'etes pas a l'origine de cette demande, ignorez cet email.\n"
+            (
+                f"Bonjour {user.first_name or user.username},\n\n"
+                "Votre code de vérification pour vous connecter est :\n\n"
+                f"{code}\n\n"
+                "Ce code expire dans 10 minutes.\n"
+                "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n"
+            )
+            if is_fr else
+            (
+                f"Hello {user.first_name or user.username},\n\n"
+                "Your login verification code is:\n\n"
+                f"{code}\n\n"
+                "This code expires in 10 minutes.\n"
+                "If you did not request this, ignore this email.\n"
+            )
         ),
-        body_html=(
-            f"<p>Bonjour {user.first_name or user.username},</p>"
-            "<p>Votre code de verification pour vous connecter est :</p>"
-            f"<p><strong style=\"font-size:22px;letter-spacing:4px\">{code}</strong></p>"
-            "<p>Ce code expire dans 10 minutes.</p>"
-            "<p>Si vous n'etes pas a l'origine de cette demande, ignorez cet email.</p>"
+        body_html=email_service.build_transactional_email_html(
+            title=("Code de connexion" if is_fr else "Login code"),
+            greeting=(
+                f"Bonjour {user.first_name or user.username},"
+                if is_fr else
+                f"Hello {user.first_name or user.username},"
+            ),
+            paragraphs=(
+                [
+                    "Votre code de vérification pour vous connecter est :",
+                    code,
+                    "Ce code expire dans 10 minutes.",
+                ]
+                if is_fr else
+                [
+                    "Your login verification code is:",
+                    code,
+                    "This code expires in 10 minutes.",
+                ]
+            ),
+            footer_note=(
+                "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email."
+                if is_fr else
+                "If you did not request this, ignore this email."
+            ),
         ),
     )
 
@@ -346,6 +410,7 @@ class TOTPResetRequestView(APIView):
     account enumeration."""
 
     permission_classes = [AllowAny]
+    throttle_classes = [MFAResetRateThrottle]
 
     def post(self, request):
         email = (request.data.get("email") or "").strip().lower()
@@ -355,29 +420,18 @@ class TOTPResetRequestView(APIView):
             except User.DoesNotExist:
                 user = None
             if user is not None and user.is_active and user.totp_enabled:
-                token = _totp_reset_signer().sign(str(user.pk))
+                token = _issue_one_time_token(
+                    signer=_totp_reset_signer(),
+                    cache_key=_totp_reset_cache_key(user.pk),
+                    user_id=user.pk,
+                    ttl=TOTP_RESET_MAX_AGE,
+                )
                 frontend = getattr(settings, "FRONTEND_URL", "https://influconnect.fr").rstrip("/")
                 link = f"{frontend}/security/reset-mfa?token={token}"
-                email_service.send(
-                    to=user.email,
-                    subject="InfluConnect — Réinitialisation 2FA / MFA reset",
-                    body_text=(
-                        f"Bonjour {user.first_name or user.username},\n\n"
-                        f"Une demande de réinitialisation de l'authentification à deux facteurs "
-                        f"a été reçue pour votre compte. Cliquez sur le lien ci-dessous dans "
-                        f"l'heure pour désactiver la 2FA et reconfigurer un nouvel "
-                        f"authentificateur :\n\n{link}\n\n"
-                        f"Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n"
-                    ),
-                    body_html=(
-                        f"<p>Bonjour {user.first_name or user.username},</p>"
-                        f"<p>Une demande de réinitialisation de l'authentification à deux "
-                        f"facteurs a été reçue pour votre compte. Cliquez sur le lien "
-                        f"ci-dessous dans l'heure pour désactiver la 2FA et reconfigurer "
-                        f"un nouvel authentificateur :</p>"
-                        f"<p><a href=\"{link}\">Réinitialiser ma 2FA</a></p>"
-                        f"<p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>"
-                    ),
+                email_service.send_mfa_reset(
+                    user.email,
+                    link,
+                    language=user.language_preference,
                 )
         return Response({"detail": "If that email exists, a 2FA reset link has been sent."})
 
@@ -396,11 +450,15 @@ class TOTPResetConfirmView(APIView):
                 {"detail": "Token and password are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        try:
-            user_pk = _totp_reset_signer().unsign(token, max_age=TOTP_RESET_MAX_AGE)
-        except SignatureExpired:
+        user_pk, cache_key = _consume_signed_token(
+            token=token,
+            signer=_totp_reset_signer(),
+            cache_key_builder=_totp_reset_cache_key,
+            max_age=TOTP_RESET_MAX_AGE,
+        )
+        if cache_key == "expired":
             return Response({"detail": "Reset link expired."}, status=status.HTTP_400_BAD_REQUEST)
-        except BadSignature:
+        if cache_key == "invalid":
             return Response({"detail": "Invalid reset link."}, status=status.HTTP_400_BAD_REQUEST)
         try:
             user = User.objects.get(pk=user_pk)
@@ -413,4 +471,5 @@ class TOTPResetConfirmView(APIView):
         user.totp_enabled = False
         user.totp_secret = ""
         user.save(update_fields=["totp_enabled", "totp_secret"])
+        cache.delete(cache_key)
         return Response({"detail": "Two-factor authentication has been reset.", "totp_enabled": False})

@@ -55,16 +55,16 @@ export function PaymentDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-indigo-600" />
+            <CreditCard className="h-5 w-5 text-aurora-blue" />
             {title ?? t("payment.title")}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <StripeModeBanner />
-          <div className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">{t("payment.amount")}</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">€{amount.toFixed(2)}</p>
-            {description && <p className="text-xs text-gray-600 mt-2">{description}</p>}
+          <div className="p-4 bg-aurora-blue/10 rounded-xl">
+            <p className="text-xs text-aurora-ink-3 uppercase tracking-wide">{t("payment.amount")}</p>
+            <p className="text-3xl font-semibold tracking-tight text-aurora-ink mt-1">€{amount.toFixed(2)}</p>
+            {description && <p className="text-xs text-aurora-ink-2 mt-2">{description}</p>}
           </div>
           <div className="space-y-3">
             <div>
@@ -106,7 +106,7 @@ export function PaymentDialog({
               </div>
             </div>
           </div>
-          <div className="flex gap-2 items-center text-xs text-gray-400">
+          <div className="flex gap-2 items-center text-xs text-aurora-ink-3">
             <Lock className="h-3 w-3" /> {t("payment.secure")}
           </div>
           <div className="flex gap-2 justify-end pt-2 border-t">

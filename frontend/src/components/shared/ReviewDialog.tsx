@@ -101,7 +101,7 @@ export function ReviewDialog({ proposalId, open, onClose, onSuccess }: Props) {
             <StarSelector value={rating} onChange={setRating} ariaLabelSuffix={t("review.stars_aria")} />
           </div>
           <div className="space-y-2 border-t pt-3">
-            <Label className="text-xs text-gray-500 uppercase tracking-wide">{t("review.criteria")}</Label>
+            <Label className="text-xs text-aurora-ink-3 uppercase tracking-wide">{t("review.criteria")}</Label>
             {CRITERIA_KEYS.map((key) => (
               <div key={key} className="flex items-center justify-between">
                 <span className="text-sm">{t(`review.crit_${key}`)}</span>
