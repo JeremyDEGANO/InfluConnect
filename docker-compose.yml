@@ -48,6 +48,16 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - PLATFORM_COMMISSION_RATE=${PLATFORM_COMMISSION_RATE:-15}
       - DEEPL_API_KEY=${DEEPL_API_KEY:-}
+      # ---- Social OAuth (per-provider credentials) ----
+      - SOCIAL_OAUTH_REDIRECT_BASE=${SOCIAL_OAUTH_REDIRECT_BASE:-http://localhost:8000}
+      - TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY:-}
+      - TIKTOK_CLIENT_SECRET=${TIKTOK_CLIENT_SECRET:-}
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID:-}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET:-}
+      - META_APP_ID=${META_APP_ID:-}
+      - META_APP_SECRET=${META_APP_SECRET:-}
+      - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID:-}
+      - TWITCH_CLIENT_SECRET=${TWITCH_CLIENT_SECRET:-}
       # ---- Frontend URL (for email links / QR codes) ----
       - FRONTEND_URL=${FRONTEND_URL:-https://influconnect.fr}
       # ---- Auto admin bootstrap ----
