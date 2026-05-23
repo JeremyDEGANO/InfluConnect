@@ -926,11 +926,11 @@ export default function InfluencerEditProfile() {
                   </div>
                   <div className="sm:col-span-2">
                     <Label className="text-xs">{t("influencer_profile.profile_url")}</Label>
-                    <Input className="mt-1" placeholder="https://..." value={s.profile_url} onChange={(e) => updateSocial(i, "profile_url", e.target.value)} />
+                    <Input className="mt-1" placeholder="https://..." value={s.profile_url} onChange={(e) => updateSocial(i, "profile_url", e.target.value)} disabled={s.verified_via_api} title={s.verified_via_api ? t("influencer_profile.locked_by_oauth", "Synchronisé automatiquement via OAuth") : undefined} />
                   </div>
                   <div>
                     <Label className="text-xs">Followers</Label>
-                    <Input className="mt-1" type="number" value={s.followers_count} onChange={(e) => updateSocial(i, "followers_count", e.target.value)} />
+                    <Input className="mt-1" type="number" value={s.followers_count} onChange={(e) => updateSocial(i, "followers_count", e.target.value)} disabled={s.verified_via_api} title={s.verified_via_api ? t("influencer_profile.locked_by_oauth", "Synchronisé automatiquement via OAuth") : undefined} />
                   </div>
                   <Button type="button" variant="ghost" size="sm" onClick={() => removeSocial(i)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                 </div>
@@ -954,7 +954,7 @@ export default function InfluencerEditProfile() {
                 <div className="grid sm:grid-cols-3 gap-2">
                   <div>
                     <Label className="text-xs">{t("influencer_profile.avg_views")}</Label>
-                    <Input className="mt-1" type="number" value={s.avg_views ?? 0} onChange={(e) => updateSocial(i, "avg_views", e.target.value)} />
+                    <Input className="mt-1" type="number" value={s.avg_views ?? 0} onChange={(e) => updateSocial(i, "avg_views", e.target.value)} disabled={s.verified_via_api} title={s.verified_via_api ? t("influencer_profile.locked_by_oauth", "Synchronisé automatiquement via OAuth") : undefined} />
                   </div>
                   <div>
                     <Label className="text-xs">Engagement (%)</Label>
@@ -966,17 +966,22 @@ export default function InfluencerEditProfile() {
                       step="0.1"
                       value={s.engagement_rate ?? 0}
                       onChange={(e) => updateSocial(i, "engagement_rate", e.target.value)}
+                      disabled={s.verified_via_api}
+                      title={s.verified_via_api ? t("influencer_profile.locked_by_oauth", "Synchronisé automatiquement via OAuth") : undefined}
                     />
                   </div>
                   {s.id && (
-                    <div className="flex items-end gap-1">
-                      <Button
-                        type="button" variant="outline" size="sm"
-                        onClick={() => connectOAuth(s.id!)}
-                        title={t("influencer_profile.oauth_connect_title")}
-                      >
-                        <Link2 className="h-3.5 w-3.5 mr-1" /> OAuth
-                      </Button>
+                    <div className="flex items-end gap-2 flex-wrap">
+                      {!s.verified_via_api && (
+                        <Button
+                          type="button" variant="default" size="sm"
+                          onClick={() => connectOAuth(s.id!)}
+                          title={t("influencer_profile.oauth_connect_title")}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                          <Link2 className="h-3.5 w-3.5 mr-1" /> {t("influencer_profile.oauth_connect", "Connecter")}
+                        </Button>
+                      )}
                       <Button
                         type="button" variant="outline" size="sm"
                         disabled={syncingId === s.id}
@@ -990,10 +995,10 @@ export default function InfluencerEditProfile() {
                       </Button>
                       {s.verified_via_api && (
                         <Button
-                          type="button" variant="ghost" size="sm"
+                          type="button" variant="outline" size="sm"
                           onClick={() => disconnectOAuth(s.id!)}
                           title={t("influencer_profile.oauth_disconnect_title")}
-                          className="text-red-600 hover:text-red-700"
+                          className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                         >
                           {t("influencer_profile.oauth_disconnect")}
                         </Button>

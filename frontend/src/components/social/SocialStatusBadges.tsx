@@ -5,38 +5,19 @@ interface Props {
   isVerified?: boolean
 }
 
-function ageDays(iso: string): number {
-  const ms = Date.now() - new Date(iso).getTime()
-  return ms / (1000 * 60 * 60 * 24)
-}
-
 export function FreshnessBadge({ lastSyncedAt }: { lastSyncedAt: string | null | undefined }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   if (!lastSyncedAt) {
     return (
-      <span className="inline-flex items-center rounded-full bg-slate-700/60 px-2 py-0.5 text-[10px] text-slate-300">
+      <span className="text-[11px] text-slate-500">
         {t("tiktok.freshness.unknown")}
       </span>
     )
   }
-  const days = ageDays(lastSyncedAt)
-  if (days < 7) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300">
-        ● {t("tiktok.freshness.fresh")}
-      </span>
-    )
-  }
-  if (days < 30) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-300">
-        ● {t("tiktok.freshness.stale")}
-      </span>
-    )
-  }
+  const when = new Date(lastSyncedAt).toLocaleString(i18n.language)
   return (
-    <span className="inline-flex items-center rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] text-red-300">
-      ● {t("tiktok.freshness.outdated")}
+    <span className="text-[11px] text-slate-500">
+      {t("tiktok.freshness.last_sync", { when })}
     </span>
   )
 }
@@ -46,7 +27,7 @@ export function VerifiedBadge() {
   return (
     <span
       title={t("tiktok.verified_badge")}
-      className="inline-flex items-center rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-300"
+      className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700"
     >
       ✓ {t("tiktok.verified_badge")}
     </span>

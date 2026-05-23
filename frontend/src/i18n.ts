@@ -183,7 +183,7 @@ const resources = {
       tiktok: {
         verified_badge: "Verified",
         videos: { title: "Recent TikTok videos", empty: "No videos found yet.", no_thumbnail: "No preview" },
-        freshness: { fresh: "Fresh", stale: "Stale (>7d)", outdated: "Outdated (>30d)", unknown: "Never synced" },
+        freshness: { fresh: "Up to date", stale: "Refresh recommended (>7d)", outdated: "Outdated (>30d)", unknown: "Never synced", tooltip: "Last sync: {{when}}", last_sync: "Last update: {{when}}" },
         chart: {
           not_enough_data: "Growth chart will appear after a few days of data.",
           metric: {
@@ -369,6 +369,8 @@ const resources = {
         sync_button: "Sync",
         gallery_upload_error: "Upload failed",
         gallery_delete_error: "Could not delete image",
+        oauth_connect: "Connect",
+        locked_by_oauth: "Automatically synced via OAuth",
         oauth_connect_title: "Connect your account via official OAuth",
         oauth_connect_cta: "Connect with {{platform}}",
         oauth_cta_hint: "Connect via OAuth to automatically fetch your stats.",
@@ -1406,7 +1408,7 @@ const resources = {
       tiktok: {
         verified_badge: "Vérifié",
         videos: { title: "Vidéos TikTok récentes", empty: "Aucune vidéo trouvée pour l'instant.", no_thumbnail: "Pas d'aperçu" },
-        freshness: { fresh: "Frais", stale: "À actualiser (>7j)", outdated: "Obsolète (>30j)", unknown: "Jamais synchronisé" },
+        freshness: { fresh: "Données à jour", stale: "À actualiser (>7j)", outdated: "Obsolète (>30j)", unknown: "Jamais synchronisé", tooltip: "Dernière synchro : {{when}}", last_sync: "Dernière actualisation : {{when}}" },
         chart: {
           not_enough_data: "Le graphique d'évolution apparaîtra après quelques jours de données.",
           metric: {
@@ -1592,6 +1594,8 @@ const resources = {
         sync_button: "Synchroniser",
         gallery_upload_error: "Échec de l'envoi",
         gallery_delete_error: "Suppression impossible",
+        oauth_connect: "Connecter",
+        locked_by_oauth: "Synchronisé automatiquement via OAuth",
         oauth_connect_title: "Connecter votre compte via OAuth officiel",
         oauth_connect_cta: "Se connecter via {{platform}}",
         oauth_cta_hint: "Connectez votre compte via OAuth pour récupérer automatiquement vos statistiques.",

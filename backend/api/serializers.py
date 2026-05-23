@@ -211,6 +211,12 @@ class SocialNetworkSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Engagement rate must be between 0 and 100.")
         return value
 
+    def update(self, instance, validated_data):
+        if instance.verified_via_api:
+            for f in ("profile_url", "followers_count", "avg_views", "engagement_rate"):
+                validated_data.pop(f, None)
+        return super().update(instance, validated_data)
+
     class Meta:
         model = SocialNetwork
         fields = [
