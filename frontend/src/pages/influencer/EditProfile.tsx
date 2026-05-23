@@ -416,7 +416,7 @@ export default function InfluencerEditProfile() {
   const syncSocial = async (id: number) => {
     setSyncingId(id)
     try {
-      const r = await api.post(`/influencers/social-networks/${id}/sync/`)
+      const r = await api.post(`/social-networks/${id}/sync/`)
       if (r.data?.synced === false) {
         toast({
           title: t("influencer_profile.oauth_sync_title"),
