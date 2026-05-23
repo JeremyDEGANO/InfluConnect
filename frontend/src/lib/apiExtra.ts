@@ -635,6 +635,93 @@ export const startSocialOAuth = (socialNetworkId: number) =>
   api.post<{ oauth_url: string; platform: string }>(`/social-networks/${socialNetworkId}/oauth-start/`).then((r) => r.data)
 export const syncSocialNetwork = (socialNetworkId: number) =>
   api.post(`/social-networks/${socialNetworkId}/sync/`).then((r) => r.data)
+export const revokeSocialNetwork = (socialNetworkId: number) =>
+  api.post(`/social-networks/${socialNetworkId}/revoke/`).then((r) => r.data)
+
+// ====== Social videos / snapshots / fraud ======
+export interface SocialVideo {
+  id: number
+  external_video_id: string
+  caption: string
+  thumbnail_url: string
+  video_url: string
+  view_count: number
+  like_count: number
+  comment_count: number
+  share_count: number
+  duration_sec: number
+  published_at: string | null
+  fetched_at: string
+}
+export interface SocialStatsSnapshot {
+  id: number
+  snapshot_date: string
+  followers_count: number
+  avg_views: number
+  engagement_rate: string
+}
+export interface SocialFraudFlag {
+  id: number
+  flag_type: "follower_spike" | "low_engagement" | "zombie_account"
+  severity: "low" | "medium" | "high"
+  details: Record<string, unknown>
+  created_at: string
+  resolved_at: string | null
+  social_network?: number
+  platform?: string
+  external_username?: string | null
+  influencer_pseudo?: string | null
+  influencer_id?: number
+}
+export const fetchSocialVideos = (socialNetworkId: number, limit = 12) =>
+  api.get<SocialVideo[]>(`/social-networks/${socialNetworkId}/videos/?limit=${limit}`).then((r) => r.data)
+export const fetchSocialSnapshots = (socialNetworkId: number, range: "30" | "90" | "365" = "30") =>
+  api.get<SocialStatsSnapshot[]>(`/social-networks/${socialNetworkId}/snapshots/?range=${range}`).then((r) => r.data)
+export const fetchSocialFraudFlags = (socialNetworkId: number) =>
+  api.get<SocialFraudFlag[]>(`/social-networks/${socialNetworkId}/fraud-flags/`).then((r) => r.data)
+
+// ====== Admin fraud-flag moderation ======
+export interface AdminFraudFlag extends SocialFraudFlag {
+  social_network: number
+}
+export const fetchAdminFraudFlags = (severity?: "low" | "medium" | "high") =>
+  api.get<AdminFraudFlag[]>(`/admin/fraud-flags/${severity ? `?severity=${severity}` : ""}`).then((r) => r.data)
+export const resolveAdminFraudFlag = (id: number) =>
+  api.post<AdminFraudFlag>(`/admin/fraud-flags/${id}/resolve/`).then((r) => r.data)
+
+// ====== Campaign video tracking ======
+export interface CampaignVideoDailyStat {
+  id: number
+  snapshot_date: string
+  view_count: number
+  like_count: number
+  comment_count: number
+  share_count: number
+  engagement_rate: string
+}
+export interface CampaignVideoTracking {
+  id: number
+  proposal: number
+  social_network: number | null
+  platform: string
+  external_video_id: string
+  video_url: string
+  caption: string
+  thumbnail_url: string
+  tracking_started_at: string
+  tracking_ends_at: string
+  is_frozen: boolean
+  last_fetched_at: string | null
+  last_error: string
+  daily_stats: CampaignVideoDailyStat[]
+  latest_stats: CampaignVideoDailyStat | null
+}
+export const fetchTrackedVideos = (proposalId: number) =>
+  api.get<CampaignVideoTracking[]>(`/proposals/${proposalId}/tracked-videos/`).then((r) => r.data)
+export const attachTrackedVideo = (proposalId: number, videoUrl: string, platform: string = "tiktok") =>
+  api.post<CampaignVideoTracking>(`/proposals/${proposalId}/tracked-videos/`, { video_url: videoUrl, platform }).then((r) => r.data)
+export const removeTrackedVideo = (trackingId: number) =>
+  api.delete(`/tracked-videos/${trackingId}/`).then((r) => r.data)
 
 // ====== Stripe configuration (publishable key) ======
 export const fetchStripeConfig = () =>

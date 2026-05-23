@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { fetchAdminOverview, type AdminOverview } from "@/lib/apiExtra"
+import { fetchAdminOverview, type AdminOverview, fetchAdminFraudFlags, resolveAdminFraudFlag, type AdminFraudFlag } from "@/lib/apiExtra"
 import { StatsCard } from "@/components/shared/StatsCard"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +23,28 @@ export default function Admin() {
   const { toast } = useToast()
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fraudFlags, setFraudFlags] = useState<AdminFraudFlag[]>([])
+  const [fraudLoading, setFraudLoading] = useState(false)
+
+  const loadFraudFlags = () => {
+    setFraudLoading(true)
+    fetchAdminFraudFlags()
+      .then(setFraudFlags)
+      .catch(() => toast({ variant: "destructive", title: t("common.error") }))
+      .finally(() => setFraudLoading(false))
+  }
+
+  useEffect(() => { loadFraudFlags() }, [])
+
+  const resolveFlag = async (id: number) => {
+    try {
+      await resolveAdminFraudFlag(id)
+      setFraudFlags((prev) => prev.filter((f) => f.id !== id))
+      toast({ title: t("admin_page.fraud_flags.resolved", "Signalement résolu") })
+    } catch {
+      toast({ variant: "destructive", title: t("common.error") })
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -163,6 +185,48 @@ export default function Admin() {
               <p className="text-sm text-aurora-ink-3">{t("admin_page.empty_live_campaigns", "Aucune donnée disponible.")}</p>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="card-base">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>{t("admin_page.fraud_flags.title", "Signalements anti-fraude")}</CardTitle>
+          <button onClick={loadFraudFlags} className="text-xs text-aurora-blue hover:underline">
+            {t("common.refresh", "Rafra\u00eechir")}
+          </button>
+        </CardHeader>
+        <CardContent>
+          {fraudLoading ? (
+            <div className="flex items-center text-aurora-ink-3 text-sm"><Loader2 className="h-4 w-4 animate-spin mr-2" />{t("common.loading")}</div>
+          ) : fraudFlags.length === 0 ? (
+            <p className="text-sm text-aurora-ink-3">{t("admin_page.fraud_flags.empty", "Aucun signalement actif.")}</p>
+          ) : (
+            <div className="divide-y divide-aurora-line">
+              {fraudFlags.map((flag) => {
+                const sevColor = flag.severity === "high" ? "bg-rose-100 text-rose-700" : flag.severity === "medium" ? "bg-amber-100 text-amber-700" : "bg-aurora-surface text-aurora-ink-2"
+                return (
+                  <div key={flag.id} className="py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={sevColor}>{t(`admin_page.fraud_flags.severity.${flag.severity}`, flag.severity)}</Badge>
+                        <Badge variant="outline">{t(`admin_page.fraud_flags.type.${flag.flag_type}`, flag.flag_type)}</Badge>
+                        {flag.platform && <span className="text-xs text-aurora-ink-3">{flag.platform}</span>}
+                      </div>
+                      <p className="text-sm text-aurora-ink">
+                        {flag.influencer_pseudo ? `@${flag.influencer_pseudo}` : `#${flag.influencer_id ?? "?"}`}
+                        {flag.external_username ? ` — ${flag.external_username}` : ""}
+                      </p>
+                      <p className="text-[11px] text-aurora-ink-3 mt-1 font-mono break-all">{JSON.stringify(flag.details)}</p>
+                      <p className="text-[11px] text-aurora-ink-3 mt-1">{new Date(flag.created_at).toLocaleString()}</p>
+                    </div>
+                    <button onClick={() => resolveFlag(flag.id)} className="text-xs px-3 py-1.5 rounded-md bg-aurora-blue text-white hover:opacity-90 flex-shrink-0">
+                      {t("admin_page.fraud_flags.resolve", "R\u00e9soudre")}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -97,6 +97,13 @@ class SocialNetwork(models.Model):
         ('linkedin', 'LinkedIn'),
         ('snapchat', 'Snapchat'),
     ]
+    TOKEN_STATUS_CHOICES = [
+        ('none', 'None'),
+        ('active', 'Active'),
+        ('expired', 'Expired'),
+        ('revoked', 'Revoked'),
+        ('error', 'Error'),
+    ]
 
     influencer = models.ForeignKey(InfluencerProfile, on_delete=models.CASCADE, related_name='social_networks')
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
@@ -105,10 +112,21 @@ class SocialNetwork(models.Model):
     avg_views = models.IntegerField(default=0)
     engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
 
+    # External account metadata (populated when OAuth is connected).
+    external_user_id = models.CharField(max_length=128, blank=True)
+    external_username = models.CharField(max_length=128, blank=True)
+    display_name = models.CharField(max_length=255, blank=True)
+    avatar_url = models.URLField(blank=True, max_length=600)
+    bio = models.TextField(blank=True)
+    is_verified_external = models.BooleanField(default=False)
+    video_count = models.IntegerField(default=0)
+    total_likes = models.BigIntegerField(default=0)
+
     # OAuth (CDC §8 — stats import). Tokens stored encrypted via Fernet.
     oauth_access_token = models.TextField(blank=True)
     oauth_refresh_token = models.TextField(blank=True)
     oauth_expires_at = models.DateTimeField(null=True, blank=True)
+    token_status = models.CharField(max_length=12, choices=TOKEN_STATUS_CHOICES, default='none')
     last_synced_at = models.DateTimeField(null=True, blank=True)
     verified_via_api = models.BooleanField(default=False)
 
@@ -119,6 +137,58 @@ class SocialNetwork(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['influencer', 'platform'], name='uniq_social_network_per_platform'),
         ]
+
+
+class SocialVideo(models.Model):
+    """Recent video imported from the connected social account (max ~20 per network)."""
+    social_network = models.ForeignKey(
+        SocialNetwork, on_delete=models.CASCADE, related_name='videos',
+    )
+    external_video_id = models.CharField(max_length=128)
+    caption = models.TextField(blank=True)
+    thumbnail_url = models.URLField(blank=True, max_length=600)
+    video_url = models.URLField(blank=True, max_length=600)
+    view_count = models.BigIntegerField(default=0)
+    like_count = models.BigIntegerField(default=0)
+    comment_count = models.BigIntegerField(default=0)
+    share_count = models.BigIntegerField(default=0)
+    duration_sec = models.IntegerField(default=0)
+    published_at = models.DateTimeField(null=True, blank=True)
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['social_network', 'external_video_id'],
+                name='uniq_social_video_per_account',
+            ),
+        ]
+        ordering = ['-published_at', '-id']
+
+    def __str__(self):
+        return f'SocialVideo[{self.external_video_id}] {self.social_network.platform}'
+
+
+class SocialStatsSnapshot(models.Model):
+    """Daily snapshot of social network stats for trend analysis."""
+    social_network = models.ForeignKey(
+        SocialNetwork, on_delete=models.CASCADE, related_name='stats_snapshots',
+    )
+    snapshot_date = models.DateField()
+    followers_count = models.IntegerField(default=0)
+    avg_views = models.IntegerField(default=0)
+    engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    raw_response = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['social_network', 'snapshot_date'],
+                name='uniq_social_snapshot_per_day',
+            ),
+        ]
+        ordering = ['-snapshot_date']
 
 
 class MediaKitImage(models.Model):
@@ -698,3 +768,98 @@ class PlatformSettings(models.Model):
 
     def __str__(self):
         return 'Platform Settings'
+
+
+# ---------------------------------------------------------------------------
+# Campaign video tracking (CDC §6 — performance dashboard)
+# ---------------------------------------------------------------------------
+class CampaignVideoTracking(models.Model):
+    """Track a single video posted by an influencer for a campaign.
+
+    Stats are refreshed daily for `TRACKING_WINDOW_DAYS` days then frozen.
+    """
+    TRACKING_WINDOW_DAYS = 30
+
+    proposal = models.ForeignKey(
+        CampaignProposal, on_delete=models.CASCADE, related_name='tracked_videos',
+    )
+    social_network = models.ForeignKey(
+        SocialNetwork, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tracked_campaign_videos',
+    )
+    platform = models.CharField(max_length=20, choices=SocialNetwork.PLATFORM_CHOICES)
+    external_video_id = models.CharField(max_length=128)
+    video_url = models.URLField(max_length=600)
+    caption = models.TextField(blank=True)
+    thumbnail_url = models.URLField(blank=True, max_length=600)
+    tracking_started_at = models.DateTimeField(auto_now_add=True)
+    tracking_ends_at = models.DateTimeField(null=True, blank=True)
+    is_frozen = models.BooleanField(default=False)
+    last_fetched_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['proposal', 'platform', 'external_video_id'],
+                name='uniq_tracked_video_per_proposal',
+            ),
+        ]
+        ordering = ['-tracking_started_at']
+
+    def __str__(self):
+        return f'TrackedVideo[{self.platform}#{self.external_video_id}] proposal={self.proposal_id}'
+
+
+class CampaignVideoDailyStats(models.Model):
+    """Daily snapshot of a tracked campaign video's public counters."""
+    tracking = models.ForeignKey(
+        CampaignVideoTracking, on_delete=models.CASCADE, related_name='daily_stats',
+    )
+    snapshot_date = models.DateField()
+    view_count = models.BigIntegerField(default=0)
+    like_count = models.BigIntegerField(default=0)
+    comment_count = models.BigIntegerField(default=0)
+    share_count = models.BigIntegerField(default=0)
+    engagement_rate = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tracking', 'snapshot_date'],
+                name='uniq_tracked_video_stats_per_day',
+            ),
+        ]
+        ordering = ['-snapshot_date']
+
+
+# ---------------------------------------------------------------------------
+# Anti-fraud flags (CDC §10)
+# ---------------------------------------------------------------------------
+class SocialFraudFlag(models.Model):
+    FLAG_TYPES = [
+        ('follower_spike', 'Follower spike'),
+        ('low_engagement', 'Low engagement'),
+        ('zombie_account', 'Zombie account'),
+    ]
+    SEVERITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+    social_network = models.ForeignKey(
+        SocialNetwork, on_delete=models.CASCADE, related_name='fraud_flags',
+    )
+    flag_type = models.CharField(max_length=32, choices=FLAG_TYPES)
+    severity = models.CharField(max_length=8, choices=SEVERITY_CHOICES, default='medium')
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['social_network', 'flag_type', 'resolved_at'])]
+
+    def __str__(self):
+        return f'FraudFlag[{self.flag_type}] sn={self.social_network_id}'

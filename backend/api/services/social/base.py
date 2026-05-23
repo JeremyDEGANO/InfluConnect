@@ -38,6 +38,20 @@ class StatsBundle:
             self.extra = {}
 
 
+@dataclass
+class VideoStats:
+    external_video_id: str
+    view_count: int = 0
+    like_count: int = 0
+    comment_count: int = 0
+    share_count: int = 0
+    caption: str = ""
+    thumbnail_url: str = ""
+    video_url: str = ""
+    duration_sec: int = 0
+    published_at: Optional[object] = None  # datetime or None
+
+
 class BaseSocialProvider:
     """Interface implemented by each platform-specific provider."""
 
@@ -56,4 +70,12 @@ class BaseSocialProvider:
 
     # ---- Stats ------------------------------------------------------------
     def fetch_stats(self, tokens: TokenBundle) -> StatsBundle:
+        raise NotImplementedError
+
+    def fetch_recent_videos(self, tokens: TokenBundle, limit: int = 20):
+        """Return list[VideoStats]. Default empty for providers that don't support it."""
+        return []
+
+    def fetch_video_stats(self, tokens: TokenBundle, external_video_id: str) -> "VideoStats":
+        """Refresh counters for a single video. Default raises NotImplementedError."""
         raise NotImplementedError

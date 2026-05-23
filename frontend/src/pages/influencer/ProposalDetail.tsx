@@ -14,6 +14,7 @@ import { ReviewDialog } from "@/components/shared/ReviewDialog"
 import { SignContractDialog } from "@/components/shared/SignContractDialog"
 import { PaymentDialog } from "@/components/shared/PaymentDialog"
 import { ContractWorkflow } from "@/components/shared/ContractWorkflow"
+import CampaignTrackedVideos from "@/components/social/CampaignTrackedVideos"
 import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, CheckCircle, XCircle, MessageSquare, Loader2, PenTool, Wallet, Upload, Download, Repeat, Star, Eye } from "lucide-react"
 
@@ -384,6 +385,9 @@ export default function ProposalDetail() {
           </Card>
 
           {/* Workflow Card */}
+          {proposal.status === "accepted" && (
+            <CampaignTrackedVideos proposalId={proposal.id} canEdit />
+          )}
           {proposal.status !== "pending" && proposal.status !== "declined" && (
             <ContractWorkflow
               proposal={proposal}

@@ -2,7 +2,10 @@ import { useState, useEffect, FormEvent, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/lib/auth"
 import api from "@/lib/api"
-import { fetchOnboarding, fetchReference, type ReferenceData, type OnboardingStatus } from "@/lib/apiExtra"
+import { fetchOnboarding, fetchReference, revokeSocialNetwork, type ReferenceData, type OnboardingStatus } from "@/lib/apiExtra"
+import TikTokVideosGrid from "@/components/social/TikTokVideosGrid"
+import GrowthChart from "@/components/social/GrowthChart"
+import { FreshnessBadge, VerifiedBadge } from "@/components/social/SocialStatusBadges"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -116,6 +119,7 @@ interface SocialNet {
   engagement_rate?: number
   verified_via_api?: boolean
   last_synced_at?: string | null
+  is_verified_external?: boolean
 }
 
 const sanitizeLocalPhone = (raw: string): string => raw.replace(/[^\d\s()-]/g, "")
@@ -453,6 +457,25 @@ export default function InfluencerEditProfile() {
       }
     } catch {
       toast({ title: t("oauth_social.error_generic"), description: t("oauth_social.unavailable"), variant: "destructive" })
+    }
+  }
+
+  const disconnectOAuth = async (id: number) => {
+    if (!window.confirm(t("influencer_profile.oauth_disconnect_confirm"))) return
+    try {
+      const updated: any = await revokeSocialNetwork(id)
+      setSocials((prev) => prev.map((s) => (s.id === id ? {
+        ...s,
+        verified_via_api: updated?.verified_via_api ?? false,
+        last_synced_at: updated?.last_synced_at ?? s.last_synced_at,
+      } : s)))
+      toast({ title: t("influencer_profile.oauth_disconnect_success") })
+    } catch (e: any) {
+      toast({
+        title: t("common.error"),
+        description: e?.response?.data?.detail ?? t("influencer_profile.oauth_disconnect_error"),
+        variant: "destructive",
+      })
     }
   }
 
@@ -911,9 +934,29 @@ export default function InfluencerEditProfile() {
                           : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
                         {t("influencer_profile.sync_button")}
                       </Button>
+                      {s.verified_via_api && (
+                        <Button
+                          type="button" variant="ghost" size="sm"
+                          onClick={() => disconnectOAuth(s.id!)}
+                          title={t("influencer_profile.oauth_disconnect_title")}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          {t("influencer_profile.oauth_disconnect")}
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
+                {s.id && s.platform === "tiktok" && s.verified_via_api && (
+                  <div className="mt-3 space-y-3 border-t border-aurora-line pt-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <FreshnessBadge lastSyncedAt={s.last_synced_at} />
+                      {s.is_verified_external && <VerifiedBadge />}
+                    </div>
+                    <GrowthChart socialNetworkId={s.id} metric="followers_count" range="30" />
+                    <TikTokVideosGrid socialNetworkId={s.id} limit={12} title={t("tiktok.videos.title")} />
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>

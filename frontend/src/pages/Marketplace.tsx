@@ -13,10 +13,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Search, Loader2, MapPin, Star, Users, Send, SlidersHorizontal, X, ChevronDown } from "lucide-react"
+import { FreshnessBadge, VerifiedBadge } from "@/components/social/SocialStatusBadges"
 
 interface SocialNetwork {
   platform: string
   followers_count: number
+  last_synced_at?: string | null
+  is_verified_external?: boolean
 }
 
 interface Influencer {
@@ -365,6 +368,16 @@ export default function Marketplace() {
                           ))}
                         </div>
                       )}
+                      {(() => {
+                        const tiktok = inf.social_networks?.find((sn) => sn.platform === "tiktok")
+                        if (!tiktok) return null
+                        return (
+                          <div className="flex items-center gap-1 mb-2">
+                            <FreshnessBadge lastSyncedAt={tiktok.last_synced_at} />
+                            {tiktok.is_verified_external && <VerifiedBadge />}
+                          </div>
+                        )
+                      })()}
                     </div>
                     {isBrand ? (
                       <div className="grid grid-cols-2 gap-2">

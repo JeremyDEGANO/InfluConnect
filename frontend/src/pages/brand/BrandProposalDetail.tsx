@@ -19,6 +19,7 @@ import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
 import { MessageThread } from "@/components/shared/MessageThread"
 import { SignContractDialog } from "@/components/shared/SignContractDialog"
 import { ContractWorkflow } from "@/components/shared/ContractWorkflow"
+import CampaignTrackedVideos from "@/components/social/CampaignTrackedVideos"
 import {
   Dialog,
   DialogContent,
@@ -314,6 +315,9 @@ export default function BrandProposalDetail() {
 
           {proposal.status !== "pending" && proposal.status !== "declined" && (
             <ContractWorkflow proposal={proposal} />
+          )}
+          {proposal.status === "accepted" && (
+            <CampaignTrackedVideos proposalId={proposal.id} canEdit />
           )}
         </div>
       </div>

@@ -9,12 +9,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Loader2, Star, Users, MapPin } from "lucide-react"
+import TikTokVideosGrid from "@/components/social/TikTokVideosGrid"
+import GrowthChart from "@/components/social/GrowthChart"
+import { FreshnessBadge, VerifiedBadge } from "@/components/social/SocialStatusBadges"
 
 interface SocialNetwork {
+  id?: number
   platform: string
   followers_count: number
   handle?: string
   engagement_rate?: number
+  verified_via_api?: boolean
+  last_synced_at?: string | null
+  is_verified_external?: boolean
 }
 
 interface InfluencerProfile {
@@ -44,10 +51,14 @@ function normalizeProfile(raw: any): InfluencerProfile {
     ? raw.social_networks
       .filter((sn: any) => sn && typeof sn === "object")
       .map((sn: any) => ({
+        id: Number.isFinite(Number(sn.id)) ? Number(sn.id) : undefined,
         platform: typeof sn.platform === "string" ? sn.platform : "",
         followers_count: Number.isFinite(Number(sn.followers_count)) ? Number(sn.followers_count) : 0,
         handle: typeof sn.handle === "string" ? sn.handle : undefined,
         engagement_rate: Number.isFinite(Number(sn.engagement_rate)) ? Number(sn.engagement_rate) : undefined,
+        verified_via_api: Boolean(sn.verified_via_api),
+        last_synced_at: typeof sn.last_synced_at === "string" ? sn.last_synced_at : null,
+        is_verified_external: Boolean(sn.is_verified_external),
       }))
       .filter((sn: SocialNetwork) => sn.platform.length > 0)
     : []
@@ -178,12 +189,22 @@ export default function InfluencerPublicProfile() {
                 {inf.social_networks.map((sn) => (
                   <div key={sn.platform} className="p-3 bg-aurora-surface rounded-xl flex items-center justify-between text-sm">
                     <span className="font-medium capitalize">{sn.platform}</span>
-                    <span className="text-aurora-ink-3">{fmt(sn.followers_count)}</span>
+                    <div className="flex items-center gap-2">
+                      {sn.is_verified_external && <VerifiedBadge />}
+                      <FreshnessBadge lastSyncedAt={sn.last_synced_at} />
+                      <span className="text-aurora-ink-3">{fmt(sn.followers_count)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
+          {inf.social_networks?.filter((sn) => sn.platform === "tiktok" && sn.id && sn.verified_via_api).map((sn) => (
+            <div key={`tt-${sn.id}`} className="space-y-3">
+              <GrowthChart socialNetworkId={sn.id!} metric="followers_count" range="30" />
+              <TikTokVideosGrid socialNetworkId={sn.id!} limit={12} title={t("tiktok.videos.title")} />
+            </div>
+          ))}
           {inf.content_links?.length > 0 && (
             <div>
               <p className="text-sm font-medium text-aurora-ink-3 mb-2">{t("influencer_public.content_links", "Liens & contenus")}</p>

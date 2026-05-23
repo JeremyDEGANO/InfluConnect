@@ -54,7 +54,13 @@ urlpatterns = [
     # Social network OAuth (stub)
     path("social-networks/<int:pk>/oauth-start/", views_extra.SocialOAuthStartView.as_view(), name="social-oauth-start"),
     path("social-networks/<int:pk>/sync/", views_extra.SocialSyncView.as_view(), name="social-sync"),
+    path("social-networks/<int:pk>/revoke/", views_extra.SocialOAuthRevokeView.as_view(), name="social-oauth-revoke"),
+    path("social-networks/<int:pk>/videos/", views_extra.SocialVideoListView.as_view(), name="social-videos"),
+    path("social-networks/<int:pk>/snapshots/", views_extra.SocialStatsSnapshotListView.as_view(), name="social-snapshots"),
+    path("social-networks/<int:pk>/fraud-flags/", views_extra.SocialFraudFlagListView.as_view(), name="social-fraud-flags"),
     path("social/oauth/callback/<str:platform>/", views_extra.SocialOAuthCallbackView.as_view(), name="social-oauth-callback"),
+    path("proposals/<int:pk>/tracked-videos/", views_extra.CampaignVideoTrackingListView.as_view(), name="proposal-tracked-videos"),
+    path("tracked-videos/<int:pk>/", views_extra.CampaignVideoTrackingDeleteView.as_view(), name="tracked-video-detail"),
     path("social/platforms/", views_extra.SocialPlatformsView.as_view(), name="social-platforms"),
 
     # ---- Brands ----
@@ -154,6 +160,9 @@ urlpatterns = [
     path("admin/reviews/<int:pk>/reject/", views_extra.AdminReviewRejectView.as_view(), name="admin-review-reject"),
     # Audit log
     path("admin/audit-log/", views_extra.AdminAuditLogListView.as_view(), name="admin-audit-log"),
+    # Fraud flags (anti-fraud moderation)
+    path("admin/fraud-flags/", views_extra.AdminFraudFlagListView.as_view(), name="admin-fraud-flags"),
+    path("admin/fraud-flags/<int:pk>/resolve/", views_extra.AdminFraudFlagResolveView.as_view(), name="admin-fraud-flag-resolve"),
     # Support tickets
     path("admin/support/tickets/<int:pk>/", views_extra.AdminSupportTicketUpdateView.as_view(), name="admin-support-ticket-update"),
 

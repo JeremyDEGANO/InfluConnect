@@ -31,7 +31,7 @@ from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -42,15 +42,19 @@ from .constants import (
 )
 from .models import (
     AmbassadorProgram, AuditLog, BrandProfile, Campaign, CampaignProposal,
+    CampaignVideoTracking, CampaignVideoDailyStats,
     CastingApplication, ContractTemplate, ContentSubmission, DirectMessage, InfluencerProfile,
-    MediaKitImage, Notification, PlatformSettings, Review, SocialNetwork, User,
+    MediaKitImage, Notification, PlatformSettings, Review,
+    SocialNetwork, SocialVideo, SocialStatsSnapshot, SocialFraudFlag, User,
     BrandMembership, AgencyDelegation, SupportTicket, SupportTicketImage,
 )
 from .serializers import (
     AmbassadorProgramSerializer, AuditLogSerializer, BrandAdminSerializer,
     BrandProfileSerializer, CampaignProposalSerializer, CastingApplicationSerializer,
     ContractTemplateSerializer, InfluencerProfileSerializer, MediaKitImageSerializer,
-    ReviewSerializer, SocialNetworkSerializer,
+    ReviewSerializer, SocialNetworkSerializer, SocialVideoSerializer,
+    SocialStatsSnapshotSerializer, SocialFraudFlagSerializer,
+    CampaignVideoTrackingSerializer,
     BrandMembershipSerializer, AgencyDelegationSerializer,
     SupportTicketSerializer, SupportTicketAdminUpdateSerializer, SupportTicketImageSerializer,
     _validate_influencer_pseudo, suggest_influencer_pseudos,
@@ -1547,6 +1551,7 @@ def _save_tokens(sn: SocialNetwork, tokens):
         sn.oauth_expires_at = timezone.now() + timedelta(seconds=int(tokens.expires_in))
     else:
         sn.oauth_expires_at = None
+    sn.token_status = "active"
 
 
 def _apply_stats(sn: SocialNetwork, stats):
@@ -1555,8 +1560,60 @@ def _apply_stats(sn: SocialNetwork, stats):
     sn.engagement_rate = Decimal(str(stats.engagement_rate))
     if stats.profile_url:
         sn.profile_url = stats.profile_url
+    extra = getattr(stats, "extra", {}) or {}
+    if extra.get("open_id"):
+        sn.external_user_id = str(extra["open_id"])[:128]
+    if extra.get("username"):
+        sn.external_username = str(extra["username"])[:128]
+    if extra.get("display_name"):
+        sn.display_name = str(extra["display_name"])[:255]
+    if extra.get("avatar_url"):
+        sn.avatar_url = str(extra["avatar_url"])[:600]
+    if extra.get("bio") is not None:
+        sn.bio = str(extra.get("bio") or "")
+    if "is_verified" in extra:
+        sn.is_verified_external = bool(extra["is_verified"])
+    if "video_count" in extra:
+        try:
+            sn.video_count = int(extra["video_count"] or 0)
+        except (TypeError, ValueError):
+            pass
+    if "likes_total" in extra:
+        try:
+            sn.total_likes = int(extra["likes_total"] or 0)
+        except (TypeError, ValueError):
+            pass
     sn.last_synced_at = timezone.now()
     sn.verified_via_api = True
+    sn.token_status = "active"
+
+
+def _upsert_videos(sn: SocialNetwork, videos):
+    """Replace stored SocialVideo rows for `sn` with the freshly fetched list."""
+    if videos is None:
+        return
+    seen_ids = []
+    for v in videos:
+        if not getattr(v, "external_video_id", ""):
+            continue
+        seen_ids.append(v.external_video_id)
+        SocialVideo.objects.update_or_create(
+            social_network=sn,
+            external_video_id=v.external_video_id,
+            defaults={
+                "caption": (v.caption or "")[:500],
+                "thumbnail_url": v.thumbnail_url or "",
+                "video_url": v.video_url or "",
+                "view_count": int(v.view_count or 0),
+                "like_count": int(v.like_count or 0),
+                "comment_count": int(v.comment_count or 0),
+                "share_count": int(v.share_count or 0),
+                "duration_sec": int(v.duration_sec or 0),
+                "published_at": v.published_at,
+            },
+        )
+    if seen_ids:
+        sn.videos.exclude(external_video_id__in=seen_ids).delete()
 
 
 class SocialPlatformsView(APIView):
@@ -1666,6 +1723,7 @@ class SocialOAuthCallbackView(APIView):
         _save_tokens(sn, tokens)
         _apply_stats(sn, stats)
         sn.save()
+        _upsert_videos(sn, (getattr(stats, "extra", {}) or {}).get("videos"))
         return redirect(f"{target}?social_connected={platform}")
 
 
@@ -1719,7 +1777,249 @@ class SocialSyncView(APIView):
 
         _apply_stats(sn, stats)
         sn.save()
+        _upsert_videos(sn, (getattr(stats, "extra", {}) or {}).get("videos"))
         return Response(SocialNetworkSerializer(sn).data)
+
+
+class SocialOAuthRevokeView(APIView):
+    """Disconnect a social network: wipe stored OAuth tokens and reset verified flag."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if request.user.user_type != "influencer":
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            sn = SocialNetwork.objects.get(pk=pk, influencer__user=request.user)
+        except SocialNetwork.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        sn.oauth_access_token = ""
+        sn.oauth_refresh_token = ""
+        sn.oauth_expires_at = None
+        sn.verified_via_api = False
+        sn.token_status = "revoked"
+        sn.save(update_fields=[
+            "oauth_access_token", "oauth_refresh_token",
+            "oauth_expires_at", "verified_via_api", "token_status",
+        ])
+        return Response(SocialNetworkSerializer(sn).data)
+
+
+# ---------------------------------------------------------------------------
+# Social videos / snapshots / fraud flags (CDC §1, §9, §10)
+# ---------------------------------------------------------------------------
+def _social_network_visible_qs(request):
+    """Return SocialNetwork queryset visible to the requesting user.
+
+    Influencers see only their own; brands/admins see any. Anonymous users
+    only see networks marked as verified via API (public consumption).
+    """
+    user = getattr(request, "user", None)
+    if user is None or not getattr(user, "is_authenticated", False):
+        return SocialNetwork.objects.filter(verified_via_api=True)
+    if user.is_staff or user.user_type in ("brand", "admin"):
+        return SocialNetwork.objects.all()
+    if user.user_type == "influencer":
+        return SocialNetwork.objects.filter(influencer__user=user) | SocialNetwork.objects.filter(verified_via_api=True)
+    return SocialNetwork.objects.filter(verified_via_api=True)
+
+
+class SocialVideoListView(generics.ListAPIView):
+    serializer_class = SocialVideoSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        sn = get_object_or_404(_social_network_visible_qs(self.request), pk=self.kwargs["pk"])
+        limit = int(self.request.query_params.get("limit", 20) or 20)
+        return sn.videos.order_by("-published_at", "-id")[: max(1, min(limit, 50))]
+
+
+class SocialStatsSnapshotListView(generics.ListAPIView):
+    serializer_class = SocialStatsSnapshotSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        sn = get_object_or_404(_social_network_visible_qs(self.request), pk=self.kwargs["pk"])
+        days_param = (self.request.query_params.get("range") or "30").lower()
+        try:
+            days = int(days_param.rstrip("d"))
+        except ValueError:
+            days = 30
+        days = max(1, min(days, 365))
+        since = (timezone.now() - timedelta(days=days)).date()
+        return sn.stats_snapshots.filter(snapshot_date__gte=since).order_by("snapshot_date")
+
+
+class SocialFraudFlagListView(generics.ListAPIView):
+    serializer_class = SocialFraudFlagSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        sn = get_object_or_404(_social_network_visible_qs(self.request), pk=self.kwargs["pk"])
+        return sn.fraud_flags.filter(resolved_at__isnull=True).order_by("-created_at")
+
+
+class AdminFraudFlagListView(generics.ListAPIView):
+    """Admin moderation: all unresolved fraud flags across the platform."""
+    serializer_class = SocialFraudFlagSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        qs = SocialFraudFlag.objects.select_related(
+            "social_network", "social_network__influencer", "social_network__influencer__user"
+        ).filter(resolved_at__isnull=True).order_by("-severity", "-created_at")
+        severity = self.request.query_params.get("severity")
+        if severity:
+            qs = qs.filter(severity=severity)
+        return qs
+
+
+class AdminFraudFlagResolveView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        flag = get_object_or_404(SocialFraudFlag, pk=pk)
+        if flag.resolved_at is None:
+            flag.resolved_at = timezone.now()
+            flag.save(update_fields=["resolved_at"])
+        return Response(SocialFraudFlagSerializer(flag).data)
+
+
+# ---------------------------------------------------------------------------
+# Campaign video tracking (CDC §6 — performance dashboard)
+# ---------------------------------------------------------------------------
+import re as _re
+
+_TIKTOK_VIDEO_RE = _re.compile(r"tiktok\.com/.*?/video/(\d+)")
+
+
+def _extract_video_id(platform: str, url: str) -> str | None:
+    if not url:
+        return None
+    if platform == "tiktok":
+        m = _TIKTOK_VIDEO_RE.search(url)
+        return m.group(1) if m else None
+    return None
+
+
+class CampaignVideoTrackingListView(APIView):
+    """List or attach a tracked video to an accepted campaign proposal."""
+    permission_classes = [IsAuthenticated]
+
+    def _get_proposal(self, request, pk):
+        proposal = get_object_or_404(CampaignProposal, pk=pk)
+        user = request.user
+        is_brand = user.user_type == "brand" and proposal.campaign.brand.user_id == user.id
+        is_influencer = user.user_type == "influencer" and proposal.influencer.user_id == user.id
+        is_admin = user.is_staff or user.user_type == "admin"
+        if not (is_brand or is_influencer or is_admin):
+            return None
+        return proposal
+
+    def get(self, request, pk):
+        proposal = self._get_proposal(request, pk)
+        if proposal is None:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        qs = proposal.tracked_videos.all().prefetch_related("daily_stats")
+        return Response(CampaignVideoTrackingSerializer(qs, many=True).data)
+
+    def post(self, request, pk):
+        proposal = self._get_proposal(request, pk)
+        if proposal is None:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        if proposal.status != "accepted":
+            return Response(
+                {"detail": "Proposal must be accepted before tracking videos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        platform = (request.data.get("platform") or "tiktok").lower()
+        video_url = (request.data.get("video_url") or "").strip()
+        video_id = _extract_video_id(platform, video_url)
+        if not video_id:
+            return Response(
+                {"detail": "Could not extract video ID from URL."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        sn = SocialNetwork.objects.filter(
+            influencer=proposal.influencer, platform=platform,
+        ).first()
+        tracking, created = CampaignVideoTracking.objects.get_or_create(
+            proposal=proposal,
+            platform=platform,
+            external_video_id=video_id,
+            defaults={
+                "social_network": sn,
+                "video_url": video_url,
+                "tracking_ends_at": timezone.now() + timedelta(
+                    days=CampaignVideoTracking.TRACKING_WINDOW_DAYS,
+                ),
+            },
+        )
+        # First fetch right away if the influencer has a token.
+        if created and sn and sn.oauth_access_token:
+            try:
+                from .services.social.base import TokenBundle
+                provider = get_provider(platform)
+                access_token = decrypt_token(sn.oauth_access_token) or ""
+                refresh_token = decrypt_token(sn.oauth_refresh_token) or ""
+                if access_token and provider is not None:
+                    tokens = TokenBundle(access_token=access_token, refresh_token=refresh_token)
+                    vs = provider.fetch_video_stats(tokens, video_id)
+                    _record_video_stats(tracking, vs)
+            except (ProviderError, NotImplementedError, Exception):
+                pass
+        return Response(
+            CampaignVideoTrackingSerializer(tracking).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class CampaignVideoTrackingDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        tracking = get_object_or_404(CampaignVideoTracking, pk=pk)
+        proposal = tracking.proposal
+        user = request.user
+        is_brand = user.user_type == "brand" and proposal.campaign.brand.user_id == user.id
+        is_influencer = user.user_type == "influencer" and proposal.influencer.user_id == user.id
+        is_admin = user.is_staff or user.user_type == "admin"
+        if not (is_brand or is_influencer or is_admin):
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        tracking.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _record_video_stats(tracking: "CampaignVideoTracking", vs) -> None:
+    """Update tracking row + upsert today's daily stats."""
+    from datetime import date as _date
+    today = timezone.now().date()
+    views = int(vs.view_count or 0)
+    likes = int(vs.like_count or 0)
+    comments = int(vs.comment_count or 0)
+    shares = int(vs.share_count or 0)
+    engagement = Decimal("0")
+    if views > 0:
+        engagement = Decimal(str(round((likes + comments + shares) / views * 100, 2)))
+    if vs.caption and not tracking.caption:
+        tracking.caption = vs.caption[:500]
+    if vs.thumbnail_url and not tracking.thumbnail_url:
+        tracking.thumbnail_url = vs.thumbnail_url
+    tracking.last_fetched_at = timezone.now()
+    tracking.last_error = ""
+    tracking.save(update_fields=["caption", "thumbnail_url", "last_fetched_at", "last_error"])
+    CampaignVideoDailyStats.objects.update_or_create(
+        tracking=tracking,
+        snapshot_date=today,
+        defaults={
+            "view_count": views,
+            "like_count": likes,
+            "comment_count": comments,
+            "share_count": shares,
+            "engagement_rate": engagement,
+        },
+    )
+
 
 
 # ---------------------------------------------------------------------------

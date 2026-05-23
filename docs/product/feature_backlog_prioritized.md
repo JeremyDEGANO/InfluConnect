@@ -133,3 +133,8 @@ Quota par défaut : 10 000 unités/jour (chaque endpoint coûte 1-100 unités)
 Augmentable sur demande (justifiée) jusqu'à 1M+ unités
 Token : 1h, refresh token persistant
 Coût : 0 € — totalement gratuit. Comptez 2-3 jours de dev. Commence par YouTube car c'est le plus simple et tu apprends les principes d'OAuth.
+
+
+
+
+Analyse influenceurs (stats ....)

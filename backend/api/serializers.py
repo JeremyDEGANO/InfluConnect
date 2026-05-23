@@ -11,8 +11,10 @@ import unicodedata
 from .services.translation_service import translate as _translate
 
 from .models import (
-    User, InfluencerProfile, SocialNetwork, BrandProfile,
-    Campaign, CampaignProposal, Event, EventInvitation, ContentSubmission,
+    User, InfluencerProfile, SocialNetwork, SocialVideo, SocialStatsSnapshot,
+    SocialFraudFlag, BrandProfile,
+    Campaign, CampaignProposal, CampaignVideoTracking, CampaignVideoDailyStats,
+    Event, EventInvitation, ContentSubmission,
     Message, DirectMessage, Review, Notification, PlatformSettings,
     ContractTemplate, CastingApplication, AmbassadorProgram, AuditLog,
     MediaKitImage, BrandMembership, AgencyDelegation, SupportTicket,
@@ -214,8 +216,87 @@ class SocialNetworkSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'platform', 'profile_url', 'followers_count', 'avg_views',
             'engagement_rate', 'verified_via_api', 'last_synced_at',
+            'external_user_id', 'external_username', 'display_name',
+            'avatar_url', 'bio', 'is_verified_external',
+            'video_count', 'total_likes', 'token_status',
         ]
-        read_only_fields = ['verified_via_api', 'last_synced_at']
+        read_only_fields = [
+            'verified_via_api', 'last_synced_at',
+            'external_user_id', 'external_username', 'display_name',
+            'avatar_url', 'bio', 'is_verified_external',
+            'video_count', 'total_likes', 'token_status',
+        ]
+
+
+class SocialVideoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SocialVideo
+        fields = [
+            'id', 'external_video_id', 'caption', 'thumbnail_url', 'video_url',
+            'view_count', 'like_count', 'comment_count', 'share_count',
+            'duration_sec', 'published_at', 'fetched_at',
+        ]
+
+
+class SocialStatsSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SocialStatsSnapshot
+        fields = [
+            'id', 'snapshot_date', 'followers_count', 'avg_views',
+            'engagement_rate',
+        ]
+
+
+class SocialFraudFlagSerializer(serializers.ModelSerializer):
+    social_network = serializers.IntegerField(source='social_network_id', read_only=True)
+    platform = serializers.CharField(source='social_network.platform', read_only=True)
+    external_username = serializers.CharField(source='social_network.external_username', read_only=True, default=None)
+    influencer_pseudo = serializers.CharField(source='social_network.influencer.pseudo', read_only=True, default=None)
+    influencer_id = serializers.IntegerField(source='social_network.influencer_id', read_only=True)
+
+    class Meta:
+        model = SocialFraudFlag
+        fields = [
+            'id', 'flag_type', 'severity', 'details',
+            'created_at', 'resolved_at',
+            'social_network', 'platform', 'external_username',
+            'influencer_pseudo', 'influencer_id',
+        ]
+
+
+class CampaignVideoDailyStatsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CampaignVideoDailyStats
+        fields = [
+            'id', 'snapshot_date', 'view_count', 'like_count',
+            'comment_count', 'share_count', 'engagement_rate',
+        ]
+
+
+class CampaignVideoTrackingSerializer(serializers.ModelSerializer):
+    daily_stats = CampaignVideoDailyStatsSerializer(many=True, read_only=True)
+    latest_stats = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CampaignVideoTracking
+        fields = [
+            'id', 'proposal', 'social_network', 'platform',
+            'external_video_id', 'video_url', 'caption', 'thumbnail_url',
+            'tracking_started_at', 'tracking_ends_at', 'is_frozen',
+            'last_fetched_at', 'last_error',
+            'daily_stats', 'latest_stats',
+        ]
+        read_only_fields = [
+            'social_network', 'platform', 'external_video_id', 'caption',
+            'thumbnail_url', 'tracking_started_at', 'tracking_ends_at',
+            'is_frozen', 'last_fetched_at', 'last_error',
+        ]
+
+    def get_latest_stats(self, obj):
+        latest = obj.daily_stats.order_by('-snapshot_date').first()
+        if not latest:
+            return None
+        return CampaignVideoDailyStatsSerializer(latest).data
 
 
 class InfluencerProfileSerializer(serializers.ModelSerializer):
