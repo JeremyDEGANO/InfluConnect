@@ -70,6 +70,7 @@ export default function Messages() {
   const [gifSearch, setGifSearch] = useState('')
   const [gifs, setGifs] = useState<GiphyGif[]>([])
   const [gifLoading, setGifLoading] = useState(false)
+  const [gifError, setGifError] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -83,6 +84,13 @@ export default function Messages() {
 
   const isGifMessage = (content: string) =>
     /^https?:\/\/.+\.giphy\.com\//i.test(content) || /^https?:\/\/media[0-9]*\.giphy\.com\//i.test(content)
+
+  const formatConversationPreview = (content?: string) => {
+    const text = (content || '').trim()
+    if (!text) return ''
+    if (isGifMessage(text)) return t('messages.gif_sent_preview', 'GIF sent')
+    return text
+  }
 
   const formatConversationTime = (value?: string) => {
     if (!value) return ''
@@ -158,18 +166,26 @@ export default function Messages() {
 
   const searchGifs = useCallback(async (query: string) => {
     setGifLoading(true)
-    const key = (import.meta as { env: Record<string, string> }).env.VITE_GIPHY_API_KEY
-    const endpoint = query
-      ? `https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(query)}&limit=24&rating=g`
-      : `https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=24&rating=g`
+    setGifError(null)
     try {
-      const res = await fetch(endpoint)
-      const data = await res.json()
-      setGifs(data.data || [])
-    } catch { /* ignore */ } finally {
+      const res = await api.get('/gifs/', {
+        params: {
+          q: query || undefined,
+          limit: 24,
+        },
+      })
+      const rows = res?.data?.data || []
+      const detail = res?.data?.detail
+      setGifs(rows)
+      if (rows.length === 0 && typeof detail === 'string' && detail.trim()) {
+        setGifError(detail)
+      }
+    } catch {
+      setGifError(t('messages.gifs_unavailable', 'GIF temporairement indisponibles'))
+    } finally {
       setGifLoading(false)
     }
-  }, [])
+  }, [t])
 
   // Load trending GIFs when panel opens
   useEffect(() => {
@@ -364,7 +380,7 @@ export default function Messages() {
                       {conv.campaign && (
                         <div className="text-xs text-aurora-ink-3 truncate">{conv.campaign}</div>
                       )}
-                      <p className="text-xs text-aurora-ink-2 line-clamp-1">{conv.last_message}</p>
+                      <p className="text-xs text-aurora-ink-2 line-clamp-1">{formatConversationPreview(conv.last_message)}</p>
                     </div>
                   </div>
                 </button>
@@ -426,10 +442,10 @@ export default function Messages() {
                   >
                     <div
                       className={cn(
-                        'max-w-xs px-4 py-2 rounded-lg',
+                        'max-w-xs px-4 py-2 rounded-2xl',
                         msg.sender === user?.id
                           ? 'bg-indigo-600 text-white'
-                          : 'bg-aurora-surface text-aurora-ink'
+                          : 'bg-white text-aurora-ink border border-slate-300 shadow-sm'
                       )}
                     >
                       {msg.content && (
@@ -461,7 +477,7 @@ export default function Messages() {
                               download
                               className={cn(
                                 "inline-flex items-center gap-1 text-xs underline",
-                                msg.sender === user?.id ? "text-indigo-100" : "text-aurora-blue-deep"
+                                msg.sender === user?.id ? "text-indigo-100" : "text-aurora-blue"
                               )}
                             >
                               <Paperclip className="h-3 w-3" />
@@ -532,6 +548,10 @@ export default function Messages() {
                     {gifLoading ? (
                       <div className="flex items-center justify-center h-full text-aurora-ink-3">
                         <Loader2 className="h-5 w-5 animate-spin" />
+                      </div>
+                    ) : gifError ? (
+                      <div className="flex items-center justify-center h-full px-4 text-center text-amber-700 text-sm">
+                        {gifError}
                       </div>
                     ) : gifs.length === 0 ? (
                       <div className="flex items-center justify-center h-full text-aurora-ink-3 text-sm">

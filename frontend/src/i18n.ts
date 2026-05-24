@@ -701,6 +701,8 @@ const resources = {
         add_gif: "Add GIF",
         search_gif: "Search a GIF...",
         no_gifs: "No GIFs found",
+        gifs_unavailable: "GIFs are temporarily unavailable",
+        gif_sent_preview: "GIF sent",
       },
       events: {
         title: "Events",
@@ -760,6 +762,7 @@ const resources = {
         recent_activity: "Recent activity",
         empty: "No notifications.",
         loading: "Loading…",
+        gif_label: "GIF",
       },
       ambassadors: {
         title: "Ambassador programs",
@@ -1943,6 +1946,8 @@ const resources = {
         add_gif: "Ajouter un GIF",
         search_gif: "Rechercher un GIF...",
         no_gifs: "Aucun GIF trouvé",
+        gifs_unavailable: "Les GIF sont temporairement indisponibles",
+        gif_sent_preview: "GIF envoyé",
       },
       events: {
         title: "Événements",
@@ -2002,6 +2007,7 @@ const resources = {
         recent_activity: "Activité récente",
         empty: "Aucune notification.",
         loading: "Chargement…",
+        gif_label: "GIF",
       },
       ambassadors: {
         title: "Programmes ambassadeurs",

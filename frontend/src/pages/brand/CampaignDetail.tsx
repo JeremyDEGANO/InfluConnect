@@ -140,7 +140,13 @@ export default function CampaignDetail() {
       toast({ title: t("campaign_detail.deleted") })
       navigate("/brand/campaigns")
     } catch (err: any) {
-      toast({ variant: "destructive", title: t("common.error"), description: err?.response?.data?.detail ?? "" })
+      const apiData = err?.response?.data
+      const description =
+        apiData?.detail
+        ?? (Array.isArray(apiData?.non_field_errors) ? apiData.non_field_errors[0] : undefined)
+        ?? (Array.isArray(apiData?.errors) ? apiData.errors[0] : undefined)
+        ?? t("common.error")
+      toast({ variant: "destructive", title: t("common.error"), description })
       setConfirmDelete(false)
     }
   }

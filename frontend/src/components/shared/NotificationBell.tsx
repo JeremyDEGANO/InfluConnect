@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -27,8 +28,16 @@ const timeAgo = (iso: string) => {
 
 export function NotificationBell() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { user, isAuthenticated } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
+
+  const humanizeMessage = (message: string) => {
+    return (message || "").replace(
+      /https?:\/\/(?:media[0-9]*\.)?giphy\.com\/\S+/gi,
+      t("notifications.gif_label", "GIF")
+    )
+  }
 
   const load = () => {
     if (!isAuthenticated) return
@@ -102,7 +111,7 @@ export function NotificationBell() {
                 <span className="font-medium text-sm truncate">{n.title}</span>
                 <span className="text-xs text-aurora-ink-3 shrink-0 ml-2">{timeAgo(n.created_at)}</span>
               </div>
-              <span className="text-xs text-aurora-ink-2 line-clamp-2">{n.message}</span>
+              <span className="text-xs text-aurora-ink-2 line-clamp-2">{humanizeMessage(n.message)}</span>
             </DropdownMenuItem>
           ))
         )}

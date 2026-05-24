@@ -137,6 +137,15 @@ FERNET_KEY = config('FERNET_KEY', default='')
 DEEPL_API_KEY = config('DEEPL_API_KEY', default='')
 
 # ---------------------------------------------------------------------------
+# GIF provider (GIPHY) — optional
+# Supports both GIPHY_API_KEY and legacy VITE_GIPHY_API_KEY env names.
+# ---------------------------------------------------------------------------
+GIPHY_API_KEY = (
+    config('GIPHY_API_KEY', default='').strip()
+    or config('VITE_GIPHY_API_KEY', default='').strip()
+)
+
+# ---------------------------------------------------------------------------
 # Email — SMTP configurable via env (e.g. OVH, SendGrid, Postal)
 # In dev, defaults to console backend (prints to stdout). In prod, set EMAIL_HOST
 # and friends in your .env file or docker-compose environment block.

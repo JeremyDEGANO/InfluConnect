@@ -62,6 +62,13 @@ export default function Notifications() {
 
   const unread = items.filter((n) => !n.read).length
 
+  const humanizeMessage = (message: string) => {
+    return (message || "").replace(
+      /https?:\/\/(?:media[0-9]*\.)?giphy\.com\/\S+/gi,
+      t("notifications.gif_label", "GIF")
+    )
+  }
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -106,7 +113,7 @@ export default function Notifications() {
                         <p className={cn("text-sm font-semibold truncate", n.read ? "text-aurora-ink-2" : "text-aurora-ink")}>{n.title}</p>
                         {!n.read && <span className="h-2 w-2 rounded-full bg-indigo-500 shrink-0" />}
                       </div>
-                      <p className="text-xs text-aurora-ink-3 line-clamp-2 mt-0.5">{n.message}</p>
+                      <p className="text-xs text-aurora-ink-3 line-clamp-2 mt-0.5">{humanizeMessage(n.message)}</p>
                       <p className="text-[11px] text-aurora-ink-3 mt-1">{new Date(n.created_at).toLocaleString(i18n.language)}</p>
                     </div>
                   </button>

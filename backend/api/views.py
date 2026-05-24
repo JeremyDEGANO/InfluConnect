@@ -837,11 +837,16 @@ class CampaignViewSet(viewsets.ModelViewSet):
         if instance.brand.user != self.request.user and not self.request.user.is_staff:
             raise PermissionDenied("You do not own this campaign.")
         # Allow deletion unless there are proposals with signed contracts / in progress / paid
+        blocking_statuses = ["contract_signed", "in_progress", "content_submitted", "validated", "paid"]
         blocking = instance.proposals.filter(
             status__in=["contract_signed", "in_progress", "content_submitted", "validated", "paid"]
         ).exists()
         if blocking:
-            raise ValidationError("Cannot delete a campaign with active or completed contracts.")
+            raise ValidationError({
+                "detail": "Cannot delete a campaign with active or completed contracts.",
+                "code": "campaign_has_active_contracts",
+                "blocking_statuses": blocking_statuses,
+            })
         instance.delete()
 
     def update(self, request, *args, **kwargs):

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from decimal import Decimal
+import requests
 
 from django.conf import settings
 from django.core.cache import cache
@@ -125,6 +126,50 @@ class ReadinessCheckView(APIView):
             status=status.HTTP_200_OK if ok else status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
+
+
+class GifProxyView(APIView):
+    """Proxy GIPHY search/trending so frontend does not depend on build-time env injection."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        api_key = (getattr(settings, "GIPHY_API_KEY", "") or "").strip()
+        if not api_key:
+            return Response({"data": [], "detail": "GIPHY API key not configured."})
+
+        query = (request.query_params.get("q") or "").strip()
+        try:
+            limit = int(request.query_params.get("limit", 24) or 24)
+        except ValueError:
+            limit = 24
+        limit = max(1, min(limit, 50))
+
+        endpoint = "https://api.giphy.com/v1/gifs/search" if query else "https://api.giphy.com/v1/gifs/trending"
+        params = {
+            "api_key": api_key,
+            "limit": limit,
+            "rating": "g",
+        }
+        if query:
+            params["q"] = query
+
+        try:
+            res = requests.get(endpoint, params=params, timeout=12)
+            payload = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+        except Exception:
+            return Response({"data": [], "detail": "GIF provider unavailable."}, status=status.HTTP_502_BAD_GATEWAY)
+
+        if res.status_code != 200:
+            return Response(
+                {
+                    "data": [],
+                    "detail": payload.get("message") or "GIF provider request failed.",
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({"data": payload.get("data", [])})
 
 def _notify(user, type_: str, title: str, message: str, proposal=None, send_email: bool = False,
             email_subject: str | None = None, email_body: str | None = None) -> None:

@@ -35,6 +35,7 @@ urlpatterns = [
     # ---- Reference data (public) ----
     path("reference/plans/", views_extra.SubscriptionPlansView.as_view(), name="plans"),
     path("reference/data/", views_extra.ReferenceDataView.as_view(), name="reference-data"),
+    path("gifs/", views_extra.GifProxyView.as_view(), name="gif-proxy"),
     path("influencers/pseudo-availability/", views_extra.InfluencerPseudoAvailabilityView.as_view(), name="influencer-pseudo-availability"),
     path("stripe/config/", views_extra.StripeConfigView.as_view(), name="stripe-config"),
     path("public/marketplace/", views_extra.PublicMarketplaceView.as_view(), name="public-marketplace"),
