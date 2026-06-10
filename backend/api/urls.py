@@ -4,6 +4,10 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import views, views_extra
 from . import views_auth
+from . import views_sso
+from . import views_api_mgmt
+from . import views_api_v1
+from . import views_team_invitations
 
 router = DefaultRouter()
 router.register(r"influencers/social-networks", views.SocialNetworkViewSet, basename="social-network")
@@ -49,6 +53,8 @@ urlpatterns = [
     path("influencers/media-kit/generate/", views_extra.MediaKitGenerateView.as_view(), name="media-kit-generate"),
     path("influencers/media-kit/upload/", views_extra.MediaKitUploadView.as_view(), name="media-kit-upload"),
     path("influencers/stripe-onboard/", views_extra.InfluencerStripeOnboardView.as_view(), name="influencer-stripe-onboard"),
+    path("influencers/referral/", views_extra.InfluencerReferralOverviewView.as_view(), name="influencer-referral-overview"),
+    path("influencers/referral/invitations/", views_extra.InfluencerReferralInviteListCreateView.as_view(), name="influencer-referral-invitations"),
     path("influencers/p/<str:pseudo>/", views.InfluencerDetailByPseudoView.as_view(), name="influencer-detail-by-pseudo"),
     path("influencers/<int:pk>/", views.InfluencerDetailView.as_view(), name="influencer-detail"),
 
@@ -168,8 +174,19 @@ urlpatterns = [
     path("admin/support/tickets/<int:pk>/", views_extra.AdminSupportTicketUpdateView.as_view(), name="admin-support-ticket-update"),
 
     # ---- Brand multi-user (memberships) ----
+    path("brands/environments/", views_extra.BrandEnvironmentListView.as_view(), name="brand-environments"),
+    path("brands/environments/switch/", views_extra.BrandEnvironmentSwitchView.as_view(), name="brand-environment-switch"),
     path("brands/memberships/", views_extra.BrandMembershipListCreateView.as_view(), name="brand-memberships"),
     path("brands/memberships/<int:pk>/", views_extra.BrandMembershipDetailView.as_view(), name="brand-membership-detail"),
+
+    # ---- Team (organization, invitations, global access) ----
+    path("brands/team/overview/", views_team_invitations.TeamOverviewView.as_view(), name="brand-team-overview"),
+    path("brands/team/invitations/", views_team_invitations.TeamInvitationListCreateView.as_view(), name="brand-team-invitations"),
+    path("brands/team/invitations/<int:pk>/action/", views_team_invitations.TeamInvitationActionView.as_view(), name="brand-team-invitation-action"),
+    path("brands/team/org-members/<int:pk>/", views_team_invitations.OrganizationMemberDetailView.as_view(), name="brand-team-org-member"),
+    path("team/invitations/<str:token>/", views_team_invitations.PublicInvitationDetailView.as_view(), name="team-invitation-detail"),
+    path("team/invitations/<str:token>/accept/", views_team_invitations.PublicInvitationAcceptView.as_view(), name="team-invitation-accept"),
+    path("team/invitations/<str:token>/register/", views_team_invitations.PublicInvitationRegisterView.as_view(), name="team-invitation-register"),
 
     # ---- Agency delegations ----
     path("agency/delegations/", views_extra.AgencyDelegationListCreateView.as_view(), name="agency-delegations"),
@@ -177,6 +194,40 @@ urlpatterns = [
 
     # ---- Stripe webhook (stub) ----
     path("webhooks/stripe/", views_extra.StripeWebhookView.as_view(), name="stripe-webhook"),
+
+    # ---- SSO Office 365 (OIDC) ----
+    path("auth/sso/discover/", views_sso.SSOOffice365DiscoverView.as_view(), name="sso-discover"),
+    path("auth/sso/office365/start/", views_sso.SSOOffice365StartView.as_view(), name="sso-o365-start"),
+    path("auth/sso/office365/callback/", views_sso.SSOOffice365CallbackView.as_view(), name="sso-o365-callback"),
+
+    # ---- Brand domains + SSO config ----
+    path("v1/brand/domains/", views_sso.BrandDomainListCreateView.as_view(), name="brand-domains"),
+    path("v1/brand/domains/<int:pk>/", views_sso.BrandDomainDetailView.as_view(), name="brand-domain-detail"),
+    path("v1/brand/domains/<int:pk>/verify/", views_sso.BrandDomainVerifyView.as_view(), name="brand-domain-verify"),
+    path("v1/brand/sso/", views_sso.BrandSSOConfigView.as_view(), name="brand-sso-config"),
+
+    # ---- Brand API keys + webhooks management ----
+    path("v1/brand/api-keys/", views_api_mgmt.ApiKeyListCreateView.as_view(), name="brand-api-keys"),
+    path("v1/brand/api-keys/<int:pk>/", views_api_mgmt.ApiKeyDetailView.as_view(), name="brand-api-key-detail"),
+    path("v1/brand/api-keys/audit-log/", views_api_mgmt.ApiKeyAuditLogView.as_view(), name="brand-api-keys-audit"),
+    path("v1/brand/webhooks/", views_api_mgmt.WebhookEndpointListCreateView.as_view(), name="brand-webhooks"),
+    path("v1/brand/webhooks/<int:pk>/", views_api_mgmt.WebhookEndpointDetailView.as_view(), name="brand-webhook-detail"),
+    path("v1/brand/webhooks/<int:pk>/test/", views_api_mgmt.WebhookEndpointTestView.as_view(), name="brand-webhook-test"),
+    path("v1/brand/webhooks/<int:pk>/deliveries/", views_api_mgmt.WebhookDeliveryListView.as_view(), name="brand-webhook-deliveries"),
+
+    # ---- Public REST API v1 (API-key authenticated) ----
+    path("v1/campaigns/", views_api_v1.V1CampaignListView.as_view(), name="v1-campaigns"),
+    path("v1/campaigns/<int:pk>/", views_api_v1.V1CampaignDetailView.as_view(), name="v1-campaign-detail"),
+    path("v1/campaigns/create/", views_api_v1.V1CampaignCreateView.as_view(), name="v1-campaign-create"),
+    path("v1/campaigns/<int:pk>/status/", views_api_v1.V1CampaignStatusView.as_view(), name="v1-campaign-status"),
+    path("v1/campaigns/<int:pk>/report/", views_api_v1.V1CampaignReportView.as_view(), name="v1-campaign-report"),
+    path("v1/proposals/", views_api_v1.V1ProposalListView.as_view(), name="v1-proposals"),
+    path("v1/proposals/<int:pk>/", views_api_v1.V1ProposalDetailView.as_view(), name="v1-proposal-detail"),
+    path("v1/influencers/", views_api_v1.V1InfluencerListView.as_view(), name="v1-influencers"),
+    path("v1/influencers/<int:pk>/", views_api_v1.V1InfluencerDetailView.as_view(), name="v1-influencer-detail"),
+    path("v1/influencers/<int:pk>/stats/", views_api_v1.V1InfluencerStatsView.as_view(), name="v1-influencer-stats"),
+    path("v1/influencers/<int:pk>/verify/", views_api_v1.V1InfluencerVerifyView.as_view(), name="v1-influencer-verify"),
+    path("v1/webhooks/", views_api_v1.V1WebhookEndpointListCreateView.as_view(), name="v1-webhooks"),
 
     # ---- Router URLs ----
     path("", include(router.urls)),

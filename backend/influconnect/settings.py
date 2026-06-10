@@ -1,14 +1,23 @@
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-influconnect-dev-key-change-in-production')
+_DEV_SECRET_KEY = 'django-insecure-influconnect-dev-key-change-in-production'
+SECRET_KEY = config('SECRET_KEY', default=_DEV_SECRET_KEY)
 
-DEBUG = config('DEBUG', default=True, cast=bool)
+# Fail-safe default: production behaviour unless DEBUG=true is set explicitly.
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = [h.strip() for h in config('ALLOWED_HOSTS', default='*').split(',') if h.strip()]
+
+if not DEBUG and SECRET_KEY == _DEV_SECRET_KEY:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'SECRET_KEY must be set via environment in production (DEBUG=False).'
+    )
 
 # Trust the Caddy reverse proxy so Django builds correct https:// URLs
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -27,6 +36,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'drf_spectacular',
     'rest_framework_simplejwt',
     'api',
 ]
@@ -101,12 +111,32 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True
+# Restrict CORS in production by setting CORS_ALLOWED_ORIGINS (comma-separated).
+# Falls back to allow-all for local development only.
+_cors_origins = [o.strip() for o in config('CORS_ALLOWED_ORIGINS', default='').split(',') if o.strip()]
+if _cors_origins:
+    CORS_ALLOWED_ORIGINS = _cors_origins
+    CORS_ALLOW_ALL_ORIGINS = False
+else:
+    CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-brand-id',
+    'x-workspace-id',
+]
+
+# Cookies are only used by the Django admin (the API is JWT-based) — harden them.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
@@ -116,7 +146,20 @@ REST_FRAMEWORK = {
         'auth_login': '10/min',
         'auth_password_reset': '5/hour',
         'auth_mfa_reset': '5/hour',
+        'api_key': '120/min',
+        'team_invite_public': '30/hour',
+        'team_invite_register': '10/hour',
+        'auth_register': '20/hour',
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'InfluConnect API',
+    'DESCRIPTION': 'OpenAPI documentation for InfluConnect endpoints.',
+    'VERSION': '1.0.0',
+    'SCHEMA_PATH_PREFIX': r'/api',
+    'SERVE_PERMISSIONS': ['api.permissions.IsBrandOrAgencyWorkspaceUser'],
+    'SERVE_AUTHENTICATION': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
 }
 
 SIMPLE_JWT = {

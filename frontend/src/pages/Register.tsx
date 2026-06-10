@@ -27,6 +27,7 @@ export default function Register() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const roleFromQuery = searchParams.get("type") ?? ""
+  const referralFromQuery = (searchParams.get("ref") ?? "").trim().toUpperCase()
   const [form, setForm] = useState({
     user_type: (roleFromQuery === "influencer" ? "influencer" : (roleFromQuery === "brand" || roleFromQuery === "agency") ? "brand" : "") as "influencer" | "brand" | "",
     email: "",
@@ -38,6 +39,7 @@ export default function Register() {
     siret: "",
     subscription_plan: "",
     is_agency: roleFromQuery === "agency",
+    referral_code: referralFromQuery,
   })
   const [plans, setPlans] = useState<Plan[]>([])
   useEffect(() => { fetchPlans().then(setPlans).catch(() => {}) }, [])
@@ -76,6 +78,8 @@ export default function Register() {
         if (form.siret) payload.siret = form.siret
         payload.subscription_plan = form.subscription_plan
         payload.is_agency = form.is_agency
+      } else if (form.referral_code.trim()) {
+        payload.referral_code = form.referral_code.trim().toUpperCase()
       }
       const user = await register(payload)
       if (user.user_type === "brand") navigate("/brand/dashboard")
@@ -211,6 +215,18 @@ export default function Register() {
                         </div>
                       )}
                     </>
+                  )}
+                  {form.user_type === "influencer" && (
+                    <div>
+                      <Label htmlFor="referral_code">{t("auth.referral_code", "Referral code")}</Label>
+                      <Input
+                        id="referral_code"
+                        value={form.referral_code}
+                        onChange={(e) => update("referral_code", e.target.value.toUpperCase())}
+                        className="mt-1"
+                        placeholder={t("auth.referral_code_placeholder", "Optional")}
+                      />
+                    </div>
                   )}
                   <div>
                     <Label htmlFor="email">{t("auth.email")}</Label>

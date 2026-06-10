@@ -1,5 +1,6 @@
 Django==5.1.15
 djangorestframework==3.15.2
+drf-spectacular==0.28.0
 djangorestframework-simplejwt==5.5.1
 django-cors-headers==4.4.0
 psycopg2-binary==2.9.9
@@ -15,3 +16,5 @@ python-pptx==1.0.2
 pyotp==2.9.0
 gunicorn==23.0.0
 whitenoise==6.8.2
+PyJWT[crypto]==2.9.0
+dnspython==2.7.0

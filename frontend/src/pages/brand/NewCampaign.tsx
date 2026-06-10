@@ -16,6 +16,13 @@ import { Loader2, ArrowLeft, Users, Megaphone, UserCheck, Plus, X, CheckCircle2,
 import { cn, resolveMediaUrl } from "@/lib/utils"
 import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
 
+const normalizeCityToken = (value: string) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+
 const FALLBACK_THEME_OPTIONS = [
   { code: "fashion", label: "Mode" }, { code: "beauty", label: "Beauté" },
   { code: "tech", label: "Tech" }, { code: "food", label: "Cuisine" },
@@ -201,6 +208,11 @@ export default function NewCampaign() {
       const infThemes = (i.content_themes ?? []).map((x) => x.toLowerCase().trim())
       const wants = form.themes.map((x) => x.toLowerCase().trim())
       if (!wants.some((th) => infThemes.includes(th))) return false
+    }
+    if (form.audience_cities.length > 0) {
+      const city = normalizeCityToken(i.city ?? "")
+      const wants = form.audience_cities.map((x) => normalizeCityToken(x))
+      if (!wants.some((target) => city.includes(target) || target.includes(city))) return false
     }
     return true
   })
@@ -531,10 +543,12 @@ export default function NewCampaign() {
 
                 <div>
                   <Label>{t("audience.cities", "Villes / pays ciblés")}</Label>
+                  <p className="text-xs text-aurora-ink-3 mt-1">{t("audience.cities_hint", "Ce filtre réduit aussi la shortlist d'influenceurs ci-dessous.")}</p>
                   <div className="flex gap-2 mt-1">
                     <Input
                       placeholder={t("audience.city_placeholder", "ex : Paris, Lyon, France...")}
                       value={cityInput}
+                      autoComplete="off"
                       onChange={(e) => setCityInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") { e.preventDefault(); addCity() }

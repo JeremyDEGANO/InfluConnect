@@ -96,6 +96,88 @@ def send(
         return False
 
 
+def send_team_invitation(
+    *,
+    invited_email: str,
+    inviter_name: str,
+    organization_name: str,
+    role: str,
+    scope_summary_fr: str,
+    scope_summary_en: str,
+    accept_url: str,
+    expires_days: int,
+    personal_message: str = "",
+) -> bool:
+    lang = _resolve_language(None, invited_email)
+    is_fr = lang == "fr"
+    role_fr = "administrateur" if role == "admin" else "membre"
+    role_en = "administrator" if role == "admin" else "member"
+
+    if is_fr:
+        subject = f"{inviter_name} vous invite à rejoindre {organization_name} sur InfluConnect"
+        paragraphs = [
+            f"{inviter_name} vous invite à rejoindre l'espace de travail "
+            f"{organization_name} sur InfluConnect en tant que {role_fr}.",
+            f"Accès : {scope_summary_fr}.",
+        ]
+        if personal_message:
+            paragraphs.append(f"Message : « {personal_message} »")
+        paragraphs.append(
+            f"Cette invitation expire dans {expires_days} jours. "
+            "Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email."
+        )
+        body_text = (
+            f"Bonjour,\n\n"
+            f"{inviter_name} vous invite à rejoindre {organization_name} sur InfluConnect "
+            f"en tant que {role_fr}.\n"
+            f"Accès : {scope_summary_fr}.\n\n"
+            f"Acceptez l'invitation : {accept_url}\n\n"
+            f"Cette invitation expire dans {expires_days} jours.\n\n"
+            "L'équipe InfluConnect"
+        )
+        title = "Invitation à rejoindre une équipe"
+        greeting = "Bonjour,"
+        cta = "Accepter l'invitation"
+    else:
+        subject = f"{inviter_name} invited you to join {organization_name} on InfluConnect"
+        paragraphs = [
+            f"{inviter_name} invited you to join the {organization_name} "
+            f"workspace on InfluConnect as a {role_en}.",
+            f"Access: {scope_summary_en}.",
+        ]
+        if personal_message:
+            paragraphs.append(f'Message: "{personal_message}"')
+        paragraphs.append(
+            f"This invitation expires in {expires_days} days. "
+            "If you weren't expecting it, you can safely ignore this email."
+        )
+        body_text = (
+            f"Hello,\n\n"
+            f"{inviter_name} invited you to join {organization_name} on InfluConnect "
+            f"as a {role_en}.\n"
+            f"Access: {scope_summary_en}.\n\n"
+            f"Accept the invitation: {accept_url}\n\n"
+            f"This invitation expires in {expires_days} days.\n\n"
+            "The InfluConnect Team"
+        )
+        title = "Team invitation"
+        greeting = "Hello,"
+        cta = "Accept the invitation"
+
+    return send(
+        to=invited_email,
+        subject=subject,
+        body_text=body_text,
+        body_html=build_transactional_email_html(
+            title=title,
+            greeting=greeting,
+            paragraphs=paragraphs,
+            cta_label=cta,
+            cta_url=accept_url,
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Pre-built templates (CDC §5.1 — brand validation workflow)
 # ---------------------------------------------------------------------------

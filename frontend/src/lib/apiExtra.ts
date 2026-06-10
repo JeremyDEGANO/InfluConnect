@@ -770,10 +770,89 @@ export interface BrandMembership {
 }
 export const fetchBrandMemberships = () =>
   api.get<BrandMembership[]>("/brands/memberships/").then((r) => (r.data as any).results ?? r.data)
-export const inviteBrandMember = (invited_email: string, role: 'admin' | 'member' = 'member') =>
-  api.post<BrandMembership>("/brands/memberships/", { invited_email, role }).then((r) => r.data)
 export const revokeBrandMember = (id: number) =>
   api.delete(`/brands/memberships/${id}/`).then((r) => r.data)
+export const updateBrandMemberRole = (id: number, role: 'admin' | 'member') =>
+  api.patch(`/brands/memberships/${id}/`, { role }).then((r) => r.data)
+
+// ---- Team (organization, invitations, global access) ----
+export interface TeamEnvironment {
+  id: number
+  company_name: string
+  is_agency: boolean
+}
+export interface TeamMemberEnvRole {
+  membership_id: number | null
+  brand_id: number
+  role: 'owner' | 'admin' | 'member'
+}
+export interface TeamMember {
+  user_id: number
+  name: string
+  email: string
+  global_role: 'admin' | 'member' | null
+  global_membership_id: number | null
+  environment_roles: TeamMemberEnvRole[]
+}
+export interface TeamInvitation {
+  id: number
+  invited_email: string
+  role: 'admin' | 'member'
+  scope: 'global' | 'environments'
+  environments: { id: number; company_name: string }[]
+  status: 'pending' | 'accepted' | 'cancelled' | 'expired'
+  message: string
+  invited_by_name: string
+  expires_at: string
+  created_at: string
+}
+export interface TeamOverview {
+  organization: { id: number; name: string }
+  org_role: 'admin' | 'member' | null
+  manageable_environment_ids: number[]
+  can_invite_global: boolean
+  environments: TeamEnvironment[]
+  members: TeamMember[]
+  invitations: TeamInvitation[]
+}
+export const fetchTeamOverview = () =>
+  api.get<TeamOverview>("/brands/team/overview/").then((r) => r.data)
+export const sendTeamInvitation = (payload: {
+  invited_email: string
+  role: 'admin' | 'member'
+  scope: 'global' | 'environments'
+  environment_ids?: number[]
+  message?: string
+}) => api.post<TeamInvitation>("/brands/team/invitations/", payload).then((r) => r.data)
+export const teamInvitationAction = (id: number, action: 'resend' | 'cancel') =>
+  api.post<TeamInvitation>(`/brands/team/invitations/${id}/action/`, { action }).then((r) => r.data)
+export const revokeGlobalMember = (membershipId: number) =>
+  api.delete(`/brands/team/org-members/${membershipId}/`).then((r) => r.data)
+export const updateGlobalMemberRole = (membershipId: number, role: 'admin' | 'member') =>
+  api.patch(`/brands/team/org-members/${membershipId}/`, { role }).then((r) => r.data)
+
+// ---- Public invitation (token link) ----
+export interface PublicInvitation {
+  invited_email: string
+  role: 'admin' | 'member'
+  scope: 'global' | 'environments'
+  environments: { id: number; company_name: string }[]
+  status: 'pending' | 'accepted' | 'cancelled' | 'expired'
+  message: string
+  invited_by_name: string
+  organization_name: string
+  email_registered: boolean
+  expires_at: string
+}
+export const fetchPublicInvitation = (token: string) =>
+  api.get<PublicInvitation>(`/team/invitations/${token}/`).then((r) => r.data)
+export const acceptInvitation = (token: string) =>
+  api.post(`/team/invitations/${token}/accept/`).then((r) => r.data)
+export const registerViaInvitation = (token: string, payload: {
+  first_name: string
+  last_name: string
+  password: string
+}) => api.post(`/team/invitations/${token}/register/`, payload).then((r) => r.data)
 
 // ---- Agency delegations ----
 export interface AgencyDelegation {

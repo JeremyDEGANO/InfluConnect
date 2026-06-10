@@ -4,21 +4,132 @@ Imported into views_extra.py via star-import-style append. Kept in a separate
 file for readability.
 """
 from django.utils import timezone
+from django.db import transaction
+import secrets
 from rest_framework import generics, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import BrandProfile, BrandMembership, InfluencerProfile, AgencyDelegation, User
 from .serializers import BrandMembershipSerializer, AgencyDelegationSerializer
+from .workspace import (
+    ensure_brand_organization,
+    get_user_brand_workspaces,
+    get_user_org_role,
+    get_user_role_for_brand,
+    resolve_active_brand,
+)
 
 
 def _user_brand(user):
-    """Return BrandProfile owned by user (OneToOne) or via active membership."""
-    if hasattr(user, 'brand_profile'):
-        return user.brand_profile
-    m = BrandMembership.objects.filter(user=user, status='active').select_related('brand').first()
-    return m.brand if m else None
+    """Return the user's currently active brand workspace."""
+    return resolve_active_brand(user)
+
+
+class BrandEnvironmentListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        workspaces = get_user_brand_workspaces(request.user)
+        active = resolve_active_brand(request.user, request=request)
+        payload = []
+        for brand in workspaces:
+            payload.append({
+                'id': brand.id,
+                'company_name': brand.company_name,
+                'is_agency': bool(brand.is_agency),
+                'role': get_user_role_for_brand(request.user, brand),
+                'is_active': bool(active and active.id == brand.id),
+            })
+        return Response({'results': payload, 'active_brand_id': active.id if active else None})
+
+    def post(self, request):
+        workspaces = get_user_brand_workspaces(request.user)
+        if not workspaces.exists():
+            return Response({'detail': 'No brand workspace.'}, status=status.HTTP_403_FORBIDDEN)
+
+        active = resolve_active_brand(request.user, request=request) or workspaces.first()
+        organization = ensure_brand_organization(active)
+        role = get_user_role_for_brand(request.user, active)
+        if role not in ('owner', 'admin') and get_user_org_role(request.user, organization) != 'admin':
+            return Response({'detail': 'Only owners/admins can create environments.'}, status=status.HTTP_403_FORBIDDEN)
+
+        company_name = (request.data.get('company_name') or '').strip()
+        if not company_name:
+            return Response({'company_name': 'required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        generated_username = f"ws_{secrets.token_hex(8)}"
+        generated_email = f"{generated_username}@workspace.local"
+
+        with transaction.atomic():
+            owner_stub = User.objects.create(
+                username=generated_username,
+                email=generated_email,
+                user_type='brand',
+                is_active=False,
+            )
+            owner_stub.set_unusable_password()
+            owner_stub.save(update_fields=['password'])
+
+            new_workspace = BrandProfile.objects.create(
+                user=owner_stub,
+                organization=organization,
+                company_name=company_name,
+                siret='',
+                website='',
+                sector=getattr(active, 'sector', ''),
+                subscription_plan=getattr(active, 'subscription_plan', None),
+                subscription_active=bool(getattr(active, 'subscription_active', False)),
+                validation_status=getattr(active, 'validation_status', 'pending'),
+                is_agency=bool(getattr(active, 'is_agency', False)),
+                agency_default_commission_percent=getattr(active, 'agency_default_commission_percent', 20),
+            )
+
+            BrandMembership.objects.create(
+                brand=new_workspace,
+                user=request.user,
+                invited_email=request.user.email,
+                role='owner',
+                status='active',
+                joined_at=timezone.now(),
+                invited_by=request.user,
+            )
+
+            request.user.active_brand_workspace = new_workspace
+            request.user.save(update_fields=['active_brand_workspace'])
+
+        return Response({
+            'id': new_workspace.id,
+            'company_name': new_workspace.company_name,
+            'is_agency': bool(new_workspace.is_agency),
+            'role': 'owner',
+            'is_active': True,
+        }, status=status.HTTP_201_CREATED)
+
+
+class BrandEnvironmentSwitchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        brand_id = request.data.get('brand_id')
+        try:
+            brand_id = int(brand_id)
+        except (TypeError, ValueError):
+            return Response({'brand_id': 'invalid'}, status=status.HTTP_400_BAD_REQUEST)
+
+        brand = get_user_brand_workspaces(request.user).filter(pk=brand_id).first()
+        if not brand:
+            return Response({'detail': 'Forbidden workspace.'}, status=status.HTTP_403_FORBIDDEN)
+
+        request.user.active_brand_workspace = brand
+        request.user.save(update_fields=['active_brand_workspace'])
+        return Response({
+            'active_brand_id': brand.id,
+            'active_brand_name': brand.company_name,
+            'role': get_user_role_for_brand(request.user, brand),
+        })
 
 
 # --- BrandMembership ---------------------------------------------------------
@@ -28,52 +139,54 @@ class BrandMembershipListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        brand = _user_brand(self.request.user)
+        brand = resolve_active_brand(self.request.user, request=self.request)
         if not brand:
             return BrandMembership.objects.none()
         return BrandMembership.objects.filter(brand=brand).select_related('user')
 
     def create(self, request, *args, **kwargs):
-        brand = _user_brand(request.user)
-        if not brand:
-            return Response({"detail": "No brand workspace."}, status=status.HTTP_403_FORBIDDEN)
-        # Only the brand owner can invite (the user holding the OneToOne).
-        if not (hasattr(request.user, 'brand_profile') and request.user.brand_profile.id == brand.id):
-            membership = BrandMembership.objects.filter(brand=brand, user=request.user, status='active').first()
-            if not membership or membership.role not in ('owner', 'admin'):
-                return Response({"detail": "Only owners/admins can invite."}, status=status.HTTP_403_FORBIDDEN)
-        email = (request.data.get('invited_email') or '').strip().lower()
-        role = request.data.get('role') or 'member'
-        if not email:
-            return Response({"invited_email": "required"}, status=status.HTTP_400_BAD_REQUEST)
-        if role not in dict(BrandMembership.ROLE_CHOICES):
-            return Response({"role": "invalid"}, status=status.HTTP_400_BAD_REQUEST)
-        # Auto-link if user already exists
-        existing_user = User.objects.filter(email__iexact=email).first()
-        if BrandMembership.objects.filter(brand=brand, invited_email=email).exists() or (
-            existing_user and BrandMembership.objects.filter(brand=brand, user=existing_user).exists()
-        ):
-            return Response({"detail": "Already invited."}, status=status.HTTP_409_CONFLICT)
-        m = BrandMembership.objects.create(
-            brand=brand, invited_email=email, user=existing_user,
-            role=role, status='active' if existing_user else 'invited',
-            joined_at=timezone.now() if existing_user else None,
-            invited_by=request.user,
+        # Replaced by the token-based invitation flow (POST /brands/team/invitations/).
+        # The old behaviour silently attached existing accounts without consent.
+        return Response(
+            {"detail": "Deprecated. Use /api/brands/team/invitations/ instead."},
+            status=status.HTTP_410_GONE,
         )
-        return Response(BrandMembershipSerializer(m).data, status=status.HTTP_201_CREATED)
 
 
 class BrandMembershipDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = BrandMembershipSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
 
     def get_queryset(self):
-        brand = _user_brand(self.request.user)
-        if not brand:
+        from .workspace import get_user_org_role
+        user = self.request.user
+        manageable_ids = []
+        for brand in get_user_brand_workspaces(user).select_related('organization'):
+            role = get_user_role_for_brand(user, brand)
+            org_role = get_user_org_role(user, brand.organization) if brand.organization_id else None
+            if role in ('owner', 'admin') or org_role == 'admin':
+                manageable_ids.append(brand.id)
+        if not manageable_ids:
             return BrandMembership.objects.none()
-        return BrandMembership.objects.filter(brand=brand)
+        return BrandMembership.objects.filter(brand_id__in=manageable_ids)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        if instance.user_id == self.request.user.id:
+            raise PermissionDenied('You cannot change your own role.')
+        role = self.request.data.get('role')
+        if role is not None and role not in ('admin', 'member'):
+            raise PermissionDenied('Role must be admin or member.')
+        if instance.role == 'owner':
+            raise PermissionDenied('Owner role cannot be changed.')
+        serializer.save()
 
     def perform_destroy(self, instance):
+        if instance.user_id == self.request.user.id:
+            raise PermissionDenied('You cannot revoke your own access.')
+        if instance.role == 'owner':
+            raise PermissionDenied('Owner access cannot be revoked.')
         instance.status = 'revoked'
         instance.save(update_fields=['status'])
 

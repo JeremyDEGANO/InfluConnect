@@ -6,6 +6,9 @@ import { Footer } from "@/components/layout/Footer"
 import { Toaster } from "@/components/ui/toaster"
 import Landing from "@/pages/Landing"
 import Login from "@/pages/Login"
+import LoginSSO from "@/pages/LoginSSO"
+import DocsIntegrations from "@/pages/DocsIntegrations"
+import Integrations from "@/pages/brand/Integrations"
 import Register from "@/pages/Register"
 import PasswordResetRequest from "@/pages/PasswordResetRequest"
 import PasswordResetConfirm from "@/pages/PasswordResetConfirm"
@@ -13,6 +16,7 @@ import MfaResetConfirm from "@/pages/MfaResetConfirm"
 import SecuritySettings from "@/pages/SecuritySettings"
 import Pricing from "@/pages/Pricing"
 import InfluencerDashboard from "@/pages/influencer/Dashboard"
+import InfluencerReferral from "./pages/influencer/Referral"
 import InfluencerProposals from "@/pages/influencer/Proposals"
 import ProposalDetail from "@/pages/influencer/ProposalDetail"
 import InfluencerEditProfile from "@/pages/influencer/EditProfile"
@@ -25,6 +29,7 @@ import ValidateContent from "@/pages/brand/ValidateContent"
 import BrandEditProfile from "@/pages/brand/EditProfile"
 import BrandOnboarding from "@/pages/brand/Onboarding"
 import BrandTeam from "@/pages/brand/Team"
+import BrandEnvironments from "./pages/brand/Environments"
 import BrandDelegations from "@/pages/brand/Delegations"
 import Subscription from "@/pages/brand/Subscription"
 import AmbassadorPrograms from "@/pages/brand/AmbassadorPrograms"
@@ -65,6 +70,8 @@ import SupportPage from "@/pages/Support"
 import InfluencerOnboarding from "@/pages/influencer/Onboarding"
 import InfluencerMediaKit from "@/pages/influencer/MediaKit"
 import SignMobile from "@/pages/SignMobile"
+import AcceptInvitation from "@/pages/AcceptInvitation"
+import { PortalGuidedTour } from "@/components/shared/PortalGuidedTour"
 
 function PublicLayout() {
   return (
@@ -78,19 +85,23 @@ function PublicLayout() {
 
 function DashboardLayout() {
   const { user } = useAuth()
-  const brandValidationStatus = (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status
+  const brandValidationStatus =
+    user?.active_brand?.validation_status
+    ?? (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status
   const hideSidebar = user?.user_type === "brand" && brandValidationStatus !== "approved"
+  const workspaceRefreshKey = `${user?.id ?? "anon"}-${user?.active_brand_workspace_id ?? "none"}`
 
   return (
     <div className="min-h-screen flex flex-col bg-aurora-surface">
       <Header />
       <div className="flex flex-1">
         {!hideSidebar && <Sidebar />}
-        <main className="flex-1 overflow-auto relative">
+        <main key={workspaceRefreshKey} className="flex-1 overflow-auto relative">
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-aurora-blue/[0.04] via-transparent to-transparent" />
           <div className="relative"><Outlet /></div>
         </main>
       </div>
+      <PortalGuidedTour />
     </div>
   )
 }
@@ -106,7 +117,9 @@ function ProtectedRoute({ roles }: { roles?: string[] }) {
 function BrandValidationRoute() {
   const { user } = useAuth()
   const location = useLocation()
-  const status = (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status
+  const status =
+    user?.active_brand?.validation_status
+    ?? (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status
   const allowedBeforeApproval = new Set([
     "/brand/onboarding",
     "/brand/profile",
@@ -127,6 +140,8 @@ export default function App() {
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/login/sso" element={<LoginSSO />} />
+          <Route path="/docs/integrations" element={<DocsIntegrations />} />
           <Route path="/register" element={<Register />} />
           <Route path="/reset-password" element={<PasswordResetRequest />} />
           <Route path="/reset-password/confirm" element={<PasswordResetConfirm />} />
@@ -148,12 +163,14 @@ export default function App() {
           <Route path="/help" element={<Help />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/events/rsvp/:token" element={<EventRsvp />} />
+          <Route path="/invitation/:token" element={<AcceptInvitation />} />
           <Route path="/sign/mobile/:token" element={<SignMobile />} />
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route element={<ProtectedRoute roles={["influencer"]} />}>
               <Route path="/influencer/dashboard" element={<InfluencerDashboard />} />
+              <Route path="/influencer/referral" element={<InfluencerReferral />} />
               <Route path="/influencer/onboarding" element={<InfluencerOnboarding />} />
               <Route path="/influencer/media-kit" element={<InfluencerMediaKit />} />
               <Route path="/influencer/proposals" element={<InfluencerProposals />} />
@@ -192,6 +209,8 @@ export default function App() {
                 <Route path="/brand/events/new" element={<NewEvent />} />
                 <Route path="/brand/events/:id" element={<BrandEventDetail />} />
                 <Route path="/brand/team" element={<BrandTeam />} />
+                <Route path="/brand/environments" element={<BrandEnvironments />} />
+                <Route path="/brand/integrations" element={<Integrations />} />
                 <Route path="/brand/contracts" element={<Contracts />} />
                 <Route path="/brand/notifications" element={<Notifications />} />
                 <Route path="/brand/messages" element={<Messages />} />

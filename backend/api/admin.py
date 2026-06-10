@@ -4,7 +4,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     User, InfluencerProfile, SocialNetwork, BrandProfile,
     Campaign, CampaignProposal, ContentSubmission,
-    Message, Review, Notification, PlatformSettings,
+    Message, Review, Notification, PlatformSettings, InfluencerReferralInvite,
 )
 
 
@@ -22,10 +22,17 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(InfluencerProfile)
 class InfluencerProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'display_name', 'is_verified', 'average_rating']
+    list_display = ['user', 'display_name', 'referral_code', 'is_verified', 'average_rating', 'referral_commission_discount_percent']
     list_filter = ['is_verified', 'payment_method']
     search_fields = ['user__username', 'display_name']
     list_editable = ['is_verified']
+
+
+@admin.register(InfluencerReferralInvite)
+class InfluencerReferralInviteAdmin(admin.ModelAdmin):
+    list_display = ['inviter', 'invited_email', 'status', 'created_at', 'accepted_at']
+    list_filter = ['status']
+    search_fields = ['inviter__user__username', 'invited_email']
 
 
 @admin.register(SocialNetwork)
@@ -87,7 +94,7 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(PlatformSettings)
 class PlatformSettingsAdmin(admin.ModelAdmin):
-    list_display = ['commission_rate', 'validation_deadline_days', 'dispute_resolution_hours']
+    list_display = ['commission_rate', 'referral_commission_discount_percent', 'validation_deadline_days', 'dispute_resolution_hours']
 
     def has_add_permission(self, request):
         return not PlatformSettings.objects.exists()

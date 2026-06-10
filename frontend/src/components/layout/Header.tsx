@@ -6,21 +6,39 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { LanguageSelector } from "@/components/shared/LanguageSelector"
 import { NotificationBell } from "@/components/shared/NotificationBell"
+import { WorkspaceSwitcher } from "@/components/shared/WorkspaceSwitcher"
 import { resolveMediaUrl } from "@/lib/utils"
 import { User, Settings, LogOut, LayoutDashboard, Shield } from "lucide-react"
+import { PORTAL_TOUR_REPLAY_EVENT } from "@/components/shared/PortalGuidedTour"
 
 export function Header() {
   const { t } = useTranslation()
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated, logout, switchBrandWorkspace, createBrandWorkspace } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => { logout(); navigate("/") }
+  const replayTour = () => {
+    window.dispatchEvent(new Event(PORTAL_TOUR_REPLAY_EVENT))
+  }
 
   const dashboardLink = user?.user_type === "brand" ? "/brand/dashboard" : user?.user_type === "admin" ? "/admin" : "/influencer/dashboard"
   const profileLink = user?.user_type === "brand" ? "/brand/profile/edit" : "/influencer/profile/edit"
   const securityLink = user?.user_type === "brand" ? "/brand/security" : "/influencer/security"
   const canAccessSecurity = user?.user_type === "brand" || user?.user_type === "influencer"
-  const brandApproved = user?.user_type !== "brand" || ((user?.brand_profile as { validation_status?: string } | undefined)?.validation_status === "approved")
+  const brandApproved = user?.user_type !== "brand" || (
+    (user?.active_brand?.validation_status
+      ?? (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status) === "approved"
+  )
+  const brandEnvironments = user?.brand_environments ?? []
+  const canSwitchWorkspace = user?.user_type === "brand" && brandEnvironments.length > 1
+  const canCreateWorkspace = user?.user_type === "brand" && ["owner", "admin"].includes(user?.active_brand_role || "")
+
+  const handleCreateWorkspace = async () => {
+    const value = window.prompt(t("common.workspace_create_prompt", "Name of the new workspace"), "")
+    const companyName = (value || "").trim()
+    if (!companyName) return
+    await createBrandWorkspace(companyName)
+  }
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-aurora-line">
@@ -51,6 +69,7 @@ export function Header() {
           <LanguageSelector />
           {isAuthenticated ? (
             <>
+              {brandApproved && user?.user_type === "brand" && <WorkspaceSwitcher />}
               {brandApproved && <NotificationBell />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -71,6 +90,28 @@ export function Header() {
                   <DropdownMenuSeparator />
                   {brandApproved ? (
                     <>
+                      {user?.user_type === "brand" && (
+                        <>
+                          <DropdownMenuLabel className="px-3 py-2 text-xs text-aurora-ink-3">
+                            {t("common.current_workspace", "Current workspace")}
+                          </DropdownMenuLabel>
+                          {brandEnvironments.map((workspace) => (
+                            <DropdownMenuItem
+                              key={workspace.id}
+                              onClick={() => switchBrandWorkspace(workspace.id)}
+                              className={workspace.id === user?.active_brand_workspace_id ? "font-semibold" : ""}
+                            >
+                              {workspace.company_name}
+                            </DropdownMenuItem>
+                          ))}
+                          {canCreateWorkspace && (
+                            <DropdownMenuItem onClick={handleCreateWorkspace}>
+                              + {t("common.workspace_create", "Create workspace")}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
                       <DropdownMenuItem onClick={() => navigate(dashboardLink)}>
                         <LayoutDashboard className="h-4 w-4 mr-2" />{t("nav.dashboard")}
                       </DropdownMenuItem>
@@ -83,6 +124,11 @@ export function Header() {
                       {canAccessSecurity && (
                         <DropdownMenuItem onClick={() => navigate(securityLink)}>
                           <Shield className="h-4 w-4 mr-2" />{t("nav.security")}
+                        </DropdownMenuItem>
+                      )}
+                      {canAccessSecurity && (
+                        <DropdownMenuItem onClick={replayTour}>
+                          <LayoutDashboard className="h-4 w-4 mr-2" />{t("tour.replay", "Refaire la visite")}
                         </DropdownMenuItem>
                       )}
                     </>

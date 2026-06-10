@@ -21,3 +21,7 @@ class PasswordResetRateThrottle(IPRateThrottle):
 
 class MFAResetRateThrottle(IPRateThrottle):
     scope = "auth_mfa_reset"
+
+
+class RegisterRateThrottle(IPRateThrottle):
+    scope = "auth_register"

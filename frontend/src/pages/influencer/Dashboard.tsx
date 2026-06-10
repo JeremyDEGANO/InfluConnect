@@ -33,25 +33,12 @@ export default function InfluencerDashboard() {
   const { user } = useAuth()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isFirstWelcome, setIsFirstWelcome] = useState(false)
 
   useEffect(() => {
     api.get("/influencers/dashboard/").then((res) => {
       setData(res.data)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
-
-  useEffect(() => {
-    if (!user?.id) return
-    const storageKey = `ic_welcome_seen_${user.id}`
-    const alreadySeen = localStorage.getItem(storageKey) === "1"
-    if (alreadySeen) {
-      setIsFirstWelcome(false)
-      return
-    }
-    setIsFirstWelcome(true)
-    localStorage.setItem(storageKey, "1")
-  }, [user?.id])
 
   if (loading) return <div className="flex items-center justify-center h-64 text-aurora-ink-3"><Loader2 className="h-6 w-6 animate-spin mr-2" />{t("common.loading")}</div>
 

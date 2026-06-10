@@ -57,6 +57,7 @@ export function Footer() {
             <ul className="space-y-2.5 text-sm">
               <li><Link to="/faq" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">FAQ</Link></li>
               <li><Link to="/help" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.help", "Centre d'aide")}</Link></li>
+              <li><Link to="/docs/integrations" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.docs_integrations", "API & SSO")}</Link></li>
               <li><Link to="/about" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.about_us")}</Link></li>
               <li><Link to="/contact" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.contact")}</Link></li>
             </ul>

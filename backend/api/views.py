@@ -7,7 +7,7 @@ from django.db import models
 from django.conf import settings as django_settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.core.files.base import ContentFile
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q, Sum, Avg
@@ -20,7 +20,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import (
-    User, InfluencerProfile, SocialNetwork, BrandProfile,
+    User, InfluencerProfile, SocialNetwork, BrandProfile, BrandMembership,
     Campaign, CampaignProposal, Event, EventInvitation, ContentSubmission,
     Message, DirectMessage, Review, Notification, PlatformSettings, AuditLog,
 )
@@ -31,10 +31,11 @@ from .serializers import (
     MessageSerializer, DirectMessageSerializer, ReviewSerializer, NotificationSerializer, PlatformSettingsSerializer,
     RegisterSerializer, LoginSerializer, _abs_media_url,
 )
-from .throttling import LoginRateThrottle
+from .throttling import LoginRateThrottle, RegisterRateThrottle
 from .services import email_service, stripe_service
 from .services.pdf_service import generate_contract_pdf
 from .constants import CONTENT_THEMES
+from .workspace import resolve_active_brand, get_user_role_for_brand, user_can_access_brand
 from cryptography.fernet import Fernet, InvalidToken
 import hashlib
 
@@ -227,8 +228,8 @@ def _extract_signature_payload(request_data, signer_user, proposal):
     value = str(request_data.get("signature_value") or "").strip()
     data = request_data.get("signature_data") or ""
 
-    if signer_user.user_type == "brand" and hasattr(signer_user, "brand_profile"):
-        default_value = signer_user.brand_profile.company_name
+    if signer_user.user_type == "brand":
+        default_value = proposal.campaign.brand.company_name
     else:
         default_value = proposal.influencer.display_name or signer_user.get_full_name() or signer_user.username
 
@@ -248,8 +249,7 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
     """Apply signature business rules for either brand or influencer signer."""
     is_brand = (
         signer_user.user_type == "brand"
-        and hasattr(signer_user, "brand_profile")
-        and proposal.campaign.brand == signer_user.brand_profile
+        and get_user_role_for_brand(signer_user, proposal.campaign.brand) in ("owner", "admin")
     )
     is_influencer = (
         signer_user.user_type == "influencer"
@@ -293,7 +293,7 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
         proposal.status = "contract_signed"
         proposal.contract_signed_at = now
         _audit(signer_user, "contract_signed", "CampaignProposal", proposal.id, ip=ip)
-        for recipient in (proposal.influencer.user, proposal.campaign.brand.user):
+        for recipient in (proposal.influencer.user, *_brand_users(proposal.campaign.brand)):
             create_notification(
                 user=recipient,
                 notification_type="contract_signed",
@@ -344,12 +344,13 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
                 pdf_url=pdf_url,
                 language=proposal.influencer.user.language_preference,
             )
-        if proposal.campaign.brand.user.email:
+        brand_contact = _brand_primary_user(proposal.campaign.brand)
+        if brand_contact and brand_contact.email:
             email_service.send_contract_signed_both(
-                proposal.campaign.brand.user.email,
+                brand_contact.email,
                 proposal.campaign.title,
                 pdf_url=pdf_url,
-                language=proposal.campaign.brand.user.language_preference,
+                language=brand_contact.language_preference,
             )
     return None
 
@@ -370,12 +371,56 @@ def _update_average_rating(user):
         user.brand_profile.save(update_fields=["average_rating"])
 
 
+def _active_brand(request):
+    return resolve_active_brand(request.user, request=request)
+
+
+def _brand_users(brand):
+    """Active users behind a brand workspace (the profile owner may be an
+    inactive stub for secondary environments — fall back to team members)."""
+    from .models import OrganizationMembership
+    users = []
+    seen = set()
+
+    def _add(u):
+        if u and u.is_active and u.id not in seen:
+            seen.add(u.id)
+            users.append(u)
+
+    _add(brand.user)
+    for m in BrandMembership.objects.filter(
+        brand=brand, status="active", user__isnull=False, user__is_active=True,
+    ).select_related("user"):
+        _add(m.user)
+    if brand.organization_id:
+        for om in OrganizationMembership.objects.filter(
+            organization_id=brand.organization_id, status="active", user__is_active=True,
+        ).select_related("user"):
+            _add(om.user)
+    return users
+
+
+def _brand_primary_user(brand):
+    """Best single contact for emails about this workspace."""
+    users = _brand_users(brand)
+    return users[0] if users else brand.user
+
+
+def _effective_commission_rate_for_proposal(proposal: CampaignProposal, base_rate: Decimal) -> Decimal:
+    discount = Decimal(str(getattr(proposal.influencer, 'referral_commission_discount_percent', 0) or 0))
+    effective = base_rate - discount
+    if effective < Decimal('0'):
+        return Decimal('0')
+    return effective
+
+
 # ---------------------------------------------------------------------------
 # Auth views
 # ---------------------------------------------------------------------------
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [RegisterRateThrottle]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -442,6 +487,8 @@ class LoginView(APIView):
                         {"email_otp_required": True, "detail": "Invalid or expired email code."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+            if user.user_type == 'brand':
+                resolve_active_brand(user, request=request)
             tokens = get_tokens_for_user(user)
             return Response({"user": UserSerializer(user, context={"request": request}).data, **tokens})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -451,6 +498,8 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.user_type == 'brand':
+            resolve_active_brand(request.user, request=request)
         return Response(UserSerializer(request.user, context={"request": request}).data)
 
     def put(self, request):
@@ -697,10 +746,7 @@ class BrandProfileUpdateView(APIView):
     def _get_profile(self, request):
         if request.user.user_type != "brand":
             return None
-        try:
-            return request.user.brand_profile
-        except BrandProfile.DoesNotExist:
-            return None
+        return _active_brand(request)
 
     def put(self, request):
         return self._update(request, partial=False)
@@ -720,25 +766,15 @@ class BrandProfileUpdateView(APIView):
 
 
 class BrandSubscribeView(APIView):
+    """Legacy endpoint — activated a paid plan without going through billing.
+    Kept only to return 410 for old clients; use /brands/subscription/change/."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if request.user.user_type != "brand":
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            profile = request.user.brand_profile
-        except BrandProfile.DoesNotExist:
-            return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        plan = request.data.get("subscription_plan")
-        if plan not in ["starter", "growth", "pro"]:
-            return Response({"detail": "Invalid plan."}, status=status.HTTP_400_BAD_REQUEST)
-
-        profile.subscription_plan = plan
-        profile.subscription_active = True
-        profile.subscription_expires_at = timezone.now() + timedelta(days=30)
-        profile.save()
-        return Response(BrandProfileSerializer(profile).data)
+        return Response(
+            {"detail": "Deprecated. Use /api/brands/subscription/change/ instead."},
+            status=status.HTTP_410_GONE,
+        )
 
 
 class BrandDashboardView(APIView):
@@ -747,9 +783,8 @@ class BrandDashboardView(APIView):
     def get(self, request):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            profile = request.user.brand_profile
-        except BrandProfile.DoesNotExist:
+        profile = _active_brand(request)
+        if not profile:
             return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
         campaigns = Campaign.objects.filter(brand=profile)
@@ -808,10 +843,10 @@ class CampaignViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.user_type == "brand":
-            try:
-                return Campaign.objects.filter(brand=user.brand_profile).order_by("-created_at")
-            except BrandProfile.DoesNotExist:
+            brand = _active_brand(self.request)
+            if not brand:
                 return Campaign.objects.none()
+            return Campaign.objects.filter(brand=brand).order_by("-created_at")
         elif user.user_type == "influencer":
             return Campaign.objects.filter(status="active").order_by("-created_at")
         return Campaign.objects.all().order_by("-created_at")
@@ -819,10 +854,12 @@ class CampaignViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.user_type != "brand":
             raise PermissionDenied("Only brands can create campaigns.")
-        try:
-            brand = self.request.user.brand_profile
-        except BrandProfile.DoesNotExist:
+        brand = _active_brand(self.request)
+        if not brand:
             raise PermissionDenied("Brand profile not found.")
+        role = get_user_role_for_brand(self.request.user, brand)
+        if role not in ('owner', 'admin'):
+            raise PermissionDenied("Only workspace owners/admins can create campaigns.")
         if brand.is_agency:
             raise PermissionDenied(
                 "Agency profiles cannot create campaigns. Agencies can manage influencers and contracts instead."
@@ -834,7 +871,9 @@ class CampaignViewSet(viewsets.ModelViewSet):
         serializer.save(brand=brand)
 
     def perform_destroy(self, instance):
-        if instance.brand.user != self.request.user and not self.request.user.is_staff:
+        active_brand = _active_brand(self.request)
+        role = get_user_role_for_brand(self.request.user, instance.brand)
+        if not self.request.user.is_staff and (not active_brand or active_brand.id != instance.brand_id or role not in ('owner', 'admin')):
             raise PermissionDenied("You do not own this campaign.")
         # Allow deletion unless there are proposals with signed contracts / in progress / paid
         blocking_statuses = ["contract_signed", "in_progress", "content_submitted", "validated", "paid"]
@@ -851,7 +890,9 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.brand.user != request.user and not request.user.is_staff:
+        active_brand = _active_brand(request)
+        role = get_user_role_for_brand(request.user, instance.brand)
+        if not request.user.is_staff and (not active_brand or active_brand.id != instance.brand_id or role not in ('owner', 'admin')):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
@@ -902,8 +943,11 @@ class CampaignTargetView(APIView):
         """GET — auto-match influencers based on campaign's own criteria."""
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        brand = _active_brand(request)
+        if not brand:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
         try:
-            campaign = Campaign.objects.get(pk=pk, brand__user=request.user)
+            campaign = Campaign.objects.get(pk=pk, brand=brand)
         except Campaign.DoesNotExist:
             return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
         qs = self._filter(campaign)
@@ -913,8 +957,11 @@ class CampaignTargetView(APIView):
         """POST — filter with custom overrides."""
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        brand = _active_brand(request)
+        if not brand:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
         try:
-            campaign = Campaign.objects.get(pk=pk, brand__user=request.user)
+            campaign = Campaign.objects.get(pk=pk, brand=brand)
         except Campaign.DoesNotExist:
             return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
         qs = self._filter(campaign, request.data.get("filters"))
@@ -927,8 +974,11 @@ class CampaignSendProposalsView(APIView):
     def post(self, request, pk):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        brand = _active_brand(request)
+        if not brand:
+            return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
         try:
-            campaign = Campaign.objects.get(pk=pk, brand__user=request.user)
+            campaign = Campaign.objects.get(pk=pk, brand=brand)
         except Campaign.DoesNotExist:
             return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -990,10 +1040,10 @@ class EventViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.user_type == "brand":
-            try:
-                return Event.objects.filter(brand=user.brand_profile).prefetch_related('invitations__influencer__user', 'invitations__checked_in_by').order_by('-starts_at')
-            except BrandProfile.DoesNotExist:
+            brand = _active_brand(self.request)
+            if not brand:
                 return Event.objects.none()
+            return Event.objects.filter(brand=brand).prefetch_related('invitations__influencer__user', 'invitations__checked_in_by').order_by('-starts_at')
         if user.user_type == "influencer":
             try:
                 influencer = user.influencer_profile
@@ -1005,9 +1055,8 @@ class EventViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.user_type != "brand":
             raise PermissionDenied("Only brands can create events.")
-        try:
-            brand = self.request.user.brand_profile
-        except BrandProfile.DoesNotExist:
+        brand = _active_brand(self.request)
+        if not brand:
             raise PermissionDenied("Brand profile not found.")
         if brand.validation_status != "approved":
             raise PermissionDenied("Your brand account must be approved before creating events.")
@@ -1025,8 +1074,11 @@ class EventInviteView(APIView):
     def post(self, request, pk):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        brand = _active_brand(request)
+        if not brand:
+            return Response({"detail": "Event not found."}, status=status.HTTP_404_NOT_FOUND)
         try:
-            event = Event.objects.get(pk=pk, brand__user=request.user)
+            event = Event.objects.get(pk=pk, brand=brand)
         except Event.DoesNotExist:
             return Response({"detail": "Event not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1127,9 +1179,8 @@ class EventInvitationListView(generics.ListAPIView):
                 qs = qs.filter(invite_token=token)
             return qs.order_by('-created_at')
         if user.user_type == 'brand':
-            try:
-                brand = user.brand_profile
-            except BrandProfile.DoesNotExist:
+            brand = _active_brand(self.request)
+            if not brand:
                 return EventInvitation.objects.none()
             return EventInvitation.objects.filter(event__brand=brand).select_related('event', 'influencer__user', 'checked_in_by').order_by('-created_at')
         return EventInvitation.objects.none()
@@ -1231,9 +1282,8 @@ class EventCheckInView(APIView):
         except EventInvitation.DoesNotExist:
             return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            brand = request.user.brand_profile
-        except BrandProfile.DoesNotExist:
+        brand = _active_brand(request)
+        if not brand:
             return Response({'detail': 'Brand profile not found.'}, status=status.HTTP_403_FORBIDDEN)
 
         if invitation.event.brand_id != brand.id:
@@ -1281,9 +1331,8 @@ def _get_proposal_for_brand(request, pk):
         return None, Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
     if request.user.user_type != "brand":
         return None, Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-    try:
-        profile = request.user.brand_profile
-    except BrandProfile.DoesNotExist:
+    profile = _active_brand(request)
+    if not profile:
         return None, Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
     if proposal.campaign.brand != profile:
         return None, Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
@@ -1306,10 +1355,10 @@ class ProposalListView(generics.ListAPIView):
             except InfluencerProfile.DoesNotExist:
                 return CampaignProposal.objects.none()
         elif user.user_type == "brand":
-            try:
-                return CampaignProposal.objects.filter(campaign__brand=user.brand_profile).order_by("-created_at")
-            except BrandProfile.DoesNotExist:
+            brand = _active_brand(self.request)
+            if not brand:
                 return CampaignProposal.objects.none()
+            return CampaignProposal.objects.filter(campaign__brand=brand).order_by("-created_at")
         return CampaignProposal.objects.all().order_by("-created_at")
 
 
@@ -1325,10 +1374,10 @@ class ProposalDetailView(generics.RetrieveAPIView):
             except InfluencerProfile.DoesNotExist:
                 return CampaignProposal.objects.none()
         elif user.user_type == "brand":
-            try:
-                return CampaignProposal.objects.filter(campaign__brand=user.brand_profile)
-            except BrandProfile.DoesNotExist:
+            brand = _active_brand(self.request)
+            if not brand:
                 return CampaignProposal.objects.none()
+            return CampaignProposal.objects.filter(campaign__brand=brand)
         return CampaignProposal.objects.all()
 
 
@@ -1346,19 +1395,20 @@ class ProposalAcceptView(APIView):
             )
         proposal.status = "accepted"
         proposal.save()
-        create_notification(
-            user=proposal.campaign.brand.user,
-            notification_type="proposal_accepted",
-            title=_notif_text(proposal.campaign.brand.user, "Proposition acceptee", "Proposal accepted"),
-            message=_notif_text(
-                proposal.campaign.brand.user,
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'a accepte votre proposition pour "{proposal.campaign.title}".',
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'accepted your proposal for "{proposal.campaign.title}".',
-            ),
-            proposal=proposal,
-        )
+        for recipient in _brand_users(proposal.campaign.brand):
+            create_notification(
+                user=recipient,
+                notification_type="proposal_accepted",
+                title=_notif_text(recipient, "Proposition acceptee", "Proposal accepted"),
+                message=_notif_text(
+                    recipient,
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'a accepte votre proposition pour "{proposal.campaign.title}".',
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'accepted your proposal for "{proposal.campaign.title}".',
+                ),
+                proposal=proposal,
+            )
         return Response(CampaignProposalSerializer(proposal).data)
 
 
@@ -1375,19 +1425,20 @@ class ProposalDeclineView(APIView):
         proposal.status = "declined"
         proposal.decline_reason = decline_reason
         proposal.save()
-        create_notification(
-            user=proposal.campaign.brand.user,
-            notification_type="proposal_declined",
-            title=_notif_text(proposal.campaign.brand.user, "Proposition refusee", "Proposal declined"),
-            message=_notif_text(
-                proposal.campaign.brand.user,
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'a refuse votre proposition pour "{proposal.campaign.title}".',
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'declined your proposal for "{proposal.campaign.title}".',
-            ),
-            proposal=proposal,
-        )
+        for recipient in _brand_users(proposal.campaign.brand):
+            create_notification(
+                user=recipient,
+                notification_type="proposal_declined",
+                title=_notif_text(recipient, "Proposition refusee", "Proposal declined"),
+                message=_notif_text(
+                    recipient,
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'a refuse votre proposition pour "{proposal.campaign.title}".',
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'declined your proposal for "{proposal.campaign.title}".',
+                ),
+                proposal=proposal,
+            )
         return Response(CampaignProposalSerializer(proposal).data)
 
 
@@ -1405,19 +1456,20 @@ class ProposalCounterOfferView(APIView):
         proposal.counter_price = counter_price
         proposal.counter_message = request.data.get("counter_message", "")
         proposal.save()
-        create_notification(
-            user=proposal.campaign.brand.user,
-            notification_type="counter_offer",
-            title=_notif_text(proposal.campaign.brand.user, "Contre-offre recue", "Counter offer received"),
-            message=_notif_text(
-                proposal.campaign.brand.user,
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'vous a envoye une contre-offre pour "{proposal.campaign.title}".',
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'sent a counter offer for "{proposal.campaign.title}".',
-            ),
-            proposal=proposal,
-        )
+        for recipient in _brand_users(proposal.campaign.brand):
+            create_notification(
+                user=recipient,
+                notification_type="counter_offer",
+                title=_notif_text(recipient, "Contre-offre recue", "Counter offer received"),
+                message=_notif_text(
+                    recipient,
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'vous a envoye une contre-offre pour "{proposal.campaign.title}".',
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'sent a counter offer for "{proposal.campaign.title}".',
+                ),
+                proposal=proposal,
+            )
         return Response(CampaignProposalSerializer(proposal).data)
 
 
@@ -1526,7 +1578,10 @@ class ProposalSignSessionCreateView(APIView):
             return Response({"detail": "Contract must be generated first."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
-        is_brand = user.user_type == "brand" and proposal.campaign.brand.user_id == user.id
+        is_brand = (
+            user.user_type == "brand"
+            and get_user_role_for_brand(user, proposal.campaign.brand) in ("owner", "admin")
+        )
         is_influencer = user.user_type == "influencer" and proposal.influencer.user_id == user.id
         if not is_brand and not is_influencer:
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
@@ -1610,7 +1665,7 @@ class ProposalSignSessionCompleteView(APIView):
         if _session_used_for_signer(proposal, signer):
             return Response({"detail": "This signing link has already been used."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if signer.user_type == "brand" and proposal.campaign.brand.user_id != signer.id:
+        if signer.user_type == "brand" and get_user_role_for_brand(signer, proposal.campaign.brand) not in ("owner", "admin"):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
         if signer.user_type == "influencer" and proposal.influencer.user_id != signer.id:
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
@@ -1732,25 +1787,27 @@ class ProposalSubmitContentView(APIView):
         deadline_days = PlatformSettings.get_instance().validation_deadline_days
         proposal.validation_deadline = timezone.now() + timedelta(days=int(deadline_days))
         proposal.save()
-        create_notification(
-            user=proposal.campaign.brand.user,
-            notification_type="content_submitted",
-            title=_notif_text(proposal.campaign.brand.user, "Contenu soumis", "Content submitted"),
-            message=_notif_text(
-                proposal.campaign.brand.user,
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'a soumis du contenu pour "{proposal.campaign.title}".',
-                f"{proposal.influencer.display_name or proposal.influencer.user.username} "
-                f'submitted content for "{proposal.campaign.title}".',
-            ),
-            proposal=proposal,
-        )
-        if proposal.campaign.brand.user.email:
+        for recipient in _brand_users(proposal.campaign.brand):
+            create_notification(
+                user=recipient,
+                notification_type="content_submitted",
+                title=_notif_text(recipient, "Contenu soumis", "Content submitted"),
+                message=_notif_text(
+                    recipient,
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'a soumis du contenu pour "{proposal.campaign.title}".',
+                    f"{proposal.influencer.display_name or proposal.influencer.user.username} "
+                    f'submitted content for "{proposal.campaign.title}".',
+                ),
+                proposal=proposal,
+            )
+        brand_contact = _brand_primary_user(proposal.campaign.brand)
+        if brand_contact and brand_contact.email:
             email_service.send_content_submitted_to_brand(
-                proposal.campaign.brand.user.email,
+                brand_contact.email,
                 proposal.campaign.title,
                 proposal.influencer.display_name or proposal.influencer.user.username,
-                language=proposal.campaign.brand.user.language_preference,
+                language=brand_contact.language_preference,
             )
         return Response(ContentSubmissionSerializer(submission, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
@@ -1789,8 +1846,7 @@ class ProposalSubmissionAssetView(APIView):
              and hasattr(user, "influencer_profile")
              and proposal.influencer == user.influencer_profile)
             or (user.user_type == "brand"
-                and hasattr(user, "brand_profile")
-                and proposal.campaign.brand == user.brand_profile)
+                and user_can_access_brand(user, proposal.campaign.brand))
             or user.is_staff
         )
         if not is_participant:
@@ -1843,7 +1899,10 @@ class ProposalValidateContentView(APIView):
         # Auto-release escrow after validation (CDC §2.1)
         if proposal.escrow_funded and not proposal.escrow_released:
             settings_obj = PlatformSettings.get_instance()
-            commission_rate = Decimal(str(settings_obj.commission_rate))
+            commission_rate = _effective_commission_rate_for_proposal(
+                proposal,
+                Decimal(str(settings_obj.commission_rate)),
+            )
             try:
                 release = stripe_service.release_escrow_to_influencer(
                     payment_intent_id=proposal.stripe_payment_intent_id or "stub",
@@ -1987,8 +2046,7 @@ class MessageListView(generics.ListAPIView):
              and hasattr(user, "influencer_profile")
              and proposal.influencer == user.influencer_profile)
             or (user.user_type == "brand"
-                and hasattr(user, "brand_profile")
-                and proposal.campaign.brand == user.brand_profile)
+                and user_can_access_brand(user, proposal.campaign.brand))
             or user.is_staff
         )
         if not is_participant:
@@ -2021,8 +2079,7 @@ class MessageCreateView(APIView):
              and hasattr(user, "influencer_profile")
              and proposal.influencer == user.influencer_profile)
             or (user.user_type == "brand"
-                and hasattr(user, "brand_profile")
-                and proposal.campaign.brand == user.brand_profile)
+                and user_can_access_brand(user, proposal.campaign.brand))
             or user.is_staff
         )
         if not is_participant:
@@ -2045,17 +2102,20 @@ class MessageCreateView(APIView):
         msg = serializer.save(sender=request.user)
 
         if user.user_type == "influencer":
-            recipient = proposal.campaign.brand.user
+            recipients = _brand_users(proposal.campaign.brand)
         else:
-            recipient = proposal.influencer.user
+            recipients = [proposal.influencer.user]
 
-        create_notification(
-            user=recipient,
-            notification_type="new_message",
-            title="New message",
-            message=f'You have a new message from {user.username} about "{proposal.campaign.title}".',
-            proposal=proposal,
-        )
+        for recipient in recipients:
+            if recipient.id == user.id:
+                continue
+            create_notification(
+                user=recipient,
+                notification_type="new_message",
+                title="New message",
+                message=f'You have a new message from {user.username} about "{proposal.campaign.title}".',
+                proposal=proposal,
+            )
         return Response(MessageSerializer(msg, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -2080,8 +2140,7 @@ class ProposalContractDownloadView(APIView):
              and hasattr(user, "influencer_profile")
              and proposal.influencer == user.influencer_profile)
             or (user.user_type == "brand"
-                and hasattr(user, "brand_profile")
-                and proposal.campaign.brand == user.brand_profile)
+                and user_can_access_brand(user, proposal.campaign.brand))
             or user.is_staff
         )
         if not is_participant:
@@ -2141,7 +2200,9 @@ class ConversationsListView(generics.ListAPIView):
         # Add campaign proposal conversations (if has messages)
         if user.user_type == "brand":
             try:
-                brand = user.brand_profile
+                brand = _active_brand(request)
+                if not brand:
+                    raise BrandProfile.DoesNotExist
                 proposals = CampaignProposal.objects.filter(campaign__brand=brand, messages__isnull=False).distinct().order_by('-updated_at')
                 for proposal in proposals:
                     last_msg = proposal.messages.order_by('-created_at').first()
@@ -2273,8 +2334,7 @@ class CampaignMessageAttachmentView(APIView):
              and hasattr(user, "influencer_profile")
              and proposal.influencer == user.influencer_profile)
             or (user.user_type == "brand"
-                and hasattr(user, "brand_profile")
-                and proposal.campaign.brand == user.brand_profile)
+                and user_can_access_brand(user, proposal.campaign.brand))
             or user.is_staff
         )
         if not is_participant:
@@ -2336,8 +2396,7 @@ class ReviewCreateView(APIView):
              and hasattr(user, "influencer_profile")
              and proposal.influencer == user.influencer_profile)
             or (user.user_type == "brand"
-                and hasattr(user, "brand_profile")
-                and proposal.campaign.brand == user.brand_profile)
+                and user_can_access_brand(user, proposal.campaign.brand))
         )
         if not is_participant:
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)

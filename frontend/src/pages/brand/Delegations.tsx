@@ -100,7 +100,7 @@ export default function AgencyDelegations() {
                       {isAgency ? d.influencer_name : d.agency_name}
                     </p>
                     <p className="text-xs text-aurora-ink-3">
-                      {t("agency.commission", "Commission")} : {d.commission_percent}% Â· {t(`agency.status_${d.status}`, d.status)}
+                      {t("agency.commission", "Commission")} : {d.commission_percent}% - {t(`agency.status_${d.status}`, d.status)}
                     </p>
                   </div>
                   <div className="flex gap-2">

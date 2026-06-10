@@ -19,7 +19,7 @@ from rest_framework.test import APIClient
 
 from .models import (
     User, InfluencerProfile, BrandProfile, Campaign, CampaignProposal, Review,
-    BrandMembership, AgencyDelegation, SupportTicket,
+    BrandMembership, AgencyDelegation, SupportTicket, PlatformSettings,
 )
 
 
@@ -299,20 +299,81 @@ class BrandMembershipTests(TestCase):
         c.credentials(HTTP_AUTHORIZATION=f"Bearer {r.data['access']}")
         return c
 
-    def test_owner_can_invite_member(self):
+    def test_legacy_membership_create_is_gone(self):
         c = self._as("owner@brand.com")
         res = c.post("/api/brands/memberships/", {"invited_email": "new@brand.com", "role": "member"}, format="json")
+        self.assertEqual(res.status_code, 410, res.content)
+
+    def test_owner_can_invite_member(self):
+        c = self._as("owner@brand.com")
+        res = c.post("/api/brands/team/invitations/", {
+            "invited_email": "new@brand.com", "role": "member",
+            "scope": "environments", "environment_ids": [self.brand.id],
+        }, format="json")
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.data["invited_email"], "new@brand.com")
+        self.assertEqual(res.data["status"], "pending")
 
     def test_admin_can_invite_member(self):
         c = self._as("admin@brand.com")
-        res = c.post("/api/brands/memberships/", {"invited_email": "team2@brand.com", "role": "member"}, format="json")
+        res = c.post("/api/brands/team/invitations/", {
+            "invited_email": "team2@brand.com", "role": "member",
+            "scope": "environments", "environment_ids": [self.brand.id],
+        }, format="json")
         self.assertEqual(res.status_code, 201, res.content)
 
     def test_member_cannot_invite(self):
         c = self._as("member@brand.com")
-        res = c.post("/api/brands/memberships/", {"invited_email": "blocked@brand.com", "role": "member"}, format="json")
+        res = c.post("/api/brands/team/invitations/", {
+            "invited_email": "blocked@brand.com", "role": "member",
+            "scope": "environments", "environment_ids": [self.brand.id],
+        }, format="json")
+        self.assertEqual(res.status_code, 403)
+
+    def test_invitation_register_grants_access(self):
+        from .models import TeamInvitation
+        c = self._as("owner@brand.com")
+        res = c.post("/api/brands/team/invitations/", {
+            "invited_email": "joiner@brand.com", "role": "admin",
+            "scope": "environments", "environment_ids": [self.brand.id],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        inv = TeamInvitation.objects.get(pk=res.data["id"])
+
+        # Public detail by token
+        anon = APIClient()
+        res = anon.get(f"/api/team/invitations/{inv.token}/")
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertFalse(res.data["email_registered"])
+
+        # Register through the invitation link
+        res = anon.post(f"/api/team/invitations/{inv.token}/register/", {
+            "first_name": "Jo", "last_name": "Iner", "password": "Str0ngPass!42",
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertIn("access", res.data)
+        membership = BrandMembership.objects.get(brand=self.brand, invited_email="joiner@brand.com")
+        self.assertEqual(membership.status, "active")
+        self.assertEqual(membership.role, "admin")
+
+        # Token is single-use
+        res = anon.post(f"/api/team/invitations/{inv.token}/register/", {
+            "first_name": "X", "last_name": "Y", "password": "Str0ngPass!42",
+        }, format="json")
+        self.assertIn(res.status_code, (409, 410))
+
+    def test_accept_requires_matching_email(self):
+        from .models import TeamInvitation
+        c = self._as("owner@brand.com")
+        res = c.post("/api/brands/team/invitations/", {
+            "invited_email": "someoneelse@brand.com", "role": "member",
+            "scope": "environments", "environment_ids": [self.brand.id],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        inv = TeamInvitation.objects.get(pk=res.data["id"])
+
+        other = self._as("member@brand.com")
+        res = other.post(f"/api/team/invitations/{inv.token}/accept/")
         self.assertEqual(res.status_code, 403)
 
 
@@ -363,6 +424,119 @@ class AgencyDelegationTests(TestCase):
         c = self._as("brand2@test.com")
         res = c.post("/api/agency/delegations/", {"influencer": "influencerx", "commission_percent": 12}, format="json")
         self.assertEqual(res.status_code, 403)
+
+
+class InfluencerReferralTests(TestCase):
+    def test_register_with_referral_code_applies_discount_to_both(self):
+        settings_obj = PlatformSettings.get_instance()
+        settings_obj.referral_commission_discount_percent = 4
+        settings_obj.save(update_fields=["referral_commission_discount_percent"])
+
+        ref_user = User.objects.create_user(
+            email="ref@test.com", username="ref", password="pw12345!", user_type="influencer",
+        )
+        ref_profile = InfluencerProfile.objects.create(
+            user=ref_user,
+            display_name="Ref Creator",
+            referral_code="ABCD1234",
+        )
+
+        c = APIClient()
+        res = c.post("/api/auth/register/", {
+            "email": "newref@test.com",
+            "username": "newref",
+            "password": "SuperSecret123!",
+            "user_type": "influencer",
+            "first_name": "New",
+            "last_name": "Ref",
+            "referral_code": "ABCD1234",
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+
+        new_user = User.objects.get(email="newref@test.com")
+        new_profile = new_user.influencer_profile
+        ref_profile.refresh_from_db()
+
+        self.assertEqual(new_profile.referred_by_id, ref_profile.id)
+        self.assertEqual(float(new_profile.referral_commission_discount_percent), 4.0)
+        self.assertEqual(float(ref_profile.referral_commission_discount_percent), 4.0)
+        self.assertTrue(bool(new_profile.referral_code))
+
+    def test_referral_overview_generates_code_if_missing(self):
+        user = User.objects.create_user(
+            email="nocode@test.com", username="nocode", password="pw12345!", user_type="influencer",
+        )
+        profile = InfluencerProfile.objects.create(user=user, display_name="No Code", referral_code="")
+
+        c = APIClient()
+        login = c.post("/api/auth/login/", {"username": "nocode@test.com", "password": "pw12345!"}, format="json")
+        c.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+
+        res = c.get("/api/influencers/referral/")
+        self.assertEqual(res.status_code, 200, res.content)
+        profile.refresh_from_db()
+        self.assertTrue(bool(profile.referral_code))
+        self.assertEqual(res.data.get("referral_code"), profile.referral_code)
+
+
+class BrandEnvironmentTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            email="ownerenv@test.com", username="ownerenv", password="pw12345!", user_type="brand",
+        )
+        self.brand1 = BrandProfile.objects.create(user=self.owner, company_name="Env One")
+
+        self.other_owner = User.objects.create_user(
+            email="owner2@test.com", username="owner2", password="pw12345!", user_type="brand",
+        )
+        self.brand2 = BrandProfile.objects.create(user=self.other_owner, company_name="Env Two")
+
+        BrandMembership.objects.create(
+            brand=self.brand2,
+            user=self.owner,
+            invited_email=self.owner.email,
+            role="admin",
+            status="active",
+            invited_by=self.other_owner,
+        )
+
+    def _as_owner(self):
+        c = APIClient()
+        r = c.post("/api/auth/login/", {"username": "ownerenv@test.com", "password": "pw12345!"}, format="json")
+        c.credentials(HTTP_AUTHORIZATION=f"Bearer {r.data['access']}")
+        return c
+
+    def test_list_and_switch_environment(self):
+        c = self._as_owner()
+
+        listed = c.get("/api/brands/environments/")
+        self.assertEqual(listed.status_code, 200, listed.content)
+        ids = {row["id"] for row in listed.data["results"]}
+        self.assertEqual(ids, {self.brand1.id, self.brand2.id})
+
+        switched = c.post("/api/brands/environments/switch/", {"brand_id": self.brand2.id}, format="json")
+        self.assertEqual(switched.status_code, 200, switched.content)
+        self.assertEqual(switched.data["active_brand_id"], self.brand2.id)
+
+        me = c.get("/api/auth/me/")
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.data.get("active_brand_workspace_id"), self.brand2.id)
+
+    def test_create_environment_from_brand_account(self):
+        c = self._as_owner()
+
+        created = c.post("/api/brands/environments/", {"company_name": "Env Three"}, format="json")
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertEqual(created.data["company_name"], "Env Three")
+
+        new_env = BrandProfile.objects.get(company_name="Env Three")
+        membership = BrandMembership.objects.filter(brand=new_env, user=self.owner, status="active").first()
+        self.assertIsNotNone(membership)
+        self.assertEqual(membership.role, "owner")
+
+        me = c.get("/api/auth/me/")
+        self.assertEqual(me.status_code, 200, me.content)
+        self.assertEqual(me.data.get("active_brand_workspace_id"), new_env.id)
 
 
 class SupportTicketTests(TestCase):

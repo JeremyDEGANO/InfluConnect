@@ -20,8 +20,15 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token")
+  const selectedBrandId = localStorage.getItem("selected_brand_id")
+  const rawUrl = String(config.url || "")
+  const path = rawUrl.startsWith("http") ? new URL(rawUrl).pathname : rawUrl
+  const isAuthRoute = /\/auth\//.test(path)
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  if (!isAuthRoute && selectedBrandId && config.headers) {
+    config.headers["X-Brand-Id"] = selectedBrandId
   }
   // Send the user's current UI language so the backend can translate accordingly
   if (config.headers) {

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from decimal import Decimal
+import secrets
 import requests
 
 from django.conf import settings
@@ -48,6 +49,7 @@ from .models import (
     MediaKitImage, Notification, PlatformSettings, Review,
     SocialNetwork, SocialVideo, SocialStatsSnapshot, SocialFraudFlag, User,
     BrandMembership, AgencyDelegation, SupportTicket, SupportTicketImage,
+    InfluencerReferralInvite,
 )
 from .serializers import (
     AmbassadorProgramSerializer, AuditLogSerializer, BrandAdminSerializer,
@@ -61,6 +63,12 @@ from .serializers import (
     _validate_influencer_pseudo, suggest_influencer_pseudos,
 )
 from .services import email_service, stripe_service
+from .views import _brand_users
+from .workspace import (
+    get_user_role_for_brand,
+    resolve_active_brand,
+    user_can_access_brand,
+)
 from .services.completion import compute_influencer_completion
 from .services.pdf_service import generate_contract_pdf, generate_media_kit_pdf
 from .services.insights_reporting import (
@@ -76,9 +84,11 @@ from .services.insights_reporting import (
 # Helpers
 # ---------------------------------------------------------------------------
 def _client_ip(request) -> str | None:
+    # Rightmost X-Forwarded-For entry: appended by our trusted reverse proxy.
+    # The leftmost entries are client-controlled and trivially spoofable.
     xff = request.META.get("HTTP_X_FORWARDED_FOR")
     if xff:
-        return xff.split(",")[0].strip()
+        return xff.split(",")[-1].strip()
     return request.META.get("REMOTE_ADDR")
 
 
@@ -92,6 +102,21 @@ def _audit(actor, action: str, target_type: str = "", target_id: int | None = No
         metadata=metadata or {},
         ip_address=ip,
     )
+
+
+def _generate_referral_code_if_missing(profile: InfluencerProfile) -> None:
+    if profile.referral_code:
+        return
+    alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    for _ in range(50):
+        code = ''.join(secrets.choice(alphabet) for _ in range(8))
+        if not InfluencerProfile.objects.filter(referral_code=code).exists():
+            profile.referral_code = code
+            profile.save(update_fields=['referral_code'])
+            return
+    fallback = ''.join(secrets.choice(alphabet) for _ in range(10))
+    profile.referral_code = fallback
+    profile.save(update_fields=['referral_code'])
 
 
 class HealthCheckView(APIView):
@@ -316,10 +341,12 @@ class BrandSubscriptionChangeView(APIView):
     def post(self, request):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            profile = request.user.brand_profile
-        except BrandProfile.DoesNotExist:
+        profile = resolve_active_brand(request.user, request=request)
+        if profile is None:
             return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        if get_user_role_for_brand(request.user, profile) not in ("owner", "admin"):
+            return Response({"detail": "Only owners/admins can manage the subscription."},
+                            status=status.HTTP_403_FORBIDDEN)
 
         plan = request.data.get("plan")
         if plan not in SUBSCRIPTION_PLANS:
@@ -362,7 +389,12 @@ class BrandSubscriptionCancelView(APIView):
     def post(self, request):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-        profile = request.user.brand_profile
+        profile = resolve_active_brand(request.user, request=request)
+        if profile is None:
+            return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        if get_user_role_for_brand(request.user, profile) not in ("owner", "admin"):
+            return Response({"detail": "Only owners/admins can manage the subscription."},
+                            status=status.HTTP_403_FORBIDDEN)
         if profile.stripe_subscription_id:
             stripe_service.cancel_subscription(profile.stripe_subscription_id)
         profile.subscription_active = False
@@ -963,9 +995,8 @@ class BrandOnboardingStatusView(APIView):
     def get(self, request):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            profile = request.user.brand_profile
-        except BrandProfile.DoesNotExist:
+        profile = resolve_active_brand(request.user, request=request)
+        if profile is None:
             return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
         missing = _brand_missing_fields(profile)
         effective_status = profile.validation_status
@@ -988,9 +1019,8 @@ class BrandSubmitForValidationView(APIView):
     def post(self, request):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            profile = request.user.brand_profile
-        except BrandProfile.DoesNotExist:
+        profile = resolve_active_brand(request.user, request=request)
+        if profile is None:
             return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
         if profile.validation_status == "approved":
             return Response({"detail": "Already approved."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1025,8 +1055,8 @@ class CampaignLookalikeView(APIView):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
-        campaign = Campaign.objects.filter(pk=pk, brand__user=request.user).first()
-        if not campaign:
+        campaign = Campaign.objects.filter(pk=pk).select_related("brand").first()
+        if not campaign or not user_can_access_brand(request.user, campaign.brand):
             return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
 
         try:
@@ -1068,8 +1098,8 @@ class CampaignEmvView(APIView):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
-        campaign = Campaign.objects.filter(pk=pk, brand__user=request.user).first()
-        if not campaign:
+        campaign = Campaign.objects.filter(pk=pk).select_related("brand").first()
+        if not campaign or not user_can_access_brand(request.user, campaign.brand):
             return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
 
         payload = compute_campaign_emv(campaign)
@@ -1083,8 +1113,8 @@ class CampaignReportExportView(APIView):
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
-        campaign = Campaign.objects.filter(pk=pk, brand__user=request.user).first()
-        if not campaign:
+        campaign = Campaign.objects.filter(pk=pk).select_related("brand").first()
+        if not campaign or not user_can_access_brand(request.user, campaign.brand):
             return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
 
         output_format = str(request.data.get("format") or "pptx").strip().lower()
@@ -1256,9 +1286,9 @@ class ProposalGenerateContractView(APIView):
             ).get(pk=pk)
         except CampaignProposal.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        # only the brand for this proposal can request generation
+        # only the brand team for this proposal can request generation
         if (request.user.user_type != "brand"
-                or proposal.campaign.brand.user_id != request.user.id):
+                or get_user_role_for_brand(request.user, proposal.campaign.brand) not in ("owner", "admin")):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
         if proposal.status not in ("accepted", "counter_offer"):
             return Response({"detail": "Proposal must be accepted first."},
@@ -1298,12 +1328,13 @@ class ProposalGenerateContractView(APIView):
                 f"La marque a généré le contrat pour « {proposal.campaign.title} ». "
                 f"Veuillez le relire et le signer.",
                 proposal=proposal, send_email=True)
-        if proposal.campaign.brand.user.email:
+        brand_contacts = _brand_users(proposal.campaign.brand)
+        if brand_contacts and brand_contacts[0].email:
             email_service.send_contract_ready_for_signature(
-                proposal.campaign.brand.user.email,
+                brand_contacts[0].email,
                 "brand",
                 proposal.campaign.title,
-                language=proposal.campaign.brand.user.language_preference,
+                language=brand_contacts[0].language_preference,
             )
         return Response(CampaignProposalSerializer(proposal).data)
 
@@ -1344,9 +1375,10 @@ class CastingApplyView(APIView):
             motivation=motivation,
             examples=request.data.get("examples", []),
         )
-        _notify(campaign.brand.user, "casting_application", "Nouvelle candidature",
-                f"{profile.display_name or request.user.username} a postulé à « {campaign.title} ».",
-                send_email=True)
+        for recipient in _brand_users(campaign.brand):
+            _notify(recipient, "casting_application", "Nouvelle candidature",
+                    f"{profile.display_name or request.user.username} a postulé à « {campaign.title} ».",
+                    send_email=True)
         return Response(CastingApplicationSerializer(app).data, status=status.HTTP_201_CREATED)
 
 
@@ -1360,9 +1392,8 @@ class CastingApplicationsListView(generics.ListAPIView):
         user = self.request.user
         if user.user_type != "brand":
             return CastingApplication.objects.none()
-        try:
-            campaign = Campaign.objects.get(pk=pk, brand__user=user)
-        except Campaign.DoesNotExist:
+        campaign = Campaign.objects.filter(pk=pk).select_related("brand").first()
+        if not campaign or not user_can_access_brand(user, campaign.brand):
             return CastingApplication.objects.none()
         return CastingApplication.objects.filter(campaign=campaign).select_related(
             "influencer__user"
@@ -1380,7 +1411,7 @@ class CastingApplicationDecisionView(APIView):
         except CastingApplication.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         if (request.user.user_type != "brand"
-                or app.campaign.brand.user_id != request.user.id):
+                or not user_can_access_brand(request.user, app.campaign.brand)):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
         decision = request.data.get("decision")
         if decision not in ("selected", "rejected"):
@@ -1446,7 +1477,10 @@ class AmbassadorProgramViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.user_type == "brand":
-            return AmbassadorProgram.objects.filter(brand__user=user).order_by("-created_at")
+            brand = resolve_active_brand(user, request=self.request)
+            if brand is None:
+                return AmbassadorProgram.objects.none()
+            return AmbassadorProgram.objects.filter(brand=brand).order_by("-created_at")
         if user.user_type == "influencer":
             return AmbassadorProgram.objects.filter(influencer__user=user).order_by("-created_at")
         return AmbassadorProgram.objects.all().order_by("-created_at")
@@ -1455,7 +1489,11 @@ class AmbassadorProgramViewSet(viewsets.ModelViewSet):
         if self.request.user.user_type != "brand":
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only brands can create ambassador programs.")
-        serializer.save(brand=self.request.user.brand_profile)
+        brand = resolve_active_brand(self.request.user, request=self.request)
+        if brand is None:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("No brand workspace.")
+        serializer.save(brand=brand)
 
 
 # ---------------------------------------------------------------------------
@@ -1468,13 +1506,19 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if self.request.user.user_type != "brand":
             return ContractTemplate.objects.none()
-        return ContractTemplate.objects.filter(brand__user=self.request.user).order_by("-id")
+        brand = resolve_active_brand(self.request.user, request=self.request)
+        if brand is None:
+            return ContractTemplate.objects.none()
+        return ContractTemplate.objects.filter(brand=brand).order_by("-id")
 
     def perform_create(self, serializer):
         if self.request.user.user_type != "brand":
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only brands can manage contract templates.")
-        profile = self.request.user.brand_profile
+        profile = resolve_active_brand(self.request.user, request=self.request)
+        if profile is None:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("No brand workspace.")
         if profile.subscription_plan not in ("growth", "pro"):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Templates are only available on Growth and Pro plans.")
@@ -1956,7 +2000,7 @@ class CampaignVideoTrackingListView(APIView):
     def _get_proposal(self, request, pk):
         proposal = get_object_or_404(CampaignProposal, pk=pk)
         user = request.user
-        is_brand = user.user_type == "brand" and proposal.campaign.brand.user_id == user.id
+        is_brand = user.user_type == "brand" and user_can_access_brand(user, proposal.campaign.brand)
         is_influencer = user.user_type == "influencer" and proposal.influencer.user_id == user.id
         is_admin = user.is_staff or user.user_type == "admin"
         if not (is_brand or is_influencer or is_admin):
@@ -2028,7 +2072,7 @@ class CampaignVideoTrackingDeleteView(APIView):
         tracking = get_object_or_404(CampaignVideoTracking, pk=pk)
         proposal = tracking.proposal
         user = request.user
-        is_brand = user.user_type == "brand" and proposal.campaign.brand.user_id == user.id
+        is_brand = user.user_type == "brand" and user_can_access_brand(user, proposal.campaign.brand)
         is_influencer = user.user_type == "influencer" and proposal.influencer.user_id == user.id
         is_admin = user.is_staff or user.user_type == "admin"
         if not (is_brand or is_influencer or is_admin):
@@ -2183,9 +2227,8 @@ class MarketplaceContactInfluencerView(APIView):
         if user.user_type != "brand":
             return Response({"detail": "Only brands can contact influencers."}, status=status.HTTP_403_FORBIDDEN)
 
-        try:
-            brand = user.brand_profile
-        except BrandProfile.DoesNotExist:
+        brand = resolve_active_brand(user, request=request)
+        if brand is None:
             return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if brand.validation_status != "approved":
@@ -2240,8 +2283,134 @@ class MarketplaceContactInfluencerView(APIView):
 
         return Response({"sent": True}, status=status.HTTP_201_CREATED)
 
+
+class InfluencerReferralOverviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.user_type != 'influencer':
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            profile = request.user.influencer_profile
+        except InfluencerProfile.DoesNotExist:
+            return Response({'detail': 'Influencer profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        _generate_referral_code_if_missing(profile)
+
+        accepted_count = profile.referrals_made.count()
+        pending_count = InfluencerReferralInvite.objects.filter(inviter=profile, status='sent').count()
+        return Response({
+            'referral_code': profile.referral_code,
+            'discount_percent': profile.referral_commission_discount_percent,
+            'referred_by': profile.referred_by_id,
+            'accepted_referrals': accepted_count,
+            'pending_invites': pending_count,
+        })
+
+
+class InfluencerReferralInviteListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.user_type != 'influencer':
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            profile = request.user.influencer_profile
+        except InfluencerProfile.DoesNotExist:
+            return Response({'detail': 'Influencer profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        _generate_referral_code_if_missing(profile)
+
+        invites = InfluencerReferralInvite.objects.filter(inviter=profile).order_by('-created_at')[:50]
+        return Response({
+            'results': [
+                {
+                    'id': inv.id,
+                    'invited_email': inv.invited_email,
+                    'status': inv.status,
+                    'invitation_token': str(inv.invitation_token),
+                    'referral_code_snapshot': inv.referral_code_snapshot,
+                    'created_at': inv.created_at,
+                    'accepted_at': inv.accepted_at,
+                }
+                for inv in invites
+            ]
+        })
+
+    def post(self, request):
+        if request.user.user_type != 'influencer':
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            profile = request.user.influencer_profile
+        except InfluencerProfile.DoesNotExist:
+            return Response({'detail': 'Influencer profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        _generate_referral_code_if_missing(profile)
+
+        email = (request.data.get('invited_email') or '').strip().lower()
+        if not email:
+            return Response({'invited_email': 'required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing = InfluencerReferralInvite.objects.filter(
+            inviter=profile,
+            invited_email__iexact=email,
+            status='sent',
+        ).first()
+        if existing:
+            return Response({'detail': 'Invitation already sent.'}, status=status.HTTP_409_CONFLICT)
+
+        invitation_message = (request.data.get('message') or '').strip()
+        invite = InfluencerReferralInvite.objects.create(
+            inviter=profile,
+            invited_email=email,
+            referral_code_snapshot=profile.referral_code,
+            invitation_message=invitation_message,
+        )
+
+        frontend = getattr(settings, 'FRONTEND_URL', 'https://influconnect.fr').rstrip('/')
+        register_url = f"{frontend}/register?type=influencer&ref={profile.referral_code}"
+        sender_name = (profile.display_name or '').strip() or request.user.username
+        language = request.user.language_preference
+        is_fr = str(language or '').lower().startswith('fr')
+        message_block = f"\n\nMessage personnel:\n{invitation_message}\n" if invitation_message else ""
+
+        email_service.send(
+            to=email,
+            subject=(
+                f"InfluConnect - {sender_name} vous invite" if is_fr
+                else f"InfluConnect - {sender_name} invited you"
+            ),
+            body_text=(
+                (
+                    f"Bonjour,\n\n{sender_name} vous invite sur InfluConnect.\n"
+                    f"Code de parrainage: {profile.referral_code}\n"
+                    f"Inscription: {register_url}"
+                    f"{message_block}\n"
+                    "En rejoignant avec ce code, vous obtenez tous les deux une reduction de commission.\n"
+                )
+                if is_fr else
+                (
+                    f"Hello,\n\n{sender_name} invited you to InfluConnect.\n"
+                    f"Referral code: {profile.referral_code}\n"
+                    f"Register: {register_url}"
+                    f"{message_block}\n"
+                    "By joining with this code, both of you receive a commission discount.\n"
+                )
+            ),
+        )
+
+        return Response({
+            'id': invite.id,
+            'invited_email': invite.invited_email,
+            'status': invite.status,
+            'invitation_token': str(invite.invitation_token),
+            'referral_code_snapshot': invite.referral_code_snapshot,
+            'created_at': invite.created_at,
+        }, status=status.HTTP_201_CREATED)
+
 from ._views_team_agency import (
     BrandMembershipListCreateView, BrandMembershipDetailView,
     AgencyDelegationListCreateView, AgencyDelegationActionView,
+    BrandEnvironmentListView, BrandEnvironmentSwitchView,
 )
 

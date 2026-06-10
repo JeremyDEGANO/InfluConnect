@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 
 
 logger = logging.getLogger("api.request")
+
+# Never write credentials passed as query params (e.g. docs ?token=<jwt>) to logs.
+_SENSITIVE_QUERY_RE = re.compile(r"((?:^|[?&])(?:token|access|refresh|code|state)=)[^&]+", re.IGNORECASE)
+
+
+def _redact(path: str) -> str:
+    return _SENSITIVE_QUERY_RE.sub(r"\1[redacted]", path)
 
 
 class RequestLogMiddleware:
@@ -26,7 +34,7 @@ class RequestLogMiddleware:
         logger.info(json.dumps({
             "request_id": request_id,
             "method": request.method,
-            "path": request.get_full_path(),
+            "path": _redact(request.get_full_path()),
             "status_code": response.status_code,
             "duration_ms": duration_ms,
             "remote_addr": request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", "")),

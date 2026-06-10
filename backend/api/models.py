@@ -1,7 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+import secrets
 import uuid
+
+
+def generate_invitation_token() -> str:
+    return secrets.token_urlsafe(32)
 
 
 class User(AbstractUser):
@@ -31,6 +36,10 @@ class User(AbstractUser):
     totp_secret = models.CharField(max_length=64, blank=True)
     totp_enabled = models.BooleanField(default=False)
     email_2fa_enabled = models.BooleanField(default=False)
+    active_brand_workspace = models.ForeignKey(
+        'BrandProfile', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='active_users',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -81,6 +90,16 @@ class InfluencerProfile(models.Model):
     # Stripe Connect (for payouts)
     stripe_account_id = models.CharField(max_length=100, blank=True)
     stripe_onboarding_url = models.URLField(blank=True)
+    referral_code = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    referred_by = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='referrals_made',
+    )
+    referral_code_used_at = models.DateTimeField(null=True, blank=True)
+    referral_commission_discount_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text='Discount points applied to the platform commission for this influencer.',
+    )
 
     def __str__(self):
         return f'InfluencerProfile: {self.user.username}'
@@ -208,6 +227,17 @@ class MediaKitImage(models.Model):
         return f'MediaKitImage[{self.id}] {self.influencer.user.username}'
 
 
+class BrandOrganization(models.Model):
+    """The client company. Groups every environment (BrandProfile) of the same
+    customer so a single subscription/team can span multiple legal entities."""
+    name = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'BrandOrganization: {self.name}'
+
+
 class BrandProfile(models.Model):
     SUBSCRIPTION_PLAN_CHOICES = [
         ('starter', 'Starter'),
@@ -221,6 +251,10 @@ class BrandProfile(models.Model):
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='brand_profile')
+    organization = models.ForeignKey(
+        BrandOrganization, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='environments',
+    )
     company_name = models.CharField(max_length=200)
     siret = models.CharField(max_length=20, blank=True)  # CDC §5.1
     logo = models.ImageField(upload_to='logos/', null=True, blank=True)
@@ -288,6 +322,91 @@ class BrandMembership(models.Model):
 
     def __str__(self):
         return f'{self.brand.company_name} — {self.user_id or self.invited_email} ({self.role})'
+
+
+class OrganizationMembership(models.Model):
+    """Global access to ALL environments of an organization.
+
+    role 'admin'  → global administrator of the client (manages every
+                    environment, members and invitations).
+    role 'member' → operational access to every environment, no member management.
+    """
+    ROLE_CHOICES = [
+        ('admin', 'Global admin'),
+        ('member', 'Global member'),
+    ]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('revoked', 'Revoked'),
+    ]
+    organization = models.ForeignKey(BrandOrganization, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organization_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['organization', 'user'], name='uniq_org_user_membership'),
+        ]
+
+    def __str__(self):
+        return f'{self.organization.name} — {self.user.email} (global {self.role})'
+
+
+class TeamInvitation(models.Model):
+    """Secure email invitation to join one, several or all environments of an
+    organization. The invitee must follow the emailed token link and either log
+    in with the invited email or create an account before access is granted."""
+    ROLE_CHOICES = [
+        ('admin', 'Admin'),
+        ('member', 'Member'),
+    ]
+    SCOPE_CHOICES = [
+        ('global', 'All environments (global)'),
+        ('environments', 'Selected environments'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('cancelled', 'Cancelled'),
+        ('expired', 'Expired'),
+    ]
+    EXPIRY_DAYS = 7
+
+    organization = models.ForeignKey(BrandOrganization, on_delete=models.CASCADE, related_name='team_invitations')
+    invited_email = models.EmailField()
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default='environments')
+    environments = models.ManyToManyField(BrandProfile, blank=True, related_name='team_invitations')
+    token = models.CharField(max_length=64, unique=True, editable=False, default=generate_invitation_token)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    message = models.TextField(blank=True)
+    invited_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='team_invitations_sent')
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='team_invitations_accepted')
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'invited_email'],
+                condition=models.Q(status='pending'),
+                name='uniq_pending_team_invitation_per_email',
+            ),
+        ]
+
+    def __str__(self):
+        return f'TeamInvitation: {self.invited_email} → {self.organization.name} ({self.status})'
+
+    @property
+    def is_expired(self) -> bool:
+        from django.utils import timezone
+        return self.status == 'pending' and self.expires_at and self.expires_at < timezone.now()
 
 
 class AgencyDelegation(models.Model):
@@ -754,6 +873,7 @@ class AuditLog(models.Model):
 
 class PlatformSettings(models.Model):
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=15)
+    referral_commission_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=3)
     validation_deadline_days = models.IntegerField(default=5)
     dispute_resolution_hours = models.IntegerField(default=48)
 
@@ -768,6 +888,39 @@ class PlatformSettings(models.Model):
 
     def __str__(self):
         return 'Platform Settings'
+
+
+class InfluencerReferralInvite(models.Model):
+    STATUS_CHOICES = [
+        ('sent', 'Sent'),
+        ('accepted', 'Accepted'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    inviter = models.ForeignKey(InfluencerProfile, on_delete=models.CASCADE, related_name='sent_referral_invites')
+    invited_email = models.EmailField()
+    invitation_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    referral_code_snapshot = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='sent')
+    accepted_by = models.ForeignKey(
+        InfluencerProfile, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='accepted_referral_invites',
+    )
+    invitation_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['inviter', 'invited_email'],
+                condition=models.Q(status='sent'),
+                name='uniq_open_referral_invite_per_email',
+            ),
+        ]
+
+    def __str__(self):
+        return f'ReferralInvite: {self.inviter.user.username} -> {self.invited_email} ({self.status})'
 
 
 # ---------------------------------------------------------------------------
@@ -863,3 +1016,190 @@ class SocialFraudFlag(models.Model):
 
     def __str__(self):
         return f'FraudFlag[{self.flag_type}] sn={self.social_network_id}'
+
+
+# ---------------------------------------------------------------------------
+# Enterprise SSO + Domain verification (Office 365 / OIDC)
+# ---------------------------------------------------------------------------
+class BrandDomain(models.Model):
+    """A DNS domain owned by a brand/agency, used to gate SSO sign-in."""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('verified', 'Verified'),
+        ('failed', 'Failed'),
+        ('expired', 'Expired'),
+    ]
+    brand = models.ForeignKey(BrandProfile, on_delete=models.CASCADE, related_name='domains')
+    domain = models.CharField(max_length=253, db_index=True)
+    verification_token = models.CharField(max_length=64)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['brand', 'domain'], name='uniq_brand_domain'),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.domain} ({self.status})'
+
+
+class BrandSSOConfig(models.Model):
+    """Per-brand SSO configuration (currently Office 365 / Entra ID)."""
+    PROVIDER_CHOICES = [
+        ('office365', 'Office 365 / Entra ID'),
+    ]
+    brand = models.OneToOneField(BrandProfile, on_delete=models.CASCADE, related_name='sso_config')
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='office365')
+    enabled = models.BooleanField(default=False)
+    tenant_id = models.CharField(max_length=64, blank=True)
+    client_id = models.CharField(max_length=64, blank=True)
+    client_secret_enc = models.TextField(blank=True)  # Fernet-encrypted
+    enforce_sso = models.BooleanField(default=False)
+    allow_local_fallback_for_owner = models.BooleanField(default=True)
+    auto_provision_users = models.BooleanField(default=False)
+    default_role = models.CharField(max_length=20, default='member')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'SSO[{self.provider}] brand={self.brand_id}'
+
+
+# ---------------------------------------------------------------------------
+# Public API keys + audit log
+# ---------------------------------------------------------------------------
+class ApiKey(models.Model):
+    """Public API access key for a brand/agency. The secret is only shown once at creation."""
+    SCOPE_CHOICES = [
+        ('campaigns:read', 'Read campaigns'),
+        ('campaigns:write', 'Write campaigns'),
+        ('proposals:read', 'Read proposals'),
+        ('proposals:write', 'Write proposals'),
+        ('influencers:read', 'Read influencers'),
+        ('influencers:verify', 'Trigger influencer verification'),
+        ('reporting:read', 'Read reporting'),
+        ('contracts:read', 'Read contracts'),
+        ('webhooks:manage', 'Manage webhooks'),
+    ]
+
+    brand = models.ForeignKey(BrandProfile, on_delete=models.CASCADE, related_name='api_keys')
+    name = models.CharField(max_length=120)
+    prefix = models.CharField(max_length=24, unique=True, db_index=True)  # e.g. "ic_live_AbCd1234"
+    hashed_secret = models.CharField(max_length=128)  # sha256 hex
+    scopes = models.JSONField(default=list, blank=True)
+    ip_allowlist = models.JSONField(default=list, blank=True)  # list of CIDRs / IPs
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    last_used_ip = models.GenericIPAddressField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'ApiKey[{self.prefix}] brand={self.brand_id}'
+
+    @property
+    def is_active(self) -> bool:
+        from django.utils import timezone
+        if self.revoked_at:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        return True
+
+
+class ApiAuditLog(models.Model):
+    """Audit trail for every public API call (success or error)."""
+    api_key = models.ForeignKey(ApiKey, null=True, blank=True, on_delete=models.SET_NULL, related_name='audit_entries')
+    brand = models.ForeignKey(BrandProfile, null=True, blank=True, on_delete=models.SET_NULL, related_name='api_audit_entries')
+    method = models.CharField(max_length=8)
+    path = models.CharField(max_length=255)
+    status_code = models.PositiveSmallIntegerField()
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    latency_ms = models.PositiveIntegerField(default=0)
+    request_id = models.CharField(max_length=36, blank=True)
+    error = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['brand', '-created_at']),
+            models.Index(fields=['api_key', '-created_at']),
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Webhooks (outbound event delivery)
+# ---------------------------------------------------------------------------
+class WebhookEndpoint(models.Model):
+    """Customer-managed HTTPS endpoint receiving signed event POSTs."""
+    EVENT_CHOICES = [
+        ('proposal.created', 'Proposal created'),
+        ('proposal.accepted', 'Proposal accepted'),
+        ('proposal.declined', 'Proposal declined'),
+        ('proposal.counter_offered', 'Proposal counter-offered'),
+        ('content.submitted', 'Content submitted'),
+        ('content.validated', 'Content validated'),
+        ('content.rejected', 'Content rejected'),
+        ('contract.signed', 'Contract signed'),
+        ('escrow.funded', 'Escrow funded'),
+        ('payment.released', 'Payment released'),
+        ('campaign.status_changed', 'Campaign status changed'),
+        ('influencer.verified', 'Influencer verified'),
+        ('agency.delegation.accepted', 'Agency delegation accepted'),
+    ]
+
+    brand = models.ForeignKey(BrandProfile, on_delete=models.CASCADE, related_name='webhook_endpoints')
+    url = models.URLField(max_length=600)
+    secret = models.CharField(max_length=64)  # used for HMAC-SHA256 signature
+    events = models.JSONField(default=list, blank=True)  # subset of EVENT_CHOICES values; [] = all
+    description = models.CharField(max_length=255, blank=True)
+    enabled = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_delivery_at = models.DateTimeField(null=True, blank=True)
+    last_status = models.CharField(max_length=16, blank=True)  # success / failed
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Webhook {self.url} brand={self.brand_id}'
+
+
+class WebhookDelivery(models.Model):
+    """Each attempt to deliver an event to a WebhookEndpoint."""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+        ('retry', 'Retry'),
+    ]
+    endpoint = models.ForeignKey(WebhookEndpoint, on_delete=models.CASCADE, related_name='deliveries')
+    event = models.CharField(max_length=64)
+    payload = models.JSONField(default=dict)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending')
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_retry_at = models.DateTimeField(null=True, blank=True)
+    response_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    response_body = models.TextField(blank=True)
+    error = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['endpoint', '-created_at'])]
+
+    def __str__(self):
+        return f'Delivery[{self.event}] -> ep={self.endpoint_id} ({self.status})'

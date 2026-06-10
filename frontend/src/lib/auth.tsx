@@ -25,6 +25,17 @@ export interface User {
   updated_at: string
   influencer_profile?: Record<string, unknown>
   brand_profile?: Record<string, unknown>
+  brand_environments?: Array<{ id: number; company_name: string; is_agency: boolean; role: string | null }>
+  active_brand_workspace_id?: number | null
+  active_brand_role?: string | null
+  active_brand?: {
+    id: number
+    company_name: string
+    is_agency: boolean
+    validation_status: string
+    subscription_plan: string | null
+    subscription_active: boolean
+  } | null
 }
 
 export type LoginResult =
@@ -38,6 +49,8 @@ interface AuthState {
   isLoading: boolean
   login: (username: string, password: string, totpCode?: string, emailOtpCode?: string) => Promise<LoginResult>
   register: (data: Record<string, string | boolean>) => Promise<User>
+  switchBrandWorkspace: (brandId: number) => Promise<void>
+  createBrandWorkspace: (companyName: string) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
 }
@@ -57,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const { data } = await api.get("/auth/me/")
+      if (data?.active_brand_workspace_id) {
+        localStorage.setItem("selected_brand_id", String(data.active_brand_workspace_id))
+      } else {
+        localStorage.removeItem("selected_brand_id")
+      }
       setUser(data)
     } catch {
       localStorage.removeItem("access_token")
@@ -84,6 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.setItem("access_token", data.access)
     localStorage.setItem("refresh_token", data.refresh)
+    if (data?.user?.active_brand_workspace_id) {
+      localStorage.setItem("selected_brand_id", String(data.user.active_brand_workspace_id))
+    } else {
+      localStorage.removeItem("selected_brand_id")
+    }
     setUser(data.user)
     return { user: data.user }
   }
@@ -92,13 +115,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await api.post("/auth/register/", payload)
     localStorage.setItem("access_token", data.access)
     localStorage.setItem("refresh_token", data.refresh)
+    if (data?.user?.active_brand_workspace_id) {
+      localStorage.setItem("selected_brand_id", String(data.user.active_brand_workspace_id))
+    } else {
+      localStorage.removeItem("selected_brand_id")
+    }
     setUser(data.user)
     return data.user
+  }
+
+  const switchBrandWorkspace = async (brandId: number): Promise<void> => {
+    await api.post("/brands/environments/switch/", { brand_id: brandId })
+    localStorage.setItem("selected_brand_id", String(brandId))
+    await fetchUser()
+  }
+
+  const createBrandWorkspace = async (companyName: string): Promise<void> => {
+    const { data } = await api.post("/brands/environments/", { company_name: companyName })
+    if (data?.id) {
+      localStorage.setItem("selected_brand_id", String(data.id))
+    }
+    await fetchUser()
   }
 
   const logout = () => {
     localStorage.removeItem("access_token")
     localStorage.removeItem("refresh_token")
+    localStorage.removeItem("selected_brand_id")
     setUser(null)
   }
 
@@ -110,6 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         register,
+        switchBrandWorkspace,
+        createBrandWorkspace,
         logout,
         refreshUser: fetchUser,
       }}

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import {
   LayoutDashboard, FileText, DollarSign, User, Briefcase, PlusCircle,
   CreditCard, ChevronLeft, ChevronRight, Shield, Sparkles, Star, ScrollText, Building2,
-  Bell, Megaphone, Crown, Users, LifeBuoy, MessageSquare, CalendarCheck,
+  Bell, Megaphone, Crown, Users, LifeBuoy, MessageSquare, CalendarCheck, Plug, Gift,
 } from "lucide-react"
 
 type NavSection = "work" | "account"
@@ -20,6 +20,7 @@ interface ConversationItem {
 
 const INFLUENCER_NAV: NavItem[] = [
   { label: "nav.dashboard", href: "/influencer/dashboard", icon: LayoutDashboard, section: "work" },
+  { label: "nav.referral", href: "/influencer/referral", icon: Gift, section: "work" },
   { label: "nav.onboarding", href: "/influencer/onboarding", icon: Sparkles, section: "work" },
   { label: "nav.message", href: "/influencer/messages", icon: MessageSquare, section: "work" },
   { label: "nav.events", href: "/influencer/events", icon: CalendarCheck, section: "work" },
@@ -47,6 +48,8 @@ const BRAND_NAV: NavItem[] = [
   { label: "nav.notifications", href: "/brand/notifications", icon: Bell, section: "work" },
   { label: "nav.contract_templates", href: "/brand/contract-templates", icon: ScrollText, section: "work" },
   { label: "nav.team", href: "/brand/team", icon: Users, section: "account" },
+  { label: "nav.environments", href: "/brand/environments", icon: Building2, section: "account" },
+  { label: "nav.integrations", href: "/brand/integrations", icon: Plug, section: "account" },
   { label: "nav.profile", href: "/brand/profile/edit", icon: User, section: "account" },
   { label: "nav.subscription", href: "/brand/subscription", icon: CreditCard, section: "account" },
   { label: "nav.support", href: "/brand/support", icon: LifeBuoy, section: "account" },

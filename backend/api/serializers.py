@@ -1,10 +1,13 @@
 from django.contrib.auth import authenticate
 from django.conf import settings
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import serializers
 from cryptography.fernet import Fernet, InvalidToken
 from django.urls import reverse
 import base64
 import hashlib
+import secrets
 import re
 import unicodedata
 
@@ -19,7 +22,9 @@ from .models import (
     ContractTemplate, CastingApplication, AmbassadorProgram, AuditLog,
     MediaKitImage, BrandMembership, AgencyDelegation, SupportTicket,
     SupportTicketImage, TranslationCache,
+    InfluencerReferralInvite,
 )
+from .workspace import get_user_brand_workspaces, get_user_role_for_brand
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +181,15 @@ def suggest_influencer_pseudos(value: str, *, current_profile=None, reserved_use
     return suggestions
 
 
+def _generate_unique_referral_code() -> str:
+    alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    for _ in range(50):
+        code = ''.join(secrets.choice(alphabet) for _ in range(8))
+        if not InfluencerProfile.objects.filter(referral_code=code).exists():
+            return code
+    return ''.join(secrets.choice(alphabet) for _ in range(10))
+
+
 def _validate_influencer_pseudo(value, *, current_profile=None, reserved_username=None):
     cleaned = (value or '').strip()
     if not cleaned:
@@ -312,6 +326,8 @@ class InfluencerProfileSerializer(serializers.ModelSerializer):
     city = serializers.CharField(source='user.location', read_only=True)
     pseudo = serializers.SerializerMethodField()
     media_kit_pdf = serializers.SerializerMethodField()
+    referral_code = serializers.CharField(read_only=True)
+    referral_commission_discount_percent = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
 
     class Meta:
         model = InfluencerProfile
@@ -323,6 +339,7 @@ class InfluencerProfileSerializer(serializers.ModelSerializer):
             'media_kit_pdf', 'media_kit_generated_at', 'media_kit_is_custom', 'media_kit_images',
             'content_links',
             'stripe_account_id',
+            'referral_code', 'referral_commission_discount_percent',
         ]
         read_only_fields = [
             'is_verified', 'average_rating',
@@ -467,6 +484,10 @@ class UserSerializer(serializers.ModelSerializer):
     sso_enabled = serializers.SerializerMethodField()
     influencer_profile = InfluencerProfileSerializer(read_only=True)
     brand_profile = BrandProfileSerializer(read_only=True)
+    brand_environments = serializers.SerializerMethodField()
+    active_brand_workspace_id = serializers.IntegerField(read_only=True)
+    active_brand_role = serializers.SerializerMethodField()
+    active_brand = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -475,6 +496,7 @@ class UserSerializer(serializers.ModelSerializer):
             'user_type', 'auth_provider', 'sso_enabled', 'language_preference', 'avatar', 'avatar_upload', 'phone', 'location',
             'totp_enabled', 'email_2fa_enabled',
             'created_at', 'updated_at', 'influencer_profile', 'brand_profile',
+            'brand_environments', 'active_brand_workspace_id', 'active_brand_role', 'active_brand',
         ]
         read_only_fields = ['user_type', 'auth_provider', 'sso_enabled', 'created_at', 'updated_at', 'totp_enabled', 'email_2fa_enabled']
 
@@ -493,6 +515,38 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_sso_enabled(self, obj):
         return bool(getattr(obj, 'is_sso_account', False))
+
+    def get_brand_environments(self, obj):
+        if not getattr(obj, 'is_authenticated', False):
+            return []
+        workspaces = get_user_brand_workspaces(obj).select_related('user')
+        payload = []
+        for brand in workspaces:
+            payload.append({
+                'id': brand.id,
+                'company_name': brand.company_name,
+                'is_agency': bool(brand.is_agency),
+                'role': get_user_role_for_brand(obj, brand),
+            })
+        return payload
+
+    def get_active_brand_role(self, obj):
+        if not obj.active_brand_workspace_id:
+            return None
+        return get_user_role_for_brand(obj, getattr(obj, 'active_brand_workspace', None))
+
+    def get_active_brand(self, obj):
+        brand = getattr(obj, 'active_brand_workspace', None)
+        if not brand:
+            return None
+        return {
+            'id': brand.id,
+            'company_name': brand.company_name,
+            'is_agency': bool(brand.is_agency),
+            'validation_status': brand.validation_status,
+            'subscription_plan': brand.subscription_plan,
+            'subscription_active': bool(brand.subscription_active),
+        }
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -513,6 +567,7 @@ class RegisterSerializer(serializers.Serializer):
     is_agency = serializers.BooleanField(required=False, default=False)
     # Influencer-specific
     display_name = serializers.CharField(max_length=100, required=False, default='')
+    referral_code = serializers.CharField(max_length=20, required=False, default='', allow_blank=True)
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
@@ -548,6 +603,13 @@ class RegisterSerializer(serializers.Serializer):
                 )
             except serializers.ValidationError as exc:
                 raise serializers.ValidationError({'display_name': exc.detail})
+            referral_code = (attrs.get('referral_code') or '').strip().upper()
+            if referral_code:
+                referrer = InfluencerProfile.objects.filter(referral_code=referral_code).select_related('user').first()
+                if not referrer:
+                    raise serializers.ValidationError({'referral_code': 'Invalid referral code.'})
+                attrs['_referrer_profile'] = referrer
+                attrs['referral_code'] = referral_code
         return attrs
 
     def create(self, validated_data):
@@ -560,13 +622,35 @@ class RegisterSerializer(serializers.Serializer):
             last_name=validated_data.get('last_name', ''),
         )
         if user.user_type == 'influencer':
-            InfluencerProfile.objects.create(
+            profile = InfluencerProfile.objects.create(
                 user=user,
                 display_name=validated_data.get('display_name', ''),
+                referral_code=_generate_unique_referral_code(),
             )
+            referrer = validated_data.get('_referrer_profile')
+            if referrer and referrer.user_id != user.id:
+                discount = PlatformSettings.get_instance().referral_commission_discount_percent
+                profile.referred_by = referrer
+                profile.referral_code_used_at = timezone.now()
+                profile.referral_commission_discount_percent = discount
+                profile.save(update_fields=['referred_by', 'referral_code_used_at', 'referral_commission_discount_percent'])
+
+                if referrer.referral_commission_discount_percent < discount:
+                    referrer.referral_commission_discount_percent = discount
+                    referrer.save(update_fields=['referral_commission_discount_percent'])
+
+                InfluencerReferralInvite.objects.filter(
+                    inviter=referrer,
+                    invited_email__iexact=user.email,
+                    status='sent',
+                ).update(
+                    status='accepted',
+                    accepted_by=profile,
+                    accepted_at=timezone.now(),
+                )
         elif user.user_type == 'brand':
             # validation_status defaults to 'pending' — admin must approve
-            BrandProfile.objects.create(
+            brand_profile = BrandProfile.objects.create(
                 user=user,
                 company_name=validated_data['company_name'],
                 siret=validated_data.get('siret', ''),
@@ -575,6 +659,8 @@ class RegisterSerializer(serializers.Serializer):
                 subscription_plan=validated_data.get('subscription_plan'),
                 is_agency=bool(validated_data.get('is_agency', False)),
             )
+            user.active_brand_workspace = brand_profile
+            user.save(update_fields=['active_brand_workspace'])
         return user
 
 
@@ -583,15 +669,18 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        username_or_email = attrs['username']
+        username_or_email = (attrs.get('username') or '').strip()
         password = attrs['password']
+        if not username_or_email:
+            raise serializers.ValidationError('Invalid credentials.')
+
         user = authenticate(username=username_or_email, password=password)
         if not user:
-            try:
-                email_user = User.objects.get(email=username_or_email)
-                user = authenticate(username=email_user.username, password=password)
-            except User.DoesNotExist:
-                pass
+            account = User.objects.filter(
+                Q(email__iexact=username_or_email) | Q(username__iexact=username_or_email)
+            ).only('username').first()
+            if account:
+                user = authenticate(username=account.username, password=password)
         if not user:
             raise serializers.ValidationError('Invalid credentials.')
         if not user.is_active:
@@ -1077,7 +1166,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
 class PlatformSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformSettings
-        fields = ['commission_rate', 'validation_deadline_days', 'dispute_resolution_hours']
+        fields = ['commission_rate', 'referral_commission_discount_percent', 'validation_deadline_days', 'dispute_resolution_hours']
 
 
 # ---------------------------------------------------------------------------
@@ -1091,7 +1180,7 @@ class BrandMembershipSerializer(serializers.ModelSerializer):
         model = BrandMembership
         fields = ['id', 'brand', 'user', 'user_email', 'user_name', 'invited_email',
                   'role', 'status', 'invited_at', 'joined_at']
-        read_only_fields = ['brand', 'user', 'status', 'invited_at', 'joined_at']
+        read_only_fields = ['brand', 'user', 'invited_email', 'status', 'invited_at', 'joined_at']
 
     def get_user_name(self, obj):
         if not obj.user_id:
