@@ -24,16 +24,22 @@ export default function Subscription() {
   }, [])
 
   const featuresList = (p: Plan) => {
-    const f = p.features
+    const d = p.display
+    const f = p.features ?? {}
     const list: string[] = []
-    list.push(f.campaigns_per_month === "unlimited" ? "Campagnes illimitées" : `${f.campaigns_per_month} campagnes/mois`)
-    list.push(f.contacts === "unlimited" ? "Contacts illimités" : `${f.contacts} contacts`)
-    list.push(`Analytics: ${f.analytics}`)
-    list.push(`Support: ${f.support}`)
-    if (f.custom_contracts) list.push("Contrats personnalisés")
-    if (f.ambassador_program) list.push("Programme ambassadeurs")
-    if (f.dedicated_manager) list.push("Manager dédié")
-    if (f.white_label) list.push("White-label")
+    if (d) {
+      list.push(d.campaigns_per_month === "unlimited" ? "Campagnes illimitées" : `${d.campaigns_per_month} campagnes actives`)
+      list.push(d.contacts === "unlimited" ? "Contacts illimités" : `${d.contacts} contacts`)
+      list.push(`Analytics: ${d.analytics}`)
+      list.push(`Support: ${d.support}`)
+      if (d.custom_contracts) list.push("Modèles de documents")
+      if (d.dedicated_manager) list.push("Manager dédié")
+    }
+    if (f.ambassador_programs) list.push("Programme ambassadeurs")
+    if (f.events) list.push("Événements")
+    if (f.sso_office365_google) list.push("SSO (Office 365)")
+    if (f.api_access) list.push("API & webhooks")
+    if (f.multi_environments) list.push("Multi-environnements")
     return list
   }
 
@@ -78,7 +84,7 @@ export default function Subscription() {
         <CardContent className="flex items-center justify-between">
           <div>
             <p className="text-3xl font-semibold tracking-tight text-aurora-ink capitalize">{currentPlan}</p>
-            <p className="text-aurora-ink-3 text-sm">{plans.find((p) => p.code === currentPlan)?.price_eur ?? 49}€/mois HT</p>
+            <p className="text-aurora-ink-3 text-sm">{user?.active_brand?.plan_price_eur_monthly ?? plans.find((p) => p.code === currentPlan)?.price_eur ?? 0}€/mois HT</p>
           </div>
           <Badge variant="purple" className="text-sm px-4 py-1.5">Actif</Badge>
         </CardContent>

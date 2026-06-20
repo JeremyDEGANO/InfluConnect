@@ -13,12 +13,6 @@ const REQUESTER_KIND_LABELS: Record<string, string> = {
   agency: "admin_support.kind_agency",
 }
 
-const REQUESTER_KIND_STYLES: Record<string, string> = {
-  influencer: "bg-fuchsia-100 text-fuchsia-700",
-  brand: "bg-sky-100 text-sky-700",
-  agency: "bg-emerald-100 text-emerald-700",
-}
-
 const SOURCE_LANG_LABELS: Record<string, string> = {
   EN: "admin_support.lang_en",
   FR: "admin_support.lang_fr",

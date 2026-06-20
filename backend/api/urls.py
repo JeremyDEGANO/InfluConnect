@@ -4,6 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import views, views_extra
 from . import views_auth
+from . import views_plans
 from . import views_sso
 from . import views_api_mgmt
 from . import views_api_v1
@@ -165,6 +166,9 @@ urlpatterns = [
     path("admin/reviews/pending/", views_extra.AdminReviewModerationListView.as_view(), name="admin-reviews-pending"),
     path("admin/reviews/<int:pk>/publish/", views_extra.AdminReviewPublishView.as_view(), name="admin-review-publish"),
     path("admin/reviews/<int:pk>/reject/", views_extra.AdminReviewRejectView.as_view(), name="admin-review-reject"),
+    # Subscription plans configuration (features + pricing)
+    path("admin/plans/", views_plans.AdminPlanConfigListView.as_view(), name="admin-plans"),
+    path("admin/plans/<str:code>/", views_plans.AdminPlanConfigUpdateView.as_view(), name="admin-plan-update"),
     # Audit log
     path("admin/audit-log/", views_extra.AdminAuditLogListView.as_view(), name="admin-audit-log"),
     # Fraud flags (anti-fraud moderation)
@@ -199,6 +203,7 @@ urlpatterns = [
     path("auth/sso/discover/", views_sso.SSOOffice365DiscoverView.as_view(), name="sso-discover"),
     path("auth/sso/office365/start/", views_sso.SSOOffice365StartView.as_view(), name="sso-o365-start"),
     path("auth/sso/office365/callback/", views_sso.SSOOffice365CallbackView.as_view(), name="sso-o365-callback"),
+    path("auth/sso/exchange/", views_sso.SSOExchangeView.as_view(), name="sso-exchange"),
 
     # ---- Brand domains + SSO config ----
     path("v1/brand/domains/", views_sso.BrandDomainListCreateView.as_view(), name="brand-domains"),

@@ -64,7 +64,7 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-def start_login(*, sso: BrandSSOConfig, redirect_uri: str, login_hint: str = "", final_redirect: str = "/") -> StartResult:
+def start_login(*, sso: BrandSSOConfig, redirect_uri: str, login_hint: str = "", final_redirect: str = "/", client: str = "web") -> StartResult:
     if not sso.enabled or not sso.tenant_id or not sso.client_id:
         raise ValueError("SSO is not configured for this workspace.")
     state = secrets.token_urlsafe(24)
@@ -76,6 +76,8 @@ def start_login(*, sso: BrandSSOConfig, redirect_uri: str, login_hint: str = "",
         "nonce": nonce,
         "redirect_uri": redirect_uri,
         "final_redirect": final_redirect,
+        # "mobile" : le callback redirige vers le deep link de l'app au lieu du front web
+        "client": client,
         "ts": time.time(),
     }, timeout=STATE_TTL)
     params = {
@@ -144,7 +146,99 @@ def exchange_and_validate(*, code: str, state: str, redirect_uri: str) -> dict:
         raise ValueError("Invalid nonce.")
     claims["_brand_id"] = sso.brand_id
     claims["_final_redirect"] = cached.get("final_redirect") or "/"
+    claims["_client"] = cached.get("client") or "web"
     return claims
+
+
+def _matched_group_mappings(*, claims: dict, sso: BrandSSOConfig):
+    """Mappings whose Entra group GUID appears in the ID token `groups` claim.
+
+    Requires the Entra app registration to emit the groups claim
+    (Token configuration → Add groups claim → Security groups).
+    """
+    mappings = list(sso.group_mappings.prefetch_related("environments"))
+    if not mappings:
+        raise ValueError("No Entra group is mapped. Ask your admin to map at least one group.")
+    token_groups = claims.get("groups")
+    if token_groups is None:
+        if claims.get("_claim_names", {}).get("groups"):
+            # Group overage: too many groups to embed in the token.
+            raise ValueError(
+                "Too many Entra groups to include in the token. "
+                "Restrict the groups claim or use fewer groups."
+            )
+        raise ValueError(
+            "ID token has no 'groups' claim. Enable it in the Entra app registration "
+            "(Token configuration → Add groups claim → Security groups)."
+        )
+    token_set = {str(g).lower() for g in token_groups}
+    return [m for m in mappings if m.group_object_id.lower() in token_set]
+
+
+def _sync_user_access(*, user: User, sso: BrandSSOConfig, matched_mappings=None) -> None:
+    """Grant workspace access on every SSO login (idempotent upsert).
+
+    domain mode  → default_role, org-wide or on the config's environment.
+    groups mode  → role/scope of each matched group mapping.
+    Existing access is never downgraded, only created/upgraded.
+    """
+    from django.utils import timezone
+    from ..models import BrandMembership, OrganizationMembership
+    from ..workspace import ensure_brand_organization
+
+    rank = {"member": 1, "admin": 2, "owner": 3}
+    org = ensure_brand_organization(sso.brand)
+
+    def grant_global(role: str) -> None:
+        membership = OrganizationMembership.objects.filter(organization=org, user=user).first()
+        if membership:
+            updates = []
+            if membership.status != "active":
+                membership.status = "active"
+                updates.append("status")
+            if rank.get(role, 0) > rank.get(membership.role, 0):
+                membership.role = role
+                updates.append("role")
+            if updates:
+                membership.save(update_fields=updates + ["updated_at"])
+        else:
+            OrganizationMembership.objects.create(
+                organization=org, user=user, role=role, status="active",
+            )
+
+    def grant_env(brand, role: str) -> None:
+        membership = BrandMembership.objects.filter(brand=brand, user=user).first()
+        if membership:
+            updates = []
+            if membership.status != "active":
+                membership.status = "active"
+                updates.append("status")
+            if rank.get(role, 0) > rank.get(membership.role, 0):
+                membership.role = role
+                updates.append("role")
+            if updates:
+                membership.save(update_fields=updates)
+        else:
+            BrandMembership.objects.create(
+                brand=brand, user=user, invited_email=user.email,
+                role=role, status="active", joined_at=timezone.now(),
+            )
+
+    if sso.provisioning_mode == "groups":
+        for mapping in (matched_mappings or []):
+            role = mapping.role if mapping.role in rank else "member"
+            if mapping.scope == "global":
+                grant_global(role)
+            else:
+                for env in mapping.environments.all():
+                    if env.organization_id == org.id:
+                        grant_env(env, role)
+    else:
+        role = sso.default_role if sso.default_role in ("admin", "member") else "member"
+        if sso.apply_to_organization:
+            grant_global(role)
+        else:
+            grant_env(sso.brand, role)
 
 
 def resolve_or_provision_user(*, claims: dict, sso: BrandSSOConfig) -> User:
@@ -152,9 +246,22 @@ def resolve_or_provision_user(*, claims: dict, sso: BrandSSOConfig) -> User:
     if not email or "@" not in email:
         raise ValueError("ID token has no email.")
     domain = email.rsplit("@", 1)[1]
-    verified = BrandDomain.objects.filter(brand=sso.brand, domain__iexact=domain, status="verified").exists()
+    # The domain may have been verified from any environment of the organization.
+    domain_qs = BrandDomain.objects.filter(domain__iexact=domain, status="verified")
+    if sso.brand.organization_id:
+        verified = domain_qs.filter(brand__organization_id=sso.brand.organization_id).exists()
+    else:
+        verified = domain_qs.filter(brand=sso.brand).exists()
     if not verified:
         raise ValueError(f"Email domain '{domain}' is not verified for this workspace.")
+
+    # Group gating happens BEFORE any account is created: in 'groups' mode a
+    # tenant user outside the mapped groups must not get in at all.
+    matched_mappings = None
+    if sso.provisioning_mode == "groups":
+        matched_mappings = _matched_group_mappings(claims=claims, sso=sso)
+        if not matched_mappings:
+            raise ValueError("Your account is not a member of an authorized group for this workspace.")
 
     user = User.objects.filter(email__iexact=email).first()
     if user is None:
@@ -172,11 +279,15 @@ def resolve_or_provision_user(*, claims: dict, sso: BrandSSOConfig) -> User:
         )
         user.set_unusable_password()
         user.save(update_fields=["password"])
-        # Optionally attach to brand workspace via BrandMembership; left to admin to formalize.
     else:
+        if user.user_type not in ("brand", "admin"):
+            raise ValueError("This email belongs to a non-brand account.")
         if user.auth_provider != "office365":
             user.auth_provider = "office365"
             user.save(update_fields=["auth_provider"])
+
+    # Sync workspace access on every login so group/role changes propagate.
+    _sync_user_access(user=user, sso=sso, matched_mappings=matched_mappings)
     return user
 
 
@@ -186,3 +297,31 @@ def resolve_brand_by_email(email: str) -> Optional[BrandProfile]:
     domain = email.rsplit("@", 1)[1].strip().lower()
     bd = BrandDomain.objects.filter(domain__iexact=domain, status="verified").select_related("brand").first()
     return bd.brand if bd else None
+
+
+def resolve_sso_config_by_email(email: str) -> Optional[BrandSSOConfig]:
+    """Enabled SSO config for the email's verified domain — looked up on the
+    domain's environment first, then on any environment of the same
+    organization (one integration covers the whole multi-company client).
+
+    The owning brand's plan is re-checked on every login: SSO stops working
+    as soon as the brand downgrades to a plan without SSO (the config is
+    kept and works again after an upgrade)."""
+    from .plans import has_feature
+
+    brand = resolve_brand_by_email(email)
+    if not brand:
+        return None
+    cfg = BrandSSOConfig.objects.filter(brand=brand, enabled=True).select_related("brand").first()
+    if cfg and has_feature(cfg.brand, "sso_office365_google"):
+        return cfg
+    if brand.organization_id:
+        candidates = (
+            BrandSSOConfig.objects
+            .filter(brand__organization_id=brand.organization_id, enabled=True)
+            .select_related("brand")
+        )
+        for candidate in candidates:
+            if has_feature(candidate.brand, "sso_office365_google"):
+                return candidate
+    return None

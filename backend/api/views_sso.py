@@ -17,9 +17,11 @@ Endpoints:
 """
 from __future__ import annotations
 
+import secrets
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.core.cache import cache
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -34,6 +36,7 @@ from rest_framework.views import APIView
 from .models import BrandDomain, BrandSSOConfig
 from .workspace import get_user_role_for_brand, resolve_active_brand
 from .services import dns_verification, sso_office365, fernet_service
+from .services import plans as plans_service
 from .views import get_tokens_for_user
 
 
@@ -66,17 +69,14 @@ class SSOOffice365DiscoverView(APIView):
         email = (request.GET.get("email") or "").strip().lower()
         if "@" not in email:
             return Response({"sso": False})
-        brand = sso_office365.resolve_brand_by_email(email)
-        if not brand:
-            return Response({"sso": False})
-        sso = BrandSSOConfig.objects.filter(brand=brand, enabled=True).first()
+        sso = sso_office365.resolve_sso_config_by_email(email)
         if not sso:
             return Response({"sso": False})
         return Response({
             "sso": True,
             "provider": sso.provider,
             "enforce": bool(sso.enforce_sso),
-            "brand_name": brand.company_name or "",
+            "brand_name": sso.brand.company_name or "",
         })
 
 
@@ -87,14 +87,15 @@ class SSOOffice365StartView(APIView):
         email = (request.data.get("email") or "").strip().lower()
         brand_id = request.data.get("brand_id")
         final_redirect = (request.data.get("final_redirect") or "/").strip()
+        # L'app mobile (Capacitor) demande un retour par deep link plutôt que
+        # vers le front web : le flag voyage dans le state côté cache serveur.
+        client = "mobile" if request.data.get("client") == "mobile" else "web"
 
         sso = None
         if brand_id:
             sso = BrandSSOConfig.objects.filter(brand_id=brand_id, enabled=True).first()
         elif email:
-            brand = sso_office365.resolve_brand_by_email(email)
-            if brand:
-                sso = BrandSSOConfig.objects.filter(brand=brand, enabled=True).first()
+            sso = sso_office365.resolve_sso_config_by_email(email)
         if not sso:
             return Response({"detail": "SSO not configured for this workspace."}, status=404)
 
@@ -104,6 +105,7 @@ class SSOOffice365StartView(APIView):
                 redirect_uri=_absolute_callback_uri(request),
                 login_hint=email,
                 final_redirect=final_redirect,
+                client=client,
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
@@ -117,10 +119,21 @@ class SSOOffice365CallbackView(APIView):
         code = request.GET.get("code")
         state = request.GET.get("state")
         front = settings.FRONTEND_URL.rstrip("/")
+        # Flux démarré depuis l'app mobile → retour par deep link (lu avant
+        # exchange_and_validate, qui consomme le state).
+        scheme = getattr(settings, "MOBILE_APP_SCHEME", "influconnect")
+        cached_state = cache.get(f"sso:state:{state}") if state else None
+        is_mobile = bool(cached_state) and cached_state.get("client") == "mobile"
+
+        def _redirect(path: str, query: dict):
+            if is_mobile:
+                return HttpResponseRedirect(f"{scheme}://{path.lstrip('/')}?" + urlencode(query))
+            return HttpResponseRedirect(f"{front}{path}?" + urlencode(query))
+
         if request.GET.get("error"):
-            return HttpResponseRedirect(f"{front}/login?sso_error=" + request.GET.get("error", ""))
+            return _redirect("/login", {"sso_error": request.GET.get("error", "")})
         if not code or not state:
-            return HttpResponseRedirect(f"{front}/login?sso_error=missing_params")
+            return _redirect("/login", {"sso_error": "missing_params"})
         try:
             claims = sso_office365.exchange_and_validate(
                 code=code, state=state, redirect_uri=_absolute_callback_uri(request),
@@ -128,14 +141,47 @@ class SSOOffice365CallbackView(APIView):
             sso = BrandSSOConfig.objects.select_related("brand").get(brand_id=claims["_brand_id"])
             user = sso_office365.resolve_or_provision_user(claims=claims, sso=sso)
         except Exception as exc:
-            return HttpResponseRedirect(f"{front}/login?sso_error=" + str(exc)[:120])
+            return _redirect("/login", {"sso_error": str(exc)[:120]})
+
+        # Never put JWTs in the redirect URL (browser history, proxy logs):
+        # hand the frontend a 60s single-use code it exchanges via POST.
+        auth_code = secrets.token_urlsafe(32)
+        cache.set(
+            f"sso:authcode:{auth_code}",
+            {"user_id": user.id, "next": claims.get("_final_redirect", "/")},
+            timeout=60,
+        )
+        return _redirect("/login/sso", {"code": auth_code})
+
+
+class SSOExchangeView(APIView):
+    """Exchange the single-use SSO code for JWT tokens (POST body, not URL)."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from .models import User
+        from .serializers import UserSerializer
+
+        code = (request.data.get("code") or "").strip()
+        if not code or len(code) > 64:
+            return Response({"detail": "Invalid code."}, status=400)
+        cache_key = f"sso:authcode:{code}"
+        payload = cache.get(cache_key)
+        if not payload:
+            return Response({"detail": "Code expired or already used."}, status=400)
+        cache.delete(cache_key)  # single use
+
+        user = User.objects.filter(pk=payload["user_id"], is_active=True).first()
+        if not user:
+            return Response({"detail": "User not found."}, status=400)
+        if user.user_type == "brand":
+            resolve_active_brand(user, request=request)
         tokens = get_tokens_for_user(user)
-        params = urlencode({
-            "access": tokens["access"],
-            "refresh": tokens["refresh"],
-            "next": claims.get("_final_redirect", "/"),
+        return Response({
+            "user": UserSerializer(user, context={"request": request}).data,
+            "next": payload.get("next") or "/",
+            **tokens,
         })
-        return HttpResponseRedirect(f"{front}/login/sso?{params}")
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +317,8 @@ def _serialize_sso(cfg: BrandSSOConfig | None) -> dict:
         return {"enabled": False, "provider": "office365", "tenant_id": "", "client_id": "",
                 "has_client_secret": False, "enforce_sso": False,
                 "allow_local_fallback_for_owner": True, "auto_provision_users": False,
-                "default_role": "member"}
+                "default_role": "member", "provisioning_mode": "domain",
+                "apply_to_organization": True, "group_mappings": []}
     return {
         "enabled": cfg.enabled,
         "provider": cfg.provider,
@@ -282,6 +329,19 @@ def _serialize_sso(cfg: BrandSSOConfig | None) -> dict:
         "allow_local_fallback_for_owner": cfg.allow_local_fallback_for_owner,
         "auto_provision_users": cfg.auto_provision_users,
         "default_role": cfg.default_role,
+        "provisioning_mode": cfg.provisioning_mode,
+        "apply_to_organization": cfg.apply_to_organization,
+        "group_mappings": [
+            {
+                "id": m.id,
+                "group_object_id": m.group_object_id,
+                "group_name": m.group_name,
+                "role": m.role,
+                "scope": m.scope,
+                "environment_ids": [e.id for e in m.environments.all()],
+            }
+            for m in cfg.group_mappings.prefetch_related("environments")
+        ],
         "callback_uri": "",
     }
 
@@ -343,6 +403,9 @@ class BrandSSOConfigView(APIView):
         brand = _admin_brand(request)
         if not brand:
             return Response({"detail": "No brand workspace."}, status=403)
+        plans_service.require_feature(
+            brand, "sso_office365_google", "Le SSO n'est pas inclus dans votre abonnement.",
+        )
         cfg, _ = BrandSSOConfig.objects.get_or_create(brand=brand)
         d = request.data
         cfg.provider = "office365"
@@ -361,13 +424,69 @@ class BrandSSOConfigView(APIView):
             cfg.auto_provision_users = bool(d.get("auto_provision_users"))
         if "default_role" in d:
             cfg.default_role = (d.get("default_role") or "member")[:20]
+        if "provisioning_mode" in d:
+            mode = d.get("provisioning_mode") or "domain"
+            if mode not in dict(BrandSSOConfig.PROVISIONING_MODE_CHOICES):
+                return Response({"detail": "Invalid provisioning_mode."}, status=400)
+            cfg.provisioning_mode = mode
+        if "apply_to_organization" in d:
+            cfg.apply_to_organization = bool(d.get("apply_to_organization"))
+        if "group_mappings" in d:
+            from .models import SSOGroupMapping
+            from .workspace import ensure_brand_organization
+            raw = d.get("group_mappings") or []
+            if not isinstance(raw, list):
+                return Response({"detail": "group_mappings must be a list."}, status=400)
+            org = ensure_brand_organization(brand)
+            org_env_ids = set(org.environments.values_list("id", flat=True))
+            cleaned = []
+            for item in raw[:50]:
+                gid = (str(item.get("group_object_id") or "")).strip()
+                if not gid or len(gid) > 64:
+                    return Response({"detail": "Each mapping needs a group_object_id."}, status=400)
+                role = item.get("role") or "member"
+                scope = item.get("scope") or "global"
+                if role not in dict(SSOGroupMapping.ROLE_CHOICES) or scope not in dict(SSOGroupMapping.SCOPE_CHOICES):
+                    return Response({"detail": "Invalid role or scope in group mapping."}, status=400)
+                env_ids = []
+                if scope == "environments":
+                    try:
+                        env_ids = [int(i) for i in (item.get("environment_ids") or [])]
+                    except (TypeError, ValueError):
+                        return Response({"detail": "Invalid environment_ids."}, status=400)
+                    if not env_ids or not set(env_ids).issubset(org_env_ids):
+                        return Response({"detail": "environment_ids must target environments of your organization."}, status=400)
+                cleaned.append({
+                    "group_object_id": gid,
+                    "group_name": (str(item.get("group_name") or ""))[:255],
+                    "role": role, "scope": scope, "environment_ids": env_ids,
+                })
+            cfg.save()  # ensure pk before resetting mappings
+            cfg.group_mappings.all().delete()
+            for item in cleaned:
+                mapping = SSOGroupMapping.objects.create(
+                    sso_config=cfg,
+                    group_object_id=item["group_object_id"],
+                    group_name=item["group_name"],
+                    role=item["role"],
+                    scope=item["scope"],
+                )
+                if item["environment_ids"]:
+                    mapping.environments.set(item["environment_ids"])
         if "enabled" in d:
             enable = bool(d.get("enabled"))
             if enable:
                 if not (cfg.tenant_id and cfg.client_id and cfg.client_secret_enc):
                     return Response({"detail": "Tenant, client_id and client_secret are required to enable SSO."}, status=400)
-                if not BrandDomain.objects.filter(brand=brand, status="verified").exists():
+                domain_qs = BrandDomain.objects.filter(status="verified")
+                if brand.organization_id:
+                    domain_qs = domain_qs.filter(brand__organization_id=brand.organization_id)
+                else:
+                    domain_qs = domain_qs.filter(brand=brand)
+                if not domain_qs.exists():
                     return Response({"detail": "Verify at least one DNS domain before enabling SSO."}, status=400)
+                if cfg.provisioning_mode == "groups" and not cfg.group_mappings.exists():
+                    return Response({"detail": "Map at least one Entra group before enabling group-based SSO."}, status=400)
             cfg.enabled = enable
         cfg.save()
         data = _serialize_sso(cfg)

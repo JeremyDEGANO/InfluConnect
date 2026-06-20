@@ -27,7 +27,7 @@ from django.core.files.base import ContentFile
 from django.db import connections
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponse
-from django.db.models import Q, Avg, Count
+from django.db.models import Q, Count
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
@@ -45,10 +45,10 @@ from .constants import (
 from .models import (
     AmbassadorProgram, AuditLog, BrandProfile, Campaign, CampaignProposal,
     CampaignVideoTracking, CampaignVideoDailyStats,
-    CastingApplication, ContractTemplate, ContentSubmission, DirectMessage, InfluencerProfile,
-    MediaKitImage, Notification, PlatformSettings, Review,
-    SocialNetwork, SocialVideo, SocialStatsSnapshot, SocialFraudFlag, User,
-    BrandMembership, AgencyDelegation, SupportTicket, SupportTicketImage,
+    CastingApplication, ContractTemplate, DirectMessage, InfluencerProfile,
+    MediaKitImage, Notification, Review,
+    SocialNetwork, SocialVideo, SocialFraudFlag, User,
+    SupportTicket, SupportTicketImage,
     InfluencerReferralInvite,
 )
 from .serializers import (
@@ -58,11 +58,11 @@ from .serializers import (
     ReviewSerializer, SocialNetworkSerializer, SocialVideoSerializer,
     SocialStatsSnapshotSerializer, SocialFraudFlagSerializer,
     CampaignVideoTrackingSerializer,
-    BrandMembershipSerializer, AgencyDelegationSerializer,
     SupportTicketSerializer, SupportTicketAdminUpdateSerializer, SupportTicketImageSerializer,
     _validate_influencer_pseudo, suggest_influencer_pseudos,
 )
 from .services import email_service, stripe_service
+from .services import plans as plans_service
 from .views import _brand_users
 from .workspace import (
     get_user_role_for_brand,
@@ -222,13 +222,18 @@ class SubscriptionPlansView(APIView):
 
     def get(self, request):
         plans = []
-        for plan in SUBSCRIPTION_PLANS.values():
+        for plan in plans_service.get_plan_configs():
             f = plan["features"]
             plans.append({
-                "code": plan["id"],
+                "code": plan["code"],
+                "id": plan["code"],
                 "name": plan["name"],
                 "price_eur": plan["price_eur_monthly"],
-                "features": {
+                "price_eur_monthly": plan["price_eur_monthly"],
+                # Raw matrix (admin-configurable) — used by Pricing/Compare pages
+                "features": f,
+                # Legacy display block kept for backward compatibility
+                "display": {
                     "campaigns_per_month": "unlimited" if f["concurrent_campaigns"] == -1 else f["concurrent_campaigns"],
                     "contacts": "unlimited" if f["monthly_influencer_contacts"] == -1 else f["monthly_influencer_contacts"],
                     "analytics": "Avancées" if f["advanced_analytics"] else "Basiques",
@@ -241,7 +246,7 @@ class SubscriptionPlansView(APIView):
                     "dedicated_manager": f["dedicated_account_manager"],
                 },
             })
-        return Response({"plans": plans})
+        return Response({"plans": plans, "feature_defs": plans_service.PLAN_FEATURE_DEFS})
 
 
 class StripeConfigView(APIView):
@@ -348,7 +353,7 @@ class BrandSubscriptionChangeView(APIView):
             return Response({"detail": "Only owners/admins can manage the subscription."},
                             status=status.HTTP_403_FORBIDDEN)
 
-        plan = request.data.get("plan")
+        plan = request.data.get("plan") or request.data.get("plan_code")
         if plan not in SUBSCRIPTION_PLANS:
             return Response({"detail": "Invalid plan."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -559,9 +564,10 @@ class AdminOverviewView(APIView):
         else:
             next_month_start = month_start.replace(month=month_start.month + 1)
 
+        # Admin-configured prices (DB overrides over constants defaults)
         plan_prices = {
-            plan_id: Decimal(str(plan.get('price_eur_monthly', 0)))
-            for plan_id, plan in SUBSCRIPTION_PLANS.items()
+            plan['code']: Decimal(str(plan.get('price_eur_monthly', 0)))
+            for plan in plans_service.get_plan_configs()
         }
 
         active_plan_counts = {
@@ -660,7 +666,12 @@ class AdminOverviewView(APIView):
                 'subscription_plan': b.subscription_plan,
                 'subscription_active': b.subscription_active,
                 'subscription_expires_at': b.subscription_expires_at,
-                'plan_price_monthly': float(plan_prices.get(b.subscription_plan or '', Decimal('0'))),
+                'subscription_price_override': float(b.subscription_price_override) if b.subscription_price_override is not None else None,
+                'plan_price_monthly': float(
+                    b.subscription_price_override
+                    if b.subscription_price_override is not None
+                    else plan_prices.get(b.subscription_plan or '', Decimal('0'))
+                ),
                 'team_size': int(b.active_members_count or 0) + 1,
                 'campaigns_count': int(b.campaigns_count or 0),
                 'created_at': created_at,
@@ -854,7 +865,10 @@ class AdminBrandUpdateView(APIView):
         if not profile:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        allowed = {'company_name', 'website', 'sector', 'description', 'validation_notes', 'validation_status'}
+        allowed = {
+            'company_name', 'website', 'sector', 'description', 'validation_notes', 'validation_status',
+            'subscription_plan', 'subscription_price_override',
+        }
         changed = {}
 
         for key in allowed:
@@ -865,13 +879,29 @@ class AdminBrandUpdateView(APIView):
                 value = str(value or '').strip().lower()
                 if value not in {'pending', 'approved', 'rejected'}:
                     return Response({'detail': 'validation_status must be pending, approved or rejected.'}, status=status.HTTP_400_BAD_REQUEST)
+            elif key == 'subscription_plan':
+                value = str(value or '').strip().lower()
+                if value not in SUBSCRIPTION_PLANS:
+                    return Response({'detail': f'subscription_plan must be one of {list(SUBSCRIPTION_PLANS)}.'}, status=status.HTTP_400_BAD_REQUEST)
+            elif key == 'subscription_price_override':
+                if value in (None, ''):
+                    value = None
+                else:
+                    try:
+                        value = plans_service.validate_price(value)
+                    except ValueError as e:
+                        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 value = str(value or '').strip()
 
             old = getattr(profile, key)
             if old != value:
                 setattr(profile, key, value)
-                changed[key] = {'old': old, 'new': value}
+                # Decimal values are not JSON-serializable for the audit metadata
+                changed[key] = {
+                    'old': str(old) if isinstance(old, Decimal) else old,
+                    'new': str(value) if isinstance(value, Decimal) else value,
+                }
 
         if changed:
             if 'validation_status' in changed:
@@ -1349,7 +1379,7 @@ class CastingListView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         from .serializers import CampaignSerializer
-        qs = Campaign.objects.filter(is_casting=True, status="active").order_by("-created_at")
+        qs = Campaign.objects.filter(is_casting=True, status="active").select_related("brand").order_by("-created_at")
         return Response(CampaignSerializer(qs, many=True, context={"request": request}).data)
 
 
@@ -1493,6 +1523,7 @@ class AmbassadorProgramViewSet(viewsets.ModelViewSet):
         if brand is None:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("No brand workspace.")
+        plans_service.require_feature(brand, "ambassador_programs")
         serializer.save(brand=brand)
 
 
@@ -1519,9 +1550,14 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
         if profile is None:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("No brand workspace.")
-        if profile.subscription_plan not in ("growth", "pro"):
+        max_templates = plans_service.get_limit(profile, "contract_templates_max")
+        if max_templates == 0:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("Templates are only available on Growth and Pro plans.")
+            raise PermissionDenied("Les modèles de documents ne sont pas inclus dans votre abonnement.")
+        plans_service.enforce_limit(
+            profile, "contract_templates_max",
+            ContractTemplate.objects.filter(brand=profile).count(),
+        )
         serializer.save(brand=profile)
 
     @staticmethod
@@ -2083,7 +2119,6 @@ class CampaignVideoTrackingDeleteView(APIView):
 
 def _record_video_stats(tracking: "CampaignVideoTracking", vs) -> None:
     """Update tracking row + upsert today's daily stats."""
-    from datetime import date as _date
     today = timezone.now().date()
     views = int(vs.view_count or 0)
     likes = int(vs.like_count or 0)
@@ -2249,14 +2284,19 @@ class MarketplaceContactInfluencerView(APIView):
         except InfluencerProfile.DoesNotExist:
             return Response({"detail": "Influencer not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        plans_service.enforce_monthly_contacts(brand)
+
         sender_name = (brand.company_name or user.username).strip()
-        
+
         # Create DirectMessage
         DirectMessage.objects.create(
             sender=user,
             recipient=influencer.user,
             content=message
         )
+        # Counted against the monthly_influencer_contacts plan limit
+        _audit(user, "marketplace_contact", target_type="BrandProfile",
+               target_id=brand.id, metadata={"influencer_id": influencer.id})
         
         _notify(
             influencer.user,

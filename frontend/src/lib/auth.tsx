@@ -35,7 +35,14 @@ export interface User {
     validation_status: string
     subscription_plan: string | null
     subscription_active: boolean
+    plan_features?: Record<string, boolean | number | string>
+    plan_price_eur_monthly?: number
   } | null
+}
+
+/** Feature entitlements of the active brand plan (admin-configurable). */
+export function usePlanFeatures(user: User | null): Record<string, boolean | number | string> {
+  return user?.active_brand?.plan_features ?? {}
 }
 
 export type LoginResult =

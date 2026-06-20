@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">InfluConnect</string>
+    <string name="title_activity_main">InfluConnect</string>
+    <string name="package_name">com.influconnect.app</string>
+    <string name="custom_url_scheme">com.influconnect.app</string>
+</resources>

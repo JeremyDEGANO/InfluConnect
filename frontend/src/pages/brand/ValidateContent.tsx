@@ -65,7 +65,7 @@ const getPlatformLabel = (url?: string) => {
 }
 
 export default function ValidateContent() {
-  const { id, proposalId } = useParams<{ id: string; proposalId: string }>()
+  const { proposalId } = useParams<{ id: string; proposalId: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { toast } = useToast()

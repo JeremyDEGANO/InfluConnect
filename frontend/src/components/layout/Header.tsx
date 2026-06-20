@@ -30,7 +30,6 @@ export function Header() {
       ?? (user?.brand_profile as { validation_status?: string } | undefined)?.validation_status) === "approved"
   )
   const brandEnvironments = user?.brand_environments ?? []
-  const canSwitchWorkspace = user?.user_type === "brand" && brandEnvironments.length > 1
   const canCreateWorkspace = user?.user_type === "brand" && ["owner", "admin"].includes(user?.active_brand_role || "")
 
   const handleCreateWorkspace = async () => {
@@ -41,7 +40,7 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 glass border-b border-aurora-line">
+    <header className="sticky top-0 z-50 glass border-b border-aurora-line pt-safe">
       <div className="container max-w-7xl mx-auto px-5 h-14 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5 group">
           <img

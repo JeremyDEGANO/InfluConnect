@@ -23,11 +23,6 @@ from .workspace import (
 )
 
 
-def _user_brand(user):
-    """Return the user's currently active brand workspace."""
-    return resolve_active_brand(user)
-
-
 class BrandEnvironmentListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -55,6 +50,11 @@ class BrandEnvironmentListView(APIView):
         role = get_user_role_for_brand(request.user, active)
         if role not in ('owner', 'admin') and get_user_org_role(request.user, organization) != 'admin':
             return Response({'detail': 'Only owners/admins can create environments.'}, status=status.HTTP_403_FORBIDDEN)
+        from .services import plans as plans_service
+        plans_service.require_feature(
+            active, 'multi_environments',
+            "Le multi-environnements (multi-société) n'est pas inclus dans votre abonnement.",
+        )
 
         company_name = (request.data.get('company_name') or '').strip()
         if not company_name:

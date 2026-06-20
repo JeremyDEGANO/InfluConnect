@@ -48,7 +48,7 @@ export default function BrandCampaigns() {
           </Button>
         }
       />
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <TabsList>
           {STATUS_TABS.map((value) => (
             <TabsTrigger key={value} value={value}>

@@ -69,6 +69,16 @@ class ApiKeyAuthentication(authentication.BaseAuthentication):
         if not api_key:
             self._log_failure(request, None, 401, "invalid key")
             raise exceptions.AuthenticationFailed("Invalid or revoked API key.")
+        # Entitlement is re-checked on every call: a key minted on a higher
+        # plan stops working as soon as the brand downgrades to a plan
+        # without API access (and works again after an upgrade).
+        from .services import plans as plans_service
+        if not plans_service.has_feature(api_key.brand, "api_access"):
+            self._log_failure(request, api_key, 403, "plan without api access")
+            raise exceptions.AuthenticationFailed(
+                "API access is not included in your current subscription plan. "
+                "Upgrade your plan to re-enable this key."
+            )
         ip = _client_ip(request)
         if not _ip_allowed(ip, api_key.ip_allowlist or []):
             self._log_failure(request, api_key, 403, "ip not allowed")

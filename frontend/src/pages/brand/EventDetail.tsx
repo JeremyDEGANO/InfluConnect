@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { ArrowLeft, CalendarDays, Loader2, MapPin, Users, CheckCircle2, Camera, CameraOff } from "lucide-react"
+import { ArrowLeft, CalendarDays, Loader2, MapPin, Users, CheckCircle2, Camera, CameraOff, ScanLine } from "lucide-react"
+import { isNative, scanQrCode } from "@/lib/native"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -68,6 +69,22 @@ export default function BrandEventDetail() {
       toast({ variant: "destructive", title: t("common.error"), description: typeof detail === "string" ? detail : undefined })
     } finally {
       setCheckingIn(false)
+    }
+  }
+
+  // App native : scanner plein écran ML Kit, puis check-in direct du payload lu.
+  const scanNativeAndCheckIn = async () => {
+    try {
+      const value = await scanQrCode()
+      if (!value) return // annulé par l'utilisateur
+      setCheckinInput(value)
+      await doCheckInFromValue(value)
+    } catch {
+      toast({
+        variant: "destructive",
+        title: t("common.error"),
+        description: t("events.scan_failed", "Impossible d'ouvrir le scanner. Vérifie l'accès caméra de l'app."),
+      })
     }
   }
 
@@ -164,7 +181,11 @@ export default function BrandEventDetail() {
             <p className="text-sm font-medium text-emerald-900">{t("events.checkin_title", "Check-in à l'entrée")}</p>
             <p className="text-xs text-emerald-800">{t("events.checkin_hint", "Scanne le QR (payload IC-EVT:...) ou colle le token d'invitation")}</p>
             <div className="flex flex-wrap items-center gap-2">
-              {!cameraOn ? (
+              {isNative ? (
+                <Button type="button" variant="gradient" onClick={scanNativeAndCheckIn} disabled={checkingIn}>
+                  <ScanLine className="h-4 w-4 mr-1" />{t("events.scan_qr", "Scanner un QR code")}
+                </Button>
+              ) : !cameraOn ? (
                 <Button type="button" variant="outline" onClick={startCamera} disabled={cameraBusy}>
                   <Camera className="h-4 w-4 mr-1" />{t("events.start_camera", "Démarrer caméra")}
                 </Button>
@@ -173,7 +194,7 @@ export default function BrandEventDetail() {
                   <CameraOff className="h-4 w-4 mr-1" />{t("events.stop_camera", "Arrêter caméra")}
                 </Button>
               )}
-              {!cameraSupported && (
+              {!isNative && !cameraSupported && (
                 <span className="text-xs text-amber-700">{t("events.camera_not_supported", "Caméra/scan QR non supporté sur ce navigateur. Utilise la saisie manuelle.")}</span>
               )}
             </div>

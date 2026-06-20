@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from "react"
+import { useState, useEffect, useMemo, FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
@@ -98,7 +98,7 @@ export default function NewCampaign() {
     description: "",
     campaign_type: "paid" as "paid" | "gifting",
     gifting_requires_content: true,
-    products_text: "",
+    products: [{ name: "", quantity: 1, value_eur: "" }] as { name: string; quantity: number; value_eur: string }[],
     shipping_info: "",
     target_audience: "",
     age_ranges: [] as string[],
@@ -123,13 +123,8 @@ export default function NewCampaign() {
       .then((r: any) => setBrandStatus(r.data?.validation_status ?? null))
       .catch(() => {})
     api.get("/influencers/")
-      .then((r: any) => {
-        console.log("[NewCampaign] /influencers/ success:", r.data)
-        setInfluencers(r.data.results ?? r.data)
-      })
-      .catch((e: any) => {
-        console.error("[NewCampaign] /influencers/ failed:", e?.response?.status, e?.message)
-      })
+      .then((r: any) => setInfluencers(r.data.results ?? r.data))
+      .catch(() => {})
   }, [])
 
   const contentTypeOptions = reference?.content_types ?? FALLBACK_CONTENT_TYPES
@@ -147,13 +142,33 @@ export default function NewCampaign() {
         ? (p[key] as string[]).filter((x) => x !== val)
         : [...(p[key] as string[]), val],
     }))
-  const addCity = () => {
-    const v = cityInput.trim()
+  const addCity = (value?: string) => {
+    const v = (value ?? cityInput).trim()
     if (!v) return
     if (form.audience_cities.includes(v)) { setCityInput(""); return }
     setForm((p) => ({ ...p, audience_cities: [...p.audience_cities, v] }))
     setCityInput("")
   }
+
+  // Suggestions villes/pays issues des données de référence (mêmes listes que le profil influenceur)
+  const citySuggestionPool = useMemo(() => {
+    const pool = new Set<string>()
+    const byCountry = reference?.cities_by_country
+    if (byCountry) {
+      for (const list of Object.values(byCountry)) for (const c of list ?? []) pool.add(c)
+    } else {
+      for (const c of reference?.cities ?? []) pool.add(c)
+    }
+    for (const c of reference?.countries ?? []) pool.add(c.label)
+    return [...pool].sort((a, b) => a.localeCompare(b, "fr"))
+  }, [reference])
+  const citySuggestions = useMemo(() => {
+    const q = normalizeCityToken(cityInput)
+    if (!q) return []
+    return citySuggestionPool
+      .filter((c) => normalizeCityToken(c).includes(q) && !form.audience_cities.includes(c))
+      .slice(0, 8)
+  }, [cityInput, citySuggestionPool, form.audience_cities])
   const removeCity = (v: string) =>
     setForm((p) => ({ ...p, audience_cities: p.audience_cities.filter((x) => x !== v) }))
 
@@ -165,6 +180,24 @@ export default function NewCampaign() {
   ]
 
   const update = (k: string, v: any) => setForm((p) => ({ ...p, [k]: v }))
+
+  // --- Gifting product list helpers -------------------------------------
+  const namedProducts = form.products.filter((p) => p.name.trim())
+  const productsTotalValue = namedProducts.reduce(
+    (sum, p) => sum + (parseFloat(p.value_eur) || 0) * (p.quantity || 1), 0,
+  )
+  const updateProduct = (idx: number, patch: Partial<{ name: string; quantity: number; value_eur: string }>) =>
+    setForm((p) => ({
+      ...p,
+      products: p.products.map((row, i) => (i === idx ? { ...row, ...patch } : row)),
+    }))
+  const addProduct = () =>
+    setForm((p) => ({ ...p, products: [...p.products, { name: "", quantity: 1, value_eur: "" }] }))
+  const removeProduct = (idx: number) =>
+    setForm((p) => ({
+      ...p,
+      products: p.products.length > 1 ? p.products.filter((_, i) => i !== idx) : p.products,
+    }))
   const updateCampaignType = (type: "paid" | "gifting") => {
     setForm((p) => ({
       ...p,
@@ -230,7 +263,7 @@ export default function NewCampaign() {
       .filter((cf) => Boolean(cf.code) && Number(cf.quantity) > 0)
       .map((cf) => ({ code: cf.code, quantity: Math.max(1, Number(cf.quantity) || 1) }))
 
-    if (form.campaign_type === "gifting" && !form.products_text.trim()) {
+    if (form.campaign_type === "gifting" && namedProducts.length === 0) {
       toast({
         title: t("common.error"),
         description: t("new_campaign_plus.products_required", "Ajoute au moins un produit pour une campagne gifting."),
@@ -250,10 +283,11 @@ export default function NewCampaign() {
 
     setLoading(true)
     try {
-      const products = form.products_text
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
+      const products = namedProducts.map((p) => ({
+        name: p.name.trim(),
+        quantity: Math.max(1, Number(p.quantity) || 1),
+        value_eur: parseFloat(p.value_eur) || null,
+      }))
 
       const res = await api.post("/campaigns/", {
         title: form.title,
@@ -289,8 +323,9 @@ export default function NewCampaign() {
             Array.from(selectedIds),
             form.budget ? parseFloat(form.budget) : undefined,
           )
-        } catch {
-          toast({ title: t("new_campaign_plus.proposals_error"), variant: "destructive" })
+        } catch (err) {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+          toast({ title: t("new_campaign_plus.proposals_error"), description: detail, variant: "destructive" })
         }
       }
 
@@ -545,16 +580,32 @@ export default function NewCampaign() {
                   <Label>{t("audience.cities", "Villes / pays ciblés")}</Label>
                   <p className="text-xs text-aurora-ink-3 mt-1">{t("audience.cities_hint", "Ce filtre réduit aussi la shortlist d'influenceurs ci-dessous.")}</p>
                   <div className="flex gap-2 mt-1">
-                    <Input
-                      placeholder={t("audience.city_placeholder", "ex : Paris, Lyon, France...")}
-                      value={cityInput}
-                      autoComplete="off"
-                      onChange={(e) => setCityInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") { e.preventDefault(); addCity() }
-                      }}
-                    />
-                    <Button type="button" variant="outline" onClick={addCity}>
+                    <div className="relative flex-1">
+                      <Input
+                        placeholder={t("audience.city_placeholder", "ex : Paris, Lyon, France...")}
+                        value={cityInput}
+                        autoComplete="off"
+                        onChange={(e) => setCityInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); addCity(citySuggestions[0] && citySuggestions.length === 1 ? citySuggestions[0] : undefined) }
+                        }}
+                      />
+                      {citySuggestions.length > 0 && (
+                        <div className="absolute z-50 mt-1 w-full rounded-xl border border-aurora-line bg-white shadow-soft-lg max-h-56 overflow-y-auto py-1">
+                          {citySuggestions.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => addCity(c)}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-aurora-surface"
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => addCity()}>
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -611,20 +662,63 @@ export default function NewCampaign() {
                 <CardHeader className="p-0 pb-4"><CardTitle className="text-base">{t("new_campaign_plus.mode_step")}</CardTitle></CardHeader>
 
                 {form.campaign_type === "gifting" && (
-                  <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="space-y-4">
                     <div>
-                      <Label>{t("new_campaign_plus.products_list", "Produits à offrir")}</Label>
-                      <textarea
-                        className="mt-1 w-full min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        placeholder={t("new_campaign_plus.products_list_placeholder", "Ex: Serum 30ml\nBox découverte\nBon d'achat")}
-                        value={form.products_text}
-                        onChange={(e) => update("products_text", e.target.value)}
-                      />
+                      <div className="flex items-center justify-between">
+                        <Label>{t("new_campaign_plus.products_list", "Produits à offrir")}</Label>
+                        {productsTotalValue > 0 && (
+                          <Badge variant="secondary">
+                            {t("new_campaign_plus.products_total", "Valeur totale ≈ {{total}} €", {
+                              total: productsTotalValue.toLocaleString("fr-FR"),
+                            })}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {/* Column headers */}
+                        <div className="hidden sm:grid grid-cols-[1fr_90px_110px_36px] gap-2 px-1 text-[11px] uppercase tracking-wide text-aurora-ink-3">
+                          <span>{t("new_campaign_plus.product_name", "Produit")}</span>
+                          <span>{t("new_campaign_plus.product_qty", "Qté / influ.")}</span>
+                          <span>{t("new_campaign_plus.product_value", "Valeur (€)")}</span>
+                          <span />
+                        </div>
+                        {form.products.map((p, idx) => (
+                          <div key={idx} className="grid grid-cols-[1fr_90px_110px_36px] gap-2 items-center">
+                            <Input
+                              placeholder={t("new_campaign_plus.product_name_placeholder", "Ex : Sérum éclat 30 ml")}
+                              value={p.name}
+                              onChange={(e) => updateProduct(idx, { name: e.target.value })}
+                            />
+                            <Input
+                              type="number" min="1"
+                              value={p.quantity}
+                              onChange={(e) => updateProduct(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                            />
+                            <Input
+                              type="number" min="0" step="0.01"
+                              placeholder="—"
+                              value={p.value_eur}
+                              onChange={(e) => updateProduct(idx, { value_eur: e.target.value })}
+                            />
+                            <Button
+                              type="button" variant="ghost" size="sm"
+                              className="text-red-500 px-2"
+                              disabled={form.products.length === 1}
+                              onClick={() => removeProduct(idx)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button type="button" variant="outline" size="sm" onClick={addProduct}>
+                          <Plus className="h-4 w-4 mr-1.5" />{t("new_campaign_plus.add_product", "Ajouter un produit")}
+                        </Button>
+                      </div>
                     </div>
                     <div>
                       <Label>{t("new_campaign_plus.shipping_info", "Infos d'expédition")}</Label>
                       <textarea
-                        className="mt-1 w-full min-h-[110px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="mt-1 w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         placeholder={t("new_campaign_plus.shipping_info_placeholder", "Délais, transporteur, zones livrées, contraintes...")}
                         value={form.shipping_info}
                         onChange={(e) => update("shipping_info", e.target.value)}

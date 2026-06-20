@@ -35,6 +35,7 @@ from .models import (
 )
 from .serializers import UserSerializer
 from .services import email_service
+from .services import plans as plans_service
 from .throttling import IPRateThrottle
 from .workspace import (
     ensure_brand_organization,
@@ -345,9 +346,16 @@ class TeamInvitationListCreateView(APIView):
                     {'environment_ids': 'You can only invite to environments you administer.'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-            env_objects = list(BrandProfile.objects.filter(id__in=env_ids, organization=org))
+            env_objects = list(BrandProfile.objects.filter(id__in=env_ids, organization=org).select_related('user'))
             if len(env_objects) != len(env_ids):
                 return Response({'environment_ids': 'invalid'}, status=status.HTTP_400_BAD_REQUEST)
+            # Plan entitlement: max users per environment (owner + active members)
+            for env in env_objects:
+                current_users = (
+                    BrandMembership.objects.filter(brand=env, status='active').count()
+                    + (1 if env.user and env.user.is_active else 0)
+                )
+                plans_service.enforce_limit(env, 'users', current_users)
 
         if TeamInvitation.objects.filter(
             organization=org, invited_email__iexact=email, status='pending',

@@ -276,7 +276,8 @@ class BrandMembershipTests(TestCase):
         self.owner = User.objects.create_user(
             email="owner@brand.com", username="ownerbrand", password="pw12345!", user_type="brand",
         )
-        self.brand = BrandProfile.objects.create(user=self.owner, company_name="Acme Team")
+        # Pro plan: unlimited users + multi-environments (required since plan gating)
+        self.brand = BrandProfile.objects.create(user=self.owner, company_name="Acme Team", subscription_plan="pro")
 
         self.admin_user = User.objects.create_user(
             email="admin@brand.com", username="adminbrand", password="pw12345!", user_type="brand",
@@ -484,7 +485,8 @@ class BrandEnvironmentTests(TestCase):
         self.owner = User.objects.create_user(
             email="ownerenv@test.com", username="ownerenv", password="pw12345!", user_type="brand",
         )
-        self.brand1 = BrandProfile.objects.create(user=self.owner, company_name="Env One")
+        # Pro plan: multi-environments allowed (required since plan gating)
+        self.brand1 = BrandProfile.objects.create(user=self.owner, company_name="Env One", subscription_plan="pro")
 
         self.other_owner = User.objects.create_user(
             email="owner2@test.com", username="owner2", password="pw12345!", user_type="brand",

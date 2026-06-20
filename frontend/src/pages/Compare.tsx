@@ -1,6 +1,9 @@
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { Check, X, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import api from "@/lib/api"
+import type { PlanFeatureDef, PlanFeatureValue } from "@/lib/apiExtra"
 
 type Plan = {
   name: string
@@ -11,10 +14,17 @@ type Plan = {
   highlighted?: boolean
 }
 
+const BRAND_TAGLINES: Record<string, string> = {
+  starter: "Pour découvrir",
+  growth: "Pour scaler",
+  pro: "Pour les équipes marketing",
+}
+
+// Fallback used while loading / if the API is unreachable
 const BRAND_PLANS: Plan[] = [
-  { name: "Starter", price: "49€", tagline: "Pour découvrir", cta: "Commencer", to: "/register?type=brand" },
-  { name: "Growth", price: "149€", tagline: "Pour scaler", cta: "Choisir Growth", to: "/register?type=brand", highlighted: true },
-  { name: "Pro", price: "399€", tagline: "Pour les équipes marketing", cta: "Choisir Pro", to: "/register?type=brand" },
+  { name: "Starter", price: "79€", tagline: "Pour découvrir", cta: "Commencer", to: "/register?type=brand" },
+  { name: "Growth", price: "199€", tagline: "Pour scaler", cta: "Choisir Growth", to: "/register?type=brand", highlighted: true },
+  { name: "Pro", price: "499€", tagline: "Pour les équipes marketing", cta: "Choisir Pro", to: "/register?type=brand" },
 ]
 
 const AGENCY_PLANS: Plan[] = [
@@ -106,7 +116,67 @@ function FeatureTable({ plans, features }: { plans: Plan[]; features: { label: s
   )
 }
 
+type ApiPlanRow = {
+  code: string
+  name: string
+  price_eur_monthly: number
+  features: Record<string, PlanFeatureValue>
+}
+
+const SUPPORT_LABELS: Record<string, string> = {
+  none: "Standard",
+  email_48h: "Email (48h)",
+  email_phone_24h: "Email & Tél. (24h)",
+}
+
+const formatFeatureValue = (def: PlanFeatureDef, v: PlanFeatureValue | undefined): string | boolean => {
+  if (def.type === "bool") return Boolean(v)
+  if (def.type === "limit") {
+    const n = Number(v ?? 0)
+    if (n === -1) return "Illimité"
+    if (n === 0) return false
+    return String(n)
+  }
+  return SUPPORT_LABELS[String(v)] ?? String(v ?? "-")
+}
+
 export default function Compare() {
+  const [apiPlans, setApiPlans] = useState<ApiPlanRow[]>([])
+  const [featureDefs, setFeatureDefs] = useState<PlanFeatureDef[]>([])
+
+  useEffect(() => {
+    api.get("/reference/plans/")
+      .then((r) => {
+        const data = r.data as { plans?: ApiPlanRow[]; feature_defs?: PlanFeatureDef[] }
+        if (Array.isArray(data.plans) && data.plans.length > 0 && Array.isArray(data.feature_defs)) {
+          setApiPlans(data.plans)
+          setFeatureDefs(data.feature_defs)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Live data from the admin-configured plans; falls back to static content
+  const brandPlans: Plan[] = useMemo(() => {
+    if (apiPlans.length === 0) return BRAND_PLANS
+    return apiPlans.map((p) => ({
+      name: p.name,
+      price: `${p.price_eur_monthly}€`,
+      tagline: BRAND_TAGLINES[p.code] ?? "",
+      cta: p.code === "starter" ? "Commencer" : `Choisir ${p.name}`,
+      to: "/register?type=brand",
+      highlighted: p.code === "growth",
+    }))
+  }, [apiPlans])
+
+  const brandFeatures = useMemo(() => {
+    if (apiPlans.length === 0 || featureDefs.length === 0) return BRAND_FEATURES
+    return featureDefs.map((def) => ({
+      label: def.label,
+      values: apiPlans.map((p) => formatFeatureValue(def, p.features?.[def.key])),
+    }))
+  }, [apiPlans, featureDefs])
+
   return (
     <div className="min-h-screen bg-white">
       <section className="hero-aurora-bg py-20 px-5">
@@ -125,8 +195,8 @@ export default function Compare() {
         <div className="container max-w-6xl mx-auto">
           <h2 className="text-3xl font-semibold text-aurora-ink mb-2 tracking-[-0.02em]">Pour les marques</h2>
           <p className="text-aurora-ink-2 mb-8">Lancez vos campagnes en toute sécurité, du brief au paiement.</p>
-          <PlanGrid plans={BRAND_PLANS} />
-          <FeatureTable plans={BRAND_PLANS} features={BRAND_FEATURES} />
+          <PlanGrid plans={brandPlans} />
+          <FeatureTable plans={brandPlans} features={brandFeatures} />
         </div>
       </section>
 

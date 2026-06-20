@@ -109,7 +109,6 @@ export default function CampaignDetail() {
   const [matches, setMatches] = useState<MatchedInfluencer[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState<Set<number>>(new Set())
-  const [sentIds, setSentIds] = useState<Set<number>>(new Set())
   const [chatProposal, setChatProposal] = useState<Proposal | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatLoading, setChatLoading] = useState(false)
@@ -338,7 +337,6 @@ export default function CampaignDetail() {
         const allProposals: Proposal[] = propRes.data.results ?? propRes.data
         const campaignProposals = allProposals.filter((p: any) => p.campaign === Number(id))
         setProposals(campaignProposals)
-        setSentIds(new Set(campaignProposals.map((p) => p.influencer)))
 
         try {
           const matchRes = await api.get(`/campaigns/${id}/target/`)
@@ -374,7 +372,6 @@ export default function CampaignDetail() {
         influencer_ids: [influencerId],
         proposed_price: campaign?.price_per_influencer ?? 0,
       })
-      setSentIds((prev) => new Set(prev).add(influencerId))
       toast({ title: "Proposition envoyée" })
       const propRes = await api.get("/proposals/")
       const all: Proposal[] = propRes.data.results ?? propRes.data
@@ -398,7 +395,6 @@ export default function CampaignDetail() {
         influencer_ids: toSend,
         proposed_price: campaign?.price_per_influencer ?? 0,
       })
-      setSentIds((prev) => new Set([...prev, ...toSend]))
       toast({ title: `${toSend.length} proposition(s) envoyée(s)` })
       const propRes = await api.get("/proposals/")
       const all: Proposal[] = propRes.data.results ?? propRes.data

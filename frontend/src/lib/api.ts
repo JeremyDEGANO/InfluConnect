@@ -74,4 +74,20 @@ api.interceptors.response.use(
   },
 )
 
+// Human-readable message from an Axios error: DRF's `detail` (used by the
+// plan-limit errors raised in backend services/plans.py) or the first field
+// error. Returns `fallback` when nothing usable is found.
+export function apiErrorMessage(e: unknown, fallback = ""): string {
+  const data = (e as { response?: { data?: unknown } })?.response?.data
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>
+    if (typeof obj.detail === "string") return obj.detail
+    for (const value of Object.values(obj)) {
+      if (typeof value === "string" && value) return value
+      if (Array.isArray(value) && typeof value[0] === "string") return value[0]
+    }
+  }
+  return fallback
+}
+
 export default api

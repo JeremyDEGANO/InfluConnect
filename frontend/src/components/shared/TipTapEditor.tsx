@@ -11,6 +11,8 @@ interface Props {
   onChange: (html: string) => void
   placeholder?: string
   minHeight?: string
+  /** Gives the parent access to the editor (e.g. to insert variables at the caret). */
+  onEditorReady?: (editor: Editor) => void
 }
 
 function ToolbarBtn({ editor, active, onClick, children, title }: { editor: Editor; active: boolean; onClick: () => void; children: React.ReactNode; title: string }) {
@@ -29,7 +31,7 @@ function ToolbarBtn({ editor, active, onClick, children, title }: { editor: Edit
   )
 }
 
-export default function TipTapEditor({ value, onChange, placeholder, minHeight = "260px" }: Props) {
+export default function TipTapEditor({ value, onChange, placeholder, minHeight = "260px", onEditorReady }: Props) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -57,6 +59,11 @@ export default function TipTapEditor({ value, onChange, placeholder, minHeight =
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, editor])
+
+  useEffect(() => {
+    if (editor && onEditorReady) onEditorReady(editor)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor])
 
   if (!editor) return null
 

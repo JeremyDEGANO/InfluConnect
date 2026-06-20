@@ -1,21 +1,31 @@
 import api from "./api"
 
 // ====== Types ======
-export interface PlanFeature {
+export interface PlanDisplay {
   campaigns_per_month: number | "unlimited"
   contacts: number | "unlimited"
   analytics: string
   support: string
   custom_contracts?: boolean
-  ambassador_program?: boolean
-  white_label?: boolean
   dedicated_manager?: boolean
 }
+export type PlanFeatureValue = boolean | number | string
 export interface Plan {
   code: "starter" | "growth" | "pro"
   name: string
   price_eur: number
-  features: PlanFeature
+  price_eur_monthly?: number
+  // Raw admin-configurable feature matrix (concurrent_campaigns, sso..., events...)
+  features: Record<string, PlanFeatureValue>
+  // Pre-formatted display block (legacy)
+  display?: PlanDisplay
+}
+export interface PlanFeatureDef {
+  key: string
+  label: string
+  type: "bool" | "limit" | "choice"
+  group: string
+  choices?: string[]
 }
 export interface CodeLabel { code: string; label: string }
 export interface ReferenceData {
@@ -70,6 +80,7 @@ export interface AdminOverviewBrand {
   subscription_plan: "starter" | "growth" | "pro" | ""
   subscription_active: boolean
   subscription_expires_at: string | null
+  subscription_price_override: number | null
   plan_price_monthly: number
   team_size: number
   campaigns_count: number
@@ -285,9 +296,26 @@ export const fetchReference = () => api.get<ReferenceData>("/reference/data/").t
 
 // ====== Brand subscription ======
 export const changeSubscription = (plan_code: string) =>
-  api.post("/brands/subscription/change/", { plan_code }).then((r) => r.data)
+  api.post("/brands/subscription/change/", { plan: plan_code }).then((r) => r.data)
 export const cancelSubscription = () =>
   api.post("/brands/subscription/cancel/").then((r) => r.data)
+
+// ====== Admin plan configuration (features + pricing) ======
+export interface AdminPlansPayload {
+  feature_defs: PlanFeatureDef[]
+  plans: Array<{
+    code: string
+    name: string
+    price_eur_monthly: number
+    features: Record<string, PlanFeatureValue>
+  }>
+}
+export const fetchAdminPlans = () =>
+  api.get<AdminPlansPayload>("/admin/plans/").then((r) => r.data)
+export const updateAdminPlan = (
+  code: string,
+  payload: { name?: string; price_eur_monthly?: number | string | null; features?: Record<string, PlanFeatureValue> },
+) => api.patch(`/admin/plans/${code}/`, payload).then((r) => r.data)
 
 // ====== Admin brand validation ======
 export const fetchPendingBrands = (status = "all") =>
@@ -522,7 +550,10 @@ export const updateAdminUser = (
 ) => api.patch(`/admin/users/${id}/`, payload).then((r) => r.data)
 export const updateAdminBrand = (
   id: number,
-  payload: Partial<Pick<BrandPending, "company_name" | "website" | "sector" | "description" | "validation_notes" | "validation_status">>,
+  payload: Partial<Pick<BrandPending, "company_name" | "website" | "sector" | "description" | "validation_notes" | "validation_status">> & {
+    subscription_plan?: string
+    subscription_price_override?: number | string | null
+  },
 ) => api.patch(`/admin/brands/${id}/`, payload).then((r) => r.data)
 
 // ====== Support tickets ======

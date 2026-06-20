@@ -41,6 +41,8 @@ export default function AdminCompanies() {
   const [editSector, setEditSector] = useState("")
   const [editValidationNotes, setEditValidationNotes] = useState("")
   const [editValidationStatus, setEditValidationStatus] = useState<"pending" | "approved" | "rejected">("pending")
+  const [editPlan, setEditPlan] = useState<"starter" | "growth" | "pro" | "">("")
+  const [editPriceOverride, setEditPriceOverride] = useState("")
 
   const load = () => {
     setLoading(true)
@@ -61,6 +63,8 @@ export default function AdminCompanies() {
     setEditSector(brand.sector || "")
     setEditValidationNotes(brand.validation_notes || "")
     setEditValidationStatus(brand.validation_status || "pending")
+    setEditPlan(brand.subscription_plan || "")
+    setEditPriceOverride(brand.subscription_price_override != null ? String(brand.subscription_price_override) : "")
   }
 
   const submitEditCompany = async () => {
@@ -78,6 +82,8 @@ export default function AdminCompanies() {
         sector: editSector.trim(),
         validation_notes: editValidationNotes.trim(),
         validation_status: editValidationStatus,
+        ...(editPlan ? { subscription_plan: editPlan } : {}),
+        subscription_price_override: editPriceOverride.trim() === "" ? null : editPriceOverride.trim(),
       })
       toast({ title: t("admin_brands.updated", "Marque mise à jour") })
       setEditingCompany(null)
@@ -265,6 +271,30 @@ export default function AdminCompanies() {
             <div>
               <Label>{t("admin_brands.edit_notes", "Note admin")}</Label>
               <Input value={editValidationNotes} onChange={(e) => setEditValidationNotes(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label>{t("admin_brands.edit_plan", "Abonnement")}</Label>
+              <select
+                value={editPlan}
+                onChange={(e) => setEditPlan((e.target.value as "starter" | "growth" | "pro") || "")}
+                className="mt-1 w-full h-10 rounded-md border border-aurora-line bg-white px-3 text-sm"
+              >
+                <option value="">-</option>
+                <option value="starter">Starter</option>
+                <option value="growth">Growth</option>
+                <option value="pro">Pro</option>
+              </select>
+            </div>
+            <div>
+              <Label>{t("admin_brands.edit_price_override", "Tarif négocié (€/mois)")}</Label>
+              <Input
+                type="number"
+                min={0}
+                value={editPriceOverride}
+                onChange={(e) => setEditPriceOverride(e.target.value)}
+                placeholder={t("admin_brands.edit_price_override_ph", "Vide = tarif global du plan")}
+                className="mt-1"
+              />
             </div>
           </div>
           <DialogFooter>

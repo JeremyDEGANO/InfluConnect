@@ -83,6 +83,11 @@ def dispatch_event(*, brand, event: str, data: dict[str, Any]) -> int:
 
     Returns the number of deliveries attempted.
     """
+    # Deliveries stop as soon as the brand's plan no longer includes API &
+    # webhooks (downgrade); endpoints are kept and resume after an upgrade.
+    from .plans import has_feature
+    if not has_feature(brand, "api_access"):
+        return 0
     endpoints = WebhookEndpoint.objects.filter(brand=brand, enabled=True)
     count = 0
     for ep in endpoints:

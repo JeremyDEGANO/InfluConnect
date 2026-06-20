@@ -20,7 +20,6 @@ interface StatsCardProps {
 export function StatsCard({ title, value, trend, trendLabel, progress, progressColor, hint }: StatsCardProps) {
   const isPositive = (trend ?? 0) >= 0
   const fill = progressColor ?? "bg-aurora-blue"
-  const pct = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : 60
 
   return (
     <div className="rounded-2xl bg-white border border-aurora-line p-5 shadow-soft">
@@ -35,9 +34,12 @@ export function StatsCard({ title, value, trend, trendLabel, progress, progressC
         )}
       </div>
       {hint && <div className="text-xs text-aurora-ink-3 mt-1">{hint}</div>}
-      <div className="mt-3 h-1 rounded-full bg-aurora-line/60 overflow-hidden">
-        <div className={cn("h-full rounded-full", fill)} style={{ width: `${pct}%` }} />
-      </div>
+      {/* The bar is only meaningful when the caller provides a real ratio. */}
+      {typeof progress === "number" && (
+        <div className="mt-3 h-1 rounded-full bg-aurora-line/60 overflow-hidden">
+          <div className={cn("h-full rounded-full", fill)} style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+        </div>
+      )}
     </div>
   )
 }

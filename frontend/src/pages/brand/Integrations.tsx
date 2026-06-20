@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import api from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -13,7 +14,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Loader2, Copy, Plus, Trash2, ShieldCheck, Globe, KeyRound, Webhook, BookOpen, ExternalLink } from "lucide-react"
 
 type Domain = { id: number; domain: string; status: string; record_name: string; record_value: string; verified_at: string | null; last_error: string }
-type SSOConfig = { provider: string; enabled: boolean; tenant_id: string; client_id: string; has_client_secret: boolean; enforce_sso: boolean; allow_local_fallback_for_owner: boolean; auto_provision_users: boolean; default_role: string }
+type GroupMapping = { id?: number; group_object_id: string; group_name: string; role: "admin" | "member"; scope: "global" | "environments"; environment_ids: number[] }
+type SSOConfig = {
+  provider: string; enabled: boolean; tenant_id: string; client_id: string
+  has_client_secret: boolean; enforce_sso: boolean; allow_local_fallback_for_owner: boolean
+  auto_provision_users: boolean; default_role: string
+  provisioning_mode: "domain" | "groups"
+  apply_to_organization: boolean
+  group_mappings: GroupMapping[]
+}
 type ApiKey = { id: number; name: string; prefix: string; scopes: string[]; ip_allowlist: string[]; last_used_at: string | null; expires_at: string | null; revoked_at: string | null; created_at: string }
 type Endpoint = { id: number; url: string; events: string[]; enabled: boolean; description: string; last_delivery_at: string | null; last_status: string; secret?: string }
 type AuditEntry = { id: number; api_key: string | null; method: string; path: string; status_code: number; ip_address: string | null; latency_ms: number; created_at: string; error: string }
@@ -47,11 +56,41 @@ function copy(t: string, toast: ReturnType<typeof useToast>["toast"]) {
 export default function Integrations() {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const { user } = useAuth()
   const docsToken = useMemo(() => localStorage.getItem("access_token") || "", [])
   const swaggerHref = useMemo(() => {
     const base = docsUrl("/api/partner/docs/")
     return docsToken ? `${base}?token=${encodeURIComponent(docsToken)}` : base
   }, [docsToken])
+
+  // Tabs are gated by the subscription plan (same rule as the backend).
+  // Absent payload (older session cache) → permissive, backend still enforces.
+  const planFeatures = user?.active_brand?.plan_features
+  const featureOn = (key: string) => !planFeatures || Boolean(planFeatures[key])
+  const ssoOn = featureOn("sso_office365_google")
+  const apiOn = featureOn("api_access")
+  const defaultTab = ssoOn ? "sso" : "keys"
+
+  if (!ssoOn && !apiOn) {
+    return (
+      <div className="container mx-auto p-6 max-w-6xl">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("integrations.title", "Integrations")}</h1>
+        <Card className="mt-6">
+          <CardContent className="py-12 text-center space-y-2">
+            <p className="text-aurora-ink-2 font-medium">
+              {t("integrations.locked_title", "Les intégrations ne sont pas incluses dans votre abonnement.")}
+            </p>
+            <p className="text-sm text-aurora-ink-3">
+              {t("integrations.locked_desc", "Passez à un plan supérieur pour activer le SSO, les clés API et les webhooks.")}
+            </p>
+            <Button asChild variant="gradient" className="mt-2">
+              <Link to="/brand/subscription">{t("integrations.locked_cta", "Voir les plans")}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -67,19 +106,19 @@ export default function Integrations() {
           </a>
         </div>
       </div>
-      <Tabs defaultValue="sso" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>
-          <TabsTrigger value="sso"><ShieldCheck className="h-4 w-4 mr-1.5" />{t("integrations.tab_sso", "SSO")}</TabsTrigger>
-          <TabsTrigger value="domains"><Globe className="h-4 w-4 mr-1.5" />{t("integrations.tab_domains", "Domains")}</TabsTrigger>
-          <TabsTrigger value="keys"><KeyRound className="h-4 w-4 mr-1.5" />{t("integrations.tab_keys", "API keys")}</TabsTrigger>
-          <TabsTrigger value="webhooks"><Webhook className="h-4 w-4 mr-1.5" />{t("integrations.tab_webhooks", "Webhooks")}</TabsTrigger>
-          <TabsTrigger value="audit">{t("integrations.tab_audit", "Audit")}</TabsTrigger>
+          {ssoOn && <TabsTrigger value="sso"><ShieldCheck className="h-4 w-4 mr-1.5" />{t("integrations.tab_sso", "SSO")}</TabsTrigger>}
+          {ssoOn && <TabsTrigger value="domains"><Globe className="h-4 w-4 mr-1.5" />{t("integrations.tab_domains", "Domains")}</TabsTrigger>}
+          {apiOn && <TabsTrigger value="keys"><KeyRound className="h-4 w-4 mr-1.5" />{t("integrations.tab_keys", "API keys")}</TabsTrigger>}
+          {apiOn && <TabsTrigger value="webhooks"><Webhook className="h-4 w-4 mr-1.5" />{t("integrations.tab_webhooks", "Webhooks")}</TabsTrigger>}
+          {apiOn && <TabsTrigger value="audit">{t("integrations.tab_audit", "Audit")}</TabsTrigger>}
         </TabsList>
-        <TabsContent value="sso"><SSOPane toast={toast} t={t} /></TabsContent>
-        <TabsContent value="domains"><DomainsPane toast={toast} t={t} /></TabsContent>
-        <TabsContent value="keys"><ApiKeysPane toast={toast} t={t} /></TabsContent>
-        <TabsContent value="webhooks"><WebhooksPane toast={toast} t={t} /></TabsContent>
-        <TabsContent value="audit"><AuditPane t={t} /></TabsContent>
+        {ssoOn && <TabsContent value="sso"><SSOPane toast={toast} t={t} /></TabsContent>}
+        {ssoOn && <TabsContent value="domains"><DomainsPane toast={toast} t={t} /></TabsContent>}
+        {apiOn && <TabsContent value="keys"><ApiKeysPane toast={toast} t={t} /></TabsContent>}
+        {apiOn && <TabsContent value="webhooks"><WebhooksPane toast={toast} t={t} /></TabsContent>}
+        {apiOn && <TabsContent value="audit"><AuditPane t={t} /></TabsContent>}
       </Tabs>
     </div>
   )
@@ -87,9 +126,11 @@ export default function Integrations() {
 
 // ----- SSO -----
 function SSOPane({ toast, t }: { toast: ReturnType<typeof useToast>["toast"]; t: ReturnType<typeof useTranslation>["t"] }) {
+  const { user } = useAuth()
   const [cfg, setCfg] = useState<SSOConfig | null>(null)
   const [secret, setSecret] = useState("")
   const [saving, setSaving] = useState(false)
+  const environments = user?.brand_environments ?? []
   const load = async () => { const { data } = await api.get("/v1/brand/sso/"); setCfg(data) }
   useEffect(() => { load() }, [])
   if (!cfg) return <Loader />
@@ -106,18 +147,131 @@ function SSOPane({ toast, t }: { toast: ReturnType<typeof useToast>["toast"]; t:
       toast({ variant: "destructive", title: t("common.error", "Error"), description: msg })
     } finally { setSaving(false) }
   }
+
+  const updateMapping = (idx: number, patch: Partial<GroupMapping>) => {
+    setCfg((c) => c ? {
+      ...c,
+      group_mappings: c.group_mappings.map((m, i) => i === idx ? { ...m, ...patch } : m),
+    } : c)
+  }
+  const addMapping = () => {
+    setCfg((c) => c ? {
+      ...c,
+      group_mappings: [...c.group_mappings, { group_object_id: "", group_name: "", role: "member", scope: "global", environment_ids: [] }],
+    } : c)
+  }
+  const removeMapping = (idx: number) => {
+    setCfg((c) => c ? { ...c, group_mappings: c.group_mappings.filter((_, i) => i !== idx) } : c)
+  }
+
   return (
     <Card className="mt-4">
       <CardHeader>
         <CardTitle>{t("sso.title", "Office 365 SSO")}</CardTitle>
         <CardDescription>{t("sso.desc", "Allow your team to log in with their Microsoft work account.")}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
+        {/* Step indicator */}
+        <ol className="text-xs text-aurora-ink-3 space-y-1 rounded-lg bg-aurora-surface/60 border border-aurora-line p-3">
+          <li><strong>1.</strong> {t("sso.step1", "Vérifiez votre ou vos domaines email (onglet Domaines).")}</li>
+          <li><strong>2.</strong> {t("sso.step2", "Créez l'application dans Microsoft Entra ID et renseignez Tenant / Client ID / Secret.")}</li>
+          <li><strong>3.</strong> {t("sso.step3", "Choisissez qui peut se connecter : tout le tenant (domaine vérifié) ou des groupes Entra précis.")}</li>
+          <li><strong>4.</strong> {t("sso.step4", "Activez le SSO. L'intégration couvre tous les environnements de votre organisation.")}</li>
+        </ol>
+
         <div className="grid sm:grid-cols-2 gap-4">
           <div><Label>{t("sso.tenant_id", "Tenant ID")}</Label><Input value={cfg.tenant_id} onChange={e => setCfg({ ...cfg, tenant_id: e.target.value })} placeholder="00000000-0000-0000-0000-000000000000" /></div>
           <div><Label>{t("sso.client_id", "Client ID")}</Label><Input value={cfg.client_id} onChange={e => setCfg({ ...cfg, client_id: e.target.value })} /></div>
           <div className="sm:col-span-2"><Label>{t("sso.client_secret", "Client secret")} {cfg.has_client_secret && <Badge variant="outline" className="ml-2">{t("sso.secret_set", "set")}</Badge>}</Label><Input value={secret} onChange={e => setSecret(e.target.value)} placeholder={cfg.has_client_secret ? "•••••••• (unchanged)" : ""} /></div>
         </div>
+
+        {/* Provisioning: who can sign in, and with which rights */}
+        <div className="space-y-2">
+          <Label>{t("sso.provisioning_title", "Qui peut se connecter ?")}</Label>
+          <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-aurora-line cursor-pointer hover:bg-aurora-surface">
+            <input type="radio" name="prov" className="mt-0.5" checked={cfg.provisioning_mode === "domain"} onChange={() => setCfg({ ...cfg, provisioning_mode: "domain" })} />
+            <span className="text-sm">
+              <span className="font-medium text-aurora-ink block">{t("sso.mode_domain", "Tout le tenant (domaine vérifié)")}</span>
+              <span className="text-xs text-aurora-ink-3">{t("sso.mode_domain_desc", "Toute personne dont l'email appartient à un domaine vérifié peut se connecter, avec le rôle par défaut ci-dessous.")}</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-aurora-line cursor-pointer hover:bg-aurora-surface">
+            <input type="radio" name="prov" className="mt-0.5" checked={cfg.provisioning_mode === "groups"} onChange={() => setCfg({ ...cfg, provisioning_mode: "groups" })} />
+            <span className="text-sm">
+              <span className="font-medium text-aurora-ink block">{t("sso.mode_groups", "Groupes Entra synchronisés uniquement")}</span>
+              <span className="text-xs text-aurora-ink-3">{t("sso.mode_groups_desc", "Seuls les membres des groupes mappés ci-dessous peuvent se connecter. Chaque groupe définit un rôle et une portée (global ou environnements précis). Les droits sont resynchronisés à chaque connexion.")}</span>
+            </span>
+          </label>
+        </div>
+
+        {cfg.provisioning_mode === "domain" && (
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <Label className="mb-0">{t("sso.default_role", "Rôle par défaut")}</Label>
+              <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={cfg.default_role} onChange={e => setCfg({ ...cfg, default_role: e.target.value })}>
+                <option value="member">{t("brand_team.role_member", "Membre")}</option>
+                <option value="admin">{t("brand_team.role_admin", "Admin")}</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={cfg.apply_to_organization} onChange={e => setCfg({ ...cfg, apply_to_organization: e.target.checked })} />
+              {t("sso.apply_org", "Accès à tous les environnements de l'organisation")}
+            </label>
+          </div>
+        )}
+
+        {cfg.provisioning_mode === "groups" && (
+          <div className="space-y-3">
+            <p className="text-xs text-aurora-ink-3">
+              {t("sso.groups_hint", "Dans Entra ID : Token configuration → Add groups claim → Security groups, puis collez ici l'Object ID de chaque groupe.")}
+            </p>
+            {cfg.group_mappings.map((m, idx) => (
+              <div key={idx} className="rounded-lg border border-aurora-line p-3 space-y-2.5">
+                <div className="grid sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <Label className="text-xs">{t("sso.group_id", "Object ID du groupe")}</Label>
+                    <Input className="mt-1 font-mono text-xs" placeholder="00000000-0000-0000-0000-000000000000" value={m.group_object_id} onChange={e => updateMapping(idx, { group_object_id: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">{t("sso.group_name", "Nom (repère)")}</Label>
+                    <Input className="mt-1" placeholder="Marketing FR" value={m.group_name} onChange={e => updateMapping(idx, { group_name: e.target.value })} />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={m.role} onChange={e => updateMapping(idx, { role: e.target.value as "admin" | "member" })}>
+                    <option value="member">{t("brand_team.role_member", "Membre")}</option>
+                    <option value="admin">{t("brand_team.role_admin", "Admin")}</option>
+                  </select>
+                  <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={m.scope} onChange={e => updateMapping(idx, { scope: e.target.value as "global" | "environments", environment_ids: [] })}>
+                    <option value="global">{t("brand_team.all_environments", "Tous les environnements")}</option>
+                    <option value="environments">{t("brand_team.scope_envs", "Environnements sélectionnés")}</option>
+                  </select>
+                  <Button size="sm" variant="ghost" className="text-red-500 ml-auto" onClick={() => removeMapping(idx)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+                {m.scope === "environments" && (
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    {environments.map((env) => (
+                      <label key={env.id} className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={m.environment_ids.includes(env.id)}
+                          onChange={(e) => updateMapping(idx, {
+                            environment_ids: e.target.checked
+                              ? [...m.environment_ids, env.id]
+                              : m.environment_ids.filter((i) => i !== env.id),
+                          })}
+                        />
+                        {env.company_name}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            <Button size="sm" variant="outline" onClick={addMapping}><Plus className="h-4 w-4 mr-1" />{t("sso.add_group", "Ajouter un groupe")}</Button>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.enabled} onChange={e => setCfg({ ...cfg, enabled: e.target.checked })} />{t("sso.enable", "Enable SSO")}</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.enforce_sso} onChange={e => setCfg({ ...cfg, enforce_sso: e.target.checked })} />{t("sso.enforce", "Enforce (block password login)")}</label>

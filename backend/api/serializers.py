@@ -21,7 +21,7 @@ from .models import (
     Message, DirectMessage, Review, Notification, PlatformSettings,
     ContractTemplate, CastingApplication, AmbassadorProgram, AuditLog,
     MediaKitImage, BrandMembership, AgencyDelegation, SupportTicket,
-    SupportTicketImage, TranslationCache,
+    SupportTicketImage,
     InfluencerReferralInvite,
 )
 from .workspace import get_user_brand_workspaces, get_user_role_for_brand
@@ -113,7 +113,6 @@ def _pseudo_is_available(candidate: str, *, current_profile=None, reserved_usern
         return True
 
     candidate_key = _pseudo_collision_key(candidate)
-    current_value_key = _pseudo_collision_key(current_value)
     current_username_key = _pseudo_collision_key(current_username)
 
     duplicate_pseudo = InfluencerProfile.objects.exclude(
@@ -351,6 +350,21 @@ class InfluencerProfileSerializer(serializers.ModelSerializer):
     def get_pseudo(self, obj):
         return (obj.display_name or '').strip() or obj.user.username
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        is_owner = bool(
+            user and getattr(user, 'is_authenticated', False)
+            and (user.is_staff or instance.user_id == user.id)
+        )
+        if not is_owner:
+            # Private to the influencer — never shown to brands / partner API.
+            for field in ('stripe_account_id', 'referral_code',
+                          'referral_commission_discount_percent', 'payment_method'):
+                data.pop(field, None)
+        return data
+
     def validate_display_name(self, value):
         return _validate_influencer_pseudo(value, current_profile=self.instance)
 
@@ -458,6 +472,7 @@ class BrandAdminSerializer(serializers.ModelSerializer):
             'sector', 'description', 'logo',
             'website', 'billing_address',
             'subscription_plan', 'subscription_active', 'subscription_expires_at',
+            'subscription_price_override',
             'stripe_customer_id', 'stripe_subscription_id',
             'validation_status', 'validation_notes', 'validated_at',
             'validated_by_username', 'created_at',
@@ -539,6 +554,7 @@ class UserSerializer(serializers.ModelSerializer):
         brand = getattr(obj, 'active_brand_workspace', None)
         if not brand:
             return None
+        from .services import plans as plans_service
         return {
             'id': brand.id,
             'company_name': brand.company_name,
@@ -546,6 +562,9 @@ class UserSerializer(serializers.ModelSerializer):
             'validation_status': brand.validation_status,
             'subscription_plan': brand.subscription_plan,
             'subscription_active': bool(brand.subscription_active),
+            # Entitlements of the current plan — drives frontend feature gating
+            'plan_features': plans_service.get_brand_features(brand),
+            'plan_price_eur_monthly': plans_service.get_brand_price(brand),
         }
 
 
@@ -842,7 +861,15 @@ class CampaignProposalSerializer(serializers.ModelSerializer):
         return (obj.influencer.display_name or '').strip() or obj.influencer.user.username
 
     def _latest_submission(self, obj):
-        return obj.submissions.order_by('-created_at').first()
+        # Called by 4 method fields — memoize per instance, and reuse the
+        # newest-first prefetch when the view provides one (list endpoints).
+        if not hasattr(obj, '_latest_submission_cache'):
+            prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('submissions')
+            if prefetched is not None:
+                obj._latest_submission_cache = prefetched[0] if len(prefetched) else None
+            else:
+                obj._latest_submission_cache = obj.submissions.order_by('-created_at').first()
+        return obj._latest_submission_cache
 
     def get_latest_submission_kind(self, obj):
         submission = self._latest_submission(obj)

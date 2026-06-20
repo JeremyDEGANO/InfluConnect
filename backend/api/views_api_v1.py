@@ -15,7 +15,7 @@ import time
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import (
-    OpenApiExample, OpenApiParameter, OpenApiResponse, OpenApiTypes,
+    OpenApiExample, OpenApiParameter, OpenApiResponse,
     extend_schema, inline_serializer,
 )
 from rest_framework import serializers, status

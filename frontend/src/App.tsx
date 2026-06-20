@@ -1,84 +1,97 @@
+import { lazy, Suspense } from "react"
 import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "@/lib/auth"
 import { Header } from "@/components/layout/Header"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { Footer } from "@/components/layout/Footer"
+import { MobileTabBar } from "@/components/layout/MobileTabBar"
+import { NativeBridge } from "@/components/NativeBridge"
+import { isNative } from "@/lib/native"
 import { Toaster } from "@/components/ui/toaster"
+// Eager: entry pages shown on first paint
 import Landing from "@/pages/Landing"
 import Login from "@/pages/Login"
-import LoginSSO from "@/pages/LoginSSO"
-import DocsIntegrations from "@/pages/DocsIntegrations"
-import Integrations from "@/pages/brand/Integrations"
-import Register from "@/pages/Register"
-import PasswordResetRequest from "@/pages/PasswordResetRequest"
-import PasswordResetConfirm from "@/pages/PasswordResetConfirm"
-import MfaResetConfirm from "@/pages/MfaResetConfirm"
-import SecuritySettings from "@/pages/SecuritySettings"
-import Pricing from "@/pages/Pricing"
-import InfluencerDashboard from "@/pages/influencer/Dashboard"
-import InfluencerReferral from "./pages/influencer/Referral"
-import InfluencerProposals from "@/pages/influencer/Proposals"
-import ProposalDetail from "@/pages/influencer/ProposalDetail"
-import InfluencerEditProfile from "@/pages/influencer/EditProfile"
-import Earnings from "@/pages/influencer/Earnings"
-import BrandDashboard from "@/pages/brand/Dashboard"
-import BrandCampaigns from "@/pages/brand/Campaigns"
-import NewCampaign from "@/pages/brand/NewCampaign"
-import CampaignDetail from "@/pages/brand/CampaignDetail"
-import ValidateContent from "@/pages/brand/ValidateContent"
-import BrandEditProfile from "@/pages/brand/EditProfile"
-import BrandOnboarding from "@/pages/brand/Onboarding"
-import BrandTeam from "@/pages/brand/Team"
-import BrandEnvironments from "./pages/brand/Environments"
-import BrandDelegations from "@/pages/brand/Delegations"
-import Subscription from "@/pages/brand/Subscription"
-import AmbassadorPrograms from "@/pages/brand/AmbassadorPrograms"
-import ContractTemplates from "@/pages/brand/ContractTemplates"
-import BrandCastings from "@/pages/brand/Castings"
-import BrandEvents from "@/pages/brand/Events"
-import BrandEventDetail from "@/pages/brand/EventDetail"
-import NewEvent from "@/pages/brand/NewEvent"
-import Castings from "@/pages/influencer/Castings"
-import InfluencerEvents from "@/pages/influencer/Events"
-import Notifications from "@/pages/Notifications"
-import Messages from "@/pages/Messages"
-import Marketplace from "@/pages/Marketplace"
-import Contracts from "@/pages/Contracts"
-import InfluencerPublicProfile from "@/pages/InfluencerPublicProfile"
-import BrandProposalDetail from "@/pages/brand/BrandProposalDetail"
-import BrandPublicProfile from "@/pages/influencer/BrandPublicProfile"
-import Terms from "@/pages/legal/Terms"
-import Privacy from "@/pages/legal/Privacy"
-import LegalNotice from "@/pages/legal/LegalNotice"
-import CGV from "@/pages/legal/CGV"
-import CookiesPolicy from "@/pages/legal/Cookies"
-import About from "@/pages/About"
-import Contact from "@/pages/Contact"
-import FAQ from "@/pages/FAQ"
-import Help from "@/pages/Help"
-import Compare from "@/pages/Compare"
-import EventRsvp from "@/pages/EventRsvp"
-import Admin from "@/pages/Admin"
-import AdminBrands from "@/pages/admin/Brands"
-import AdminCompanies from "@/pages/admin/Companies"
-import AdminUsers from "@/pages/admin/Users"
-import AdminCampaigns from "@/pages/admin/Campaigns"
-import AdminReviews from "@/pages/admin/Reviews"
-import AdminAuditLog from "@/pages/admin/AuditLog"
-import AdminSupport from "@/pages/admin/Support"
-import SupportPage from "@/pages/Support"
-import InfluencerOnboarding from "@/pages/influencer/Onboarding"
-import InfluencerMediaKit from "@/pages/influencer/MediaKit"
-import SignMobile from "@/pages/SignMobile"
-import AcceptInvitation from "@/pages/AcceptInvitation"
 import { PortalGuidedTour } from "@/components/shared/PortalGuidedTour"
+
+// Lazy: every other page is its own chunk, loaded on navigation
+const LoginSSO = lazy(() => import("@/pages/LoginSSO"))
+const DocsIntegrations = lazy(() => import("@/pages/DocsIntegrations"))
+const Integrations = lazy(() => import("@/pages/brand/Integrations"))
+const Register = lazy(() => import("@/pages/Register"))
+const PasswordResetRequest = lazy(() => import("@/pages/PasswordResetRequest"))
+const PasswordResetConfirm = lazy(() => import("@/pages/PasswordResetConfirm"))
+const MfaResetConfirm = lazy(() => import("@/pages/MfaResetConfirm"))
+const SecuritySettings = lazy(() => import("@/pages/SecuritySettings"))
+const Pricing = lazy(() => import("@/pages/Pricing"))
+const InfluencerDashboard = lazy(() => import("@/pages/influencer/Dashboard"))
+const InfluencerReferral = lazy(() => import("./pages/influencer/Referral"))
+const InfluencerProposals = lazy(() => import("@/pages/influencer/Proposals"))
+const ProposalDetail = lazy(() => import("@/pages/influencer/ProposalDetail"))
+const InfluencerEditProfile = lazy(() => import("@/pages/influencer/EditProfile"))
+const Earnings = lazy(() => import("@/pages/influencer/Earnings"))
+const BrandDashboard = lazy(() => import("@/pages/brand/Dashboard"))
+const BrandCampaigns = lazy(() => import("@/pages/brand/Campaigns"))
+const NewCampaign = lazy(() => import("@/pages/brand/NewCampaign"))
+const CampaignDetail = lazy(() => import("@/pages/brand/CampaignDetail"))
+const ValidateContent = lazy(() => import("@/pages/brand/ValidateContent"))
+const BrandEditProfile = lazy(() => import("@/pages/brand/EditProfile"))
+const BrandOnboarding = lazy(() => import("@/pages/brand/Onboarding"))
+const BrandTeam = lazy(() => import("@/pages/brand/Team"))
+const BrandEnvironments = lazy(() => import("./pages/brand/Environments"))
+const BrandDelegations = lazy(() => import("@/pages/brand/Delegations"))
+const Subscription = lazy(() => import("@/pages/brand/Subscription"))
+const AmbassadorPrograms = lazy(() => import("@/pages/brand/AmbassadorPrograms"))
+const ContractTemplates = lazy(() => import("@/pages/brand/ContractTemplates"))
+const BrandCastings = lazy(() => import("@/pages/brand/Castings"))
+const BrandEvents = lazy(() => import("@/pages/brand/Events"))
+const BrandEventDetail = lazy(() => import("@/pages/brand/EventDetail"))
+const NewEvent = lazy(() => import("@/pages/brand/NewEvent"))
+const Castings = lazy(() => import("@/pages/influencer/Castings"))
+const InfluencerEvents = lazy(() => import("@/pages/influencer/Events"))
+const Notifications = lazy(() => import("@/pages/Notifications"))
+const Messages = lazy(() => import("@/pages/Messages"))
+const Marketplace = lazy(() => import("@/pages/Marketplace"))
+const Contracts = lazy(() => import("@/pages/Contracts"))
+const InfluencerPublicProfile = lazy(() => import("@/pages/InfluencerPublicProfile"))
+const BrandProposalDetail = lazy(() => import("@/pages/brand/BrandProposalDetail"))
+const BrandPublicProfile = lazy(() => import("@/pages/influencer/BrandPublicProfile"))
+const Terms = lazy(() => import("@/pages/legal/Terms"))
+const Privacy = lazy(() => import("@/pages/legal/Privacy"))
+const LegalNotice = lazy(() => import("@/pages/legal/LegalNotice"))
+const CGV = lazy(() => import("@/pages/legal/CGV"))
+const CookiesPolicy = lazy(() => import("@/pages/legal/Cookies"))
+const About = lazy(() => import("@/pages/About"))
+const Contact = lazy(() => import("@/pages/Contact"))
+const FAQ = lazy(() => import("@/pages/FAQ"))
+const Help = lazy(() => import("@/pages/Help"))
+const Compare = lazy(() => import("@/pages/Compare"))
+const EventRsvp = lazy(() => import("@/pages/EventRsvp"))
+const Admin = lazy(() => import("@/pages/Admin"))
+const AdminBrands = lazy(() => import("@/pages/admin/Brands"))
+const AdminCompanies = lazy(() => import("@/pages/admin/Companies"))
+const AdminUsers = lazy(() => import("@/pages/admin/Users"))
+const AdminCampaigns = lazy(() => import("@/pages/admin/Campaigns"))
+const AdminReviews = lazy(() => import("@/pages/admin/Reviews"))
+const AdminAuditLog = lazy(() => import("@/pages/admin/AuditLog"))
+const AdminPlans = lazy(() => import("@/pages/admin/Plans"))
+const AdminSupport = lazy(() => import("@/pages/admin/Support"))
+const SupportPage = lazy(() => import("@/pages/Support"))
+const InfluencerOnboarding = lazy(() => import("@/pages/influencer/Onboarding"))
+const InfluencerMediaKit = lazy(() => import("@/pages/influencer/MediaKit"))
+const SignMobile = lazy(() => import("@/pages/SignMobile"))
+const AcceptInvitation = lazy(() => import("@/pages/AcceptInvitation"))
+const MobileMore = lazy(() => import("@/pages/MobileMore"))
+
+const RouteFallback = () => (
+  <div className="flex items-center justify-center h-64 text-gray-400">Loading...</div>
+)
 
 function PublicLayout() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1"><Outlet /></main>
-      <Footer />
+      {!isNative && <Footer />}
     </div>
   )
 }
@@ -91,12 +104,26 @@ function DashboardLayout() {
   const hideSidebar = user?.user_type === "brand" && brandValidationStatus !== "approved"
   const workspaceRefreshKey = `${user?.id ?? "anon"}-${user?.active_brand_workspace_id ?? "none"}`
 
+  // App native : navigation par onglets en bas, pas de sidebar ni de visite guidée.
+  if (isNative) {
+    return (
+      <div className="h-dvh flex flex-col bg-aurora-surface overflow-hidden">
+        <Header />
+        <main key={workspaceRefreshKey} className="flex-1 min-h-0 overflow-y-auto relative">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-aurora-blue/[0.04] via-transparent to-transparent" />
+          <div className="relative"><Outlet /></div>
+        </main>
+        {!hideSidebar && <MobileTabBar />}
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen flex flex-col bg-aurora-surface">
+    <div className="h-screen flex flex-col bg-aurora-surface overflow-hidden">
       <Header />
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-h-0">
         {!hideSidebar && <Sidebar />}
-        <main key={workspaceRefreshKey} className="flex-1 overflow-auto relative">
+        <main key={workspaceRefreshKey} className="flex-1 overflow-y-auto relative">
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-aurora-blue/[0.04] via-transparent to-transparent" />
           <div className="relative"><Outlet /></div>
         </main>
@@ -104,6 +131,16 @@ function DashboardLayout() {
       <PortalGuidedTour />
     </div>
   )
+}
+
+/** Entrée de l'app native : pas de landing marketing, direct login ou dashboard. */
+function NativeEntry() {
+  const { isAuthenticated, isLoading, user } = useAuth()
+  if (isLoading) return <RouteFallback />
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (user?.user_type === "brand") return <Navigate to="/brand/dashboard" replace />
+  if (user?.user_type === "admin") return <Navigate to="/admin" replace />
+  return <Navigate to="/influencer/dashboard" replace />
 }
 
 function ProtectedRoute({ roles }: { roles?: string[] }) {
@@ -136,9 +173,11 @@ function BrandValidationRoute() {
 export default function App() {
   return (
     <>
-      <Routes>
+      <NativeBridge />
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
         <Route element={<PublicLayout />}>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={isNative ? <NativeEntry /> : <Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/login/sso" element={<LoginSSO />} />
           <Route path="/docs/integrations" element={<DocsIntegrations />} />
@@ -168,6 +207,7 @@ export default function App() {
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
+            <Route path="/m/more" element={<MobileMore />} />
             <Route element={<ProtectedRoute roles={["influencer"]} />}>
               <Route path="/influencer/dashboard" element={<InfluencerDashboard />} />
               <Route path="/influencer/referral" element={<InfluencerReferral />} />
@@ -227,12 +267,14 @@ export default function App() {
               <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/reviews" element={<AdminReviews />} />
               <Route path="/admin/audit-log" element={<AdminAuditLog />} />
+              <Route path="/admin/plans" element={<AdminPlans />} />
               <Route path="/admin/support" element={<AdminSupport />} />
             </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </Suspense>
       <Toaster />
     </>
   )

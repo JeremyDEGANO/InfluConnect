@@ -239,6 +239,69 @@ def verify(body, header, secret)
 end`,
 }
 
+const PLATFORM_BASE = "https://api.influconnect.app/api"
+
+const GET_JWT: Samples = {
+  curl: `# 1) Obtenir un couple access / refresh
+curl -X POST ${PLATFORM_BASE}/auth/login/ \\
+  -H "Content-Type: application/json" \\
+  -d '{ "username": "you@company.com", "password": "********" }'
+# → { "user": {...}, "access": "<JWT, 60 min>", "refresh": "<JWT, 7 jours>" }
+
+# 2) Appeler l'API avec le token d'accès
+curl ${PLATFORM_BASE}/campaigns/ \\
+  -H "Authorization: Bearer <access>"
+
+# 3) Renouveler le token d'accès quand il expire
+curl -X POST ${PLATFORM_BASE}/auth/refresh/ \\
+  -H "Content-Type: application/json" \\
+  -d '{ "refresh": "<refresh>" }'
+# → { "access": "<nouveau JWT>" }`,
+  python: `import requests
+
+BASE = "${PLATFORM_BASE}"
+
+# 1) Login → access (60 min) + refresh (7 jours)
+r = requests.post(f"{BASE}/auth/login/",
+                  json={"username": "you@company.com", "password": "********"},
+                  timeout=10)
+r.raise_for_status()
+tokens = r.json()
+
+# 2) Appels authentifiés
+me = requests.get(f"{BASE}/auth/me/",
+                  headers={"Authorization": f"Bearer {tokens['access']}"}, timeout=10)
+print(me.json())
+
+# 3) Renouvellement
+r = requests.post(f"{BASE}/auth/refresh/",
+                  json={"refresh": tokens["refresh"]}, timeout=10)
+access = r.json()["access"]`,
+  javascript: `const BASE = "${PLATFORM_BASE}";
+
+// 1) Login → access (60 min) + refresh (7 jours)
+const login = await fetch(\`\${BASE}/auth/login/\`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ username: "you@company.com", password: "********" }),
+});
+const { access, refresh } = await login.json();
+
+// 2) Appels authentifiés
+const me = await fetch(\`\${BASE}/auth/me/\`, {
+  headers: { Authorization: \`Bearer \${access}\` },
+});
+console.log(await me.json());
+
+// 3) Renouvellement
+const renewed = await fetch(\`\${BASE}/auth/refresh/\`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ refresh }),
+});
+const { access: newAccess } = await renewed.json();`,
+}
+
 const DISCOVER_SSO: Samples = {
   curl: `curl "https://api.influconnect.app/api/auth/sso/discover/?email=alice@acme.com"`,
   python: `import requests
@@ -315,19 +378,35 @@ export default function DocsIntegrations() {
         </Card>
 
         <Card id="auth">
-          <CardHeader><CardTitle>1. {t("docs.auth", "Authentication (API keys)")}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>1. {t("docs.auth", "Authentication")}</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
+            <h3 className="font-semibold">{t("docs.auth_apikey_title", "A. API keys (recommended for server-to-server)")}</h3>
             <p>{t("docs.auth_1", "Generate keys from Brand → Integrations → API keys. Each key carries an explicit set of scopes (least privilege). Keys are shown only at creation.")}</p>
             <p>{t("docs.auth_2", "Send the key in the Authorization header. Examples in your language:")}</p>
             <CodeTabs samples={LIST_CAMPAIGNS} />
             <p className="text-xs text-aurora-ink-3">{t("docs.auth_rate", "Rate limit: 120 requests / minute / key.")} · {t("docs.auth_ip", "Optional IP allowlist (CIDR) per key — requests from other addresses get HTTP 401.")}</p>
+
+            <h3 className="font-semibold mt-4">{t("docs.auth_jwt_title", "B. JWT user token (platform API)")}</h3>
+            <p>{t("docs.auth_jwt_1", "The /api/v1 partner endpoints only accept API keys. To call the platform API (the same endpoints the web app uses, under /api/...), authenticate as a user and obtain a JWT pair via login:")}</p>
+            <CodeTabs samples={GET_JWT} />
+            <ul className="text-xs list-disc pl-5 space-y-1 text-aurora-ink-3">
+              <li>{t("docs.auth_jwt_login", "POST /api/auth/login/ accepts your email or username; it returns an access token (valid 60 min) and a refresh token (valid 7 days).")}</li>
+              <li>{t("docs.auth_jwt_header", "Send the access token on every call: Authorization: Bearer <access>.")}</li>
+              <li>{t("docs.auth_jwt_refresh", "When the access token expires (HTTP 401), POST the refresh token to /api/auth/refresh/ to get a new one.")}</li>
+              <li>{t("docs.auth_jwt_2fa", "If 2FA is enabled on the account, the first call returns { totp_required: true } (or email_otp_required) — repeat the login request adding totp_code (or email_otp_code).")}</li>
+            </ul>
           </CardContent>
         </Card>
 
         <Card id="sso">
           <CardHeader><CardTitle>2. {t("docs.sso", "SSO with Microsoft Entra ID (Office 365)")}</CardTitle></CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="space-y-4 text-sm">
             <p className="text-aurora-ink-2">{t("docs.sso_intro", "InfluConnect uses a single login entry point. When a user types their work email, we check whether their domain is bound to a verified SSO workspace and, if so, send them straight to Microsoft. No extra button to click.")}</p>
+
+            <h3 className="font-semibold">{t("docs.sso_prereq_title", "Step 1 — Verify your email domain(s) (required first)")}</h3>
+            <p className="text-aurora-ink-2">{t("docs.sso_prereq", "SSO cannot be enabled until at least one email domain is verified via DNS (Integrations → Domains, see section 3). You can verify several domains; any of them unlocks sign-in for its users.")}</p>
+
+            <h3 className="font-semibold">{t("docs.sso_app_title", "Step 2 — Create the Entra application")}</h3>
             <ol className="list-decimal pl-5 space-y-2">
               <li>{t("docs.sso_1", "Open Azure Portal → Microsoft Entra ID → App registrations → New registration.")}</li>
               <li>{t("docs.sso_2", "Supported account types: single tenant. Redirect URI (Web):")} <code className="text-xs">https://api.influconnect.app/api/auth/sso/office365/callback/</code></li>
@@ -335,10 +414,31 @@ export default function DocsIntegrations() {
               <li>{t("docs.sso_4", "Certificates & secrets → New client secret. Copy the value (not the ID).")}</li>
               <li>{t("docs.sso_5", "API permissions → Microsoft Graph (Delegated): openid, email, profile, User.Read. Grant admin consent.")}</li>
               <li>{t("docs.sso_6", "Back in InfluConnect → Integrations → SSO, paste tenant ID, client ID and client secret, then save.")}</li>
-              <li>{t("docs.sso_7", "Add and verify at least one of your email domains (Integrations → Domains, then add the TXT record).")}</li>
-              <li>{t("docs.sso_8", "Enable SSO. Users on a verified domain will be redirected to Microsoft automatically when they type their email on /login.")}</li>
             </ol>
-            <p className="text-xs text-aurora-ink-3">{t("docs.sso_security", "We validate the OIDC ID token (RS256) against your tenant's JWKS, enforce nonce and PKCE (S256). The client secret is stored encrypted with Fernet (AES-128-CBC + HMAC-SHA256).")}</p>
+
+            <h3 className="font-semibold">{t("docs.sso_who_title", "Step 3 — Choose who can sign in")}</h3>
+            <p className="text-aurora-ink-2">{t("docs.sso_who_intro", "Two provisioning modes are available in Integrations → SSO:")}</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>{t("docs.sso_mode_domain", "Whole tenant (verified domain)")}</strong> — {t("docs.sso_mode_domain_desc", "every user whose email belongs to a verified domain can sign in. They receive the configured default role (member or admin), either on all environments of your organization or on a single environment.")}
+              </li>
+              <li>
+                <strong>{t("docs.sso_mode_groups", "Synchronized Entra groups")}</strong> — {t("docs.sso_mode_groups_desc", "only members of the Entra security groups you map can sign in. You can map several groups, each with its own role (admin/member) and scope (all environments, or a selection). Rights are re-synchronized at every login: move a user between groups in Entra and their InfluConnect access follows.")}
+                <div className="mt-2">
+                  <Code>{`Entra ID → App registration → Token configuration
+→ Add groups claim → Security groups
+(the ID token must carry the user's group Object IDs)`}</Code>
+                </div>
+              </li>
+            </ul>
+
+            <h3 className="font-semibold">{t("docs.sso_invite_title", "Inviting a tenant user explicitly")}</h3>
+            <p className="text-aurora-ink-2">{t("docs.sso_invite", "You can also keep auto-provisioning off and invite users one by one from Brand → Team. The invitee receives an email link; when they open it and sign in with Microsoft (their domain is detected automatically on the login page), the invitation is matched by email and the granted access applies. Group mode and invitations can be combined: groups for the bulk of the tenant, invitations for exceptions.")}</p>
+
+            <h3 className="font-semibold">{t("docs.sso_multi_title", "Multi-company (several environments)")}</h3>
+            <p className="text-aurora-ink-2">{t("docs.sso_multi", "One single integration covers your whole organization: domains and the Entra application are configured once, from any environment. Access scopes (global or per-environment) are controlled by the default role or by each group mapping — you do not need one Entra app per environment.")}</p>
+
+            <p className="text-xs text-aurora-ink-3">{t("docs.sso_security", "We validate the OIDC ID token (RS256) against your tenant's JWKS, enforce nonce and PKCE (S256). The client secret is stored encrypted with Fernet (AES-128-CBC + HMAC-SHA256). After the Microsoft callback, the browser receives a 60-second single-use code exchanged via POST — JWT tokens never transit in URLs.")}</p>
             <p>{t("docs.sso_discover", "Discovery endpoint (no auth required, no secret leaked):")}</p>
             <CodeTabs samples={DISCOVER_SSO} />
           </CardContent>

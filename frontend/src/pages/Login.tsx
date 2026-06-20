@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { isNative, openExternal } from "@/lib/native"
 import { Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react"
 
 type SSODiscovery = { sso: boolean; provider?: string; enforce?: boolean; brand_name?: string }
@@ -49,10 +50,29 @@ export default function Login() {
     return () => { if (discoverTimer.current) window.clearTimeout(discoverTimer.current) }
   }, [identifier])
 
+  // Retour SSO en erreur (deep link mobile ou redirection web) : informer l'utilisateur.
+  useEffect(() => {
+    const ssoError = searchParams.get("sso_error")
+    if (ssoError) {
+      toast({ variant: "destructive", title: t("auth.sso_failed", "SSO sign-in failed"), description: ssoError })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   const startSSO = async () => {
     setLoading(true)
     try {
-      const { data } = await api.post("/auth/sso/office365/start/", { email: identifier })
+      // En natif, Microsoft s'ouvre dans le navigateur système (Custom Tab) et
+      // revient dans l'app via le deep link influconnect://login/sso?code=...
+      const { data } = await api.post("/auth/sso/office365/start/", {
+        email: identifier,
+        client: isNative ? "mobile" : "web",
+      })
+      if (isNative) {
+        await openExternal(data.authorize_url)
+        setLoading(false)
+        return
+      }
       window.location.href = data.authorize_url
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail

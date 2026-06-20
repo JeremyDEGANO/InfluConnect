@@ -267,6 +267,11 @@ class BrandProfile(models.Model):
     subscription_plan = models.CharField(max_length=20, null=True, blank=True, choices=SUBSCRIPTION_PLAN_CHOICES)
     subscription_active = models.BooleanField(default=False)
     subscription_expires_at = models.DateTimeField(null=True, blank=True)
+    # Tarif négocié pour cette marque/agence (remplace le prix global du plan)
+    subscription_price_override = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text="Monthly price (EUR) negotiated for this brand; empty = global plan price.",
+    )
     stripe_customer_id = models.CharField(max_length=100, blank=True)
     stripe_subscription_id = models.CharField(max_length=100, blank=True)
 
@@ -291,6 +296,23 @@ class BrandProfile(models.Model):
 
     def __str__(self):
         return f'BrandProfile: {self.company_name}'
+
+
+class SubscriptionPlanConfig(models.Model):
+    """Admin-editable overrides of a subscription plan (price + feature matrix).
+
+    Defaults live in constants.SUBSCRIPTION_PLANS; a row here overrides the
+    price and any feature key present in `features`. Managed from the platform
+    admin (Plans & tarifs), reflected on the public pricing/compare pages."""
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=50, blank=True)
+    price_eur_monthly = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    features = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+
+    def __str__(self):
+        return f'SubscriptionPlanConfig: {self.code}'
 
 
 class BrandMembership(models.Model):
@@ -1049,9 +1071,18 @@ class BrandDomain(models.Model):
 
 
 class BrandSSOConfig(models.Model):
-    """Per-brand SSO configuration (currently Office 365 / Entra ID)."""
+    """Per-organization SSO configuration (currently Office 365 / Entra ID).
+
+    Attached to one BrandProfile (the environment it was configured from) but
+    applies to the whole organization when `apply_to_organization` is set —
+    one integration covers every environment of a multi-company client.
+    """
     PROVIDER_CHOICES = [
         ('office365', 'Office 365 / Entra ID'),
+    ]
+    PROVISIONING_MODE_CHOICES = [
+        ('domain', 'Everyone on a verified domain'),
+        ('groups', 'Members of synchronized Entra groups only'),
     ]
     brand = models.OneToOneField(BrandProfile, on_delete=models.CASCADE, related_name='sso_config')
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='office365')
@@ -1063,11 +1094,49 @@ class BrandSSOConfig(models.Model):
     allow_local_fallback_for_owner = models.BooleanField(default=True)
     auto_provision_users = models.BooleanField(default=False)
     default_role = models.CharField(max_length=20, default='member')
+    provisioning_mode = models.CharField(
+        max_length=12, choices=PROVISIONING_MODE_CHOICES, default='domain',
+    )
+    apply_to_organization = models.BooleanField(
+        default=True,
+        help_text='Grant access at the organization level (all environments) instead of this single environment.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f'SSO[{self.provider}] brand={self.brand_id}'
+
+
+class SSOGroupMapping(models.Model):
+    """Maps a Microsoft Entra security group to InfluConnect access.
+
+    Used when BrandSSOConfig.provisioning_mode == 'groups': only members of a
+    mapped group may sign in, and they receive the mapped role/scope.
+    """
+    ROLE_CHOICES = [
+        ('admin', 'Admin'),
+        ('member', 'Member'),
+    ]
+    SCOPE_CHOICES = [
+        ('global', 'All environments (global)'),
+        ('environments', 'Selected environments'),
+    ]
+    sso_config = models.ForeignKey(BrandSSOConfig, on_delete=models.CASCADE, related_name='group_mappings')
+    group_object_id = models.CharField(max_length=64)  # Entra group GUID
+    group_name = models.CharField(max_length=255, blank=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default='global')
+    environments = models.ManyToManyField(BrandProfile, blank=True, related_name='sso_group_mappings')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['sso_config', 'group_object_id'], name='uniq_sso_group_mapping'),
+        ]
+
+    def __str__(self):
+        return f'SSOGroupMapping[{self.group_object_id}] → {self.role}/{self.scope}'
 
 
 # ---------------------------------------------------------------------------

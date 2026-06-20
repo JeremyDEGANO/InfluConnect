@@ -13,28 +13,31 @@ export default function LoginSSO() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const access = params.get("access")
-    const refresh = params.get("refresh")
-    const next = params.get("next") || "/"
+    const code = params.get("code")
     const ssoError = params.get("sso_error")
     if (ssoError) {
       setError(ssoError)
       return
     }
-    if (!access || !refresh) {
-      setError("missing_tokens")
+    if (!code) {
+      setError("missing_code")
       return
     }
-    localStorage.setItem("access_token", access)
-    localStorage.setItem("refresh_token", refresh)
     ;(async () => {
       try {
-        const res = await api.get("/auth/me/")
+        // Single-use code → tokens via POST (JWTs never appear in the URL).
+        const { data } = await api.post("/auth/sso/exchange/", { code })
+        localStorage.setItem("access_token", data.access)
+        localStorage.setItem("refresh_token", data.refresh)
+        if (data?.user?.active_brand_workspace_id) {
+          localStorage.setItem("selected_brand_id", String(data.user.active_brand_workspace_id))
+        }
         if (typeof refreshUser === "function") {
           await refreshUser()
         }
-        const user = res.data
-        if (next && next !== "/") {
+        const user = data.user
+        const next = data.next || "/"
+        if (next && next !== "/" && next.startsWith("/") && !next.startsWith("//")) {
           navigate(next)
         } else if (user.user_type === "brand") {
           navigate("/brand/dashboard")
@@ -44,7 +47,7 @@ export default function LoginSSO() {
           navigate("/influencer/dashboard")
         }
       } catch {
-        setError("me_failed")
+        setError("exchange_failed")
       }
     })()
   }, [params, navigate, refreshUser])

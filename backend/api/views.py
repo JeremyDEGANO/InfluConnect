@@ -2,7 +2,6 @@ from decimal import Decimal
 import base64
 import binascii
 import logging
-from django.db.models.functions import Lower
 from django.db import models
 from django.conf import settings as django_settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
@@ -33,6 +32,7 @@ from .serializers import (
 )
 from .throttling import LoginRateThrottle, RegisterRateThrottle
 from .services import email_service, stripe_service
+from .services import plans as plans_service
 from .services.pdf_service import generate_contract_pdf
 from .constants import CONTENT_THEMES
 from .workspace import resolve_active_brand, get_user_role_for_brand, user_can_access_brand
@@ -553,6 +553,15 @@ class InfluencerListView(generics.ListAPIView):
         if self.request.user.user_type == "brand":
             qs = qs.filter(onboarding_completed=True)
 
+        search = (self.request.query_params.get("search") or "").strip()
+        if search:
+            qs = qs.filter(
+                models.Q(display_name__icontains=search)
+                | models.Q(user__username__icontains=search)
+                | models.Q(user__first_name__icontains=search)
+                | models.Q(user__last_name__icontains=search)
+            )
+
         platform = self.request.query_params.get("platform")
         if platform:
             qs = qs.filter(social_networks__platform=platform)
@@ -822,14 +831,77 @@ class BrandDashboardView(APIView):
                   "in_progress", "content_submitted", "validated", "paid", "disputed"]:
             status_breakdown[s] = proposals.filter(status=s).count()
 
-        return Response({
+        # --- Actionable items: what the brand should deal with right now ----
+        action_required = {
+            "counter_offers": proposals.filter(status="counter_offer").count(),
+            "contents_to_validate": proposals.filter(status="content_submitted").count(),
+            "contracts_to_sign": proposals.filter(
+                status="accepted", contract_signed_brand=False,
+            ).exclude(contract_pdf="").exclude(contract_pdf__isnull=True).count(),
+            "escrows_to_fund": proposals.filter(
+                status="contract_signed", escrow_funded=False,
+            ).count(),
+        }
+
+        unread_messages = Message.objects.filter(
+            proposal__campaign__brand=profile, read=False,
+        ).exclude(sender=request.user).count()
+
+        recent_proposals = [
+            {
+                "id": p.id,
+                "campaign_id": p.campaign_id,
+                "campaign_title": p.campaign.title,
+                "influencer_name": p.influencer.display_name or p.influencer.user.username,
+                "status": p.status,
+                "proposed_price": float(p.proposed_price or 0),
+                "updated_at": p.updated_at,
+            }
+            for p in proposals.select_related("campaign", "influencer__user").order_by("-updated_at")[:6]
+        ]
+
+        today = timezone.now().date()
+        upcoming_deadlines = [
+            {
+                "id": c.id,
+                "title": c.title,
+                "deadline": c.deadline,
+                "days_left": (c.deadline - today).days,
+                "status": c.status,
+            }
+            for c in campaigns.filter(
+                status__in=["active", "paused"],
+                deadline__isnull=False,
+                deadline__gte=today,
+                deadline__lte=today + timedelta(days=30),
+            ).order_by("deadline")[:5]
+        ]
+
+        payload = {
             "total_campaigns": campaigns.count(),
             "active_campaigns": campaigns.filter(status="active").count(),
             "total_proposals_received": proposals.count(),
             "total_spent": float(total_spent),
+            "in_progress_collabs": proposals.filter(
+                status__in=["contract_signed", "in_progress", "content_submitted"],
+            ).count(),
             "timeseries": months,
             "status_breakdown": status_breakdown,
-        })
+            "action_required": action_required,
+            "unread_messages": unread_messages,
+            "recent_proposals": recent_proposals,
+            "upcoming_deadlines": upcoming_deadlines,
+        }
+
+        if profile.is_agency:
+            from .models import AgencyDelegation
+            delegations = AgencyDelegation.objects.filter(agency=profile)
+            payload["agency"] = {
+                "active_delegations": delegations.filter(status="accepted").count(),
+                "pending_delegations": delegations.filter(status="pending").count(),
+            }
+
+        return Response(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -842,14 +914,16 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        # The serializer exposes brand_name/brand_logo on every row
+        qs = Campaign.objects.select_related("brand")
         if user.user_type == "brand":
             brand = _active_brand(self.request)
             if not brand:
                 return Campaign.objects.none()
-            return Campaign.objects.filter(brand=brand).order_by("-created_at")
+            return qs.filter(brand=brand).order_by("-created_at")
         elif user.user_type == "influencer":
-            return Campaign.objects.filter(status="active").order_by("-created_at")
-        return Campaign.objects.all().order_by("-created_at")
+            return qs.filter(status="active").order_by("-created_at")
+        return qs.order_by("-created_at")
 
     def perform_create(self, serializer):
         if self.request.user.user_type != "brand":
@@ -868,6 +942,13 @@ class CampaignViewSet(viewsets.ModelViewSet):
             raise PermissionDenied(
                 "Your brand account must be approved by the InfluConnect team before creating campaigns."
             )
+        # Plan entitlements: active campaign quota + open castings
+        plans_service.enforce_limit(
+            brand, "concurrent_campaigns",
+            Campaign.objects.filter(brand=brand).exclude(status__in=["completed", "cancelled"]).count(),
+        )
+        if serializer.validated_data.get("is_casting"):
+            plans_service.require_feature(brand, "open_castings")
         serializer.save(brand=brand)
 
     def perform_destroy(self, instance):
@@ -984,6 +1065,7 @@ class CampaignSendProposalsView(APIView):
 
         influencer_ids = request.data.get("influencer_ids", [])
         proposed_price = request.data.get("proposed_price", campaign.price_per_influencer or 0)
+        plans_service.enforce_monthly_contacts(brand, requested=len(influencer_ids))
         created = []
         skipped = []
 
@@ -1060,6 +1142,7 @@ class EventViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Brand profile not found.")
         if brand.validation_status != "approved":
             raise PermissionDenied("Your brand account must be approved before creating events.")
+        plans_service.require_feature(brand, "events")
         serializer.save(brand=brand)
 
     def perform_destroy(self, instance):
@@ -1349,17 +1432,24 @@ class ProposalListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        # The serializer reads campaign.brand, influencer.user and the latest
+        # submission of every row — load them upfront.
+        qs = CampaignProposal.objects.select_related(
+            "campaign__brand", "influencer__user",
+        ).prefetch_related(
+            models.Prefetch("submissions", queryset=ContentSubmission.objects.order_by("-created_at")),
+        )
         if user.user_type == "influencer":
             try:
-                return CampaignProposal.objects.filter(influencer=user.influencer_profile).order_by("-created_at")
+                return qs.filter(influencer=user.influencer_profile).order_by("-created_at")
             except InfluencerProfile.DoesNotExist:
                 return CampaignProposal.objects.none()
         elif user.user_type == "brand":
             brand = _active_brand(self.request)
             if not brand:
                 return CampaignProposal.objects.none()
-            return CampaignProposal.objects.filter(campaign__brand=brand).order_by("-created_at")
-        return CampaignProposal.objects.all().order_by("-created_at")
+            return qs.filter(campaign__brand=brand).order_by("-created_at")
+        return qs.order_by("-created_at")
 
 
 class ProposalDetailView(generics.RetrieveAPIView):
@@ -1368,17 +1458,18 @@ class ProposalDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        qs = CampaignProposal.objects.select_related("campaign__brand", "influencer__user")
         if user.user_type == "influencer":
             try:
-                return CampaignProposal.objects.filter(influencer=user.influencer_profile)
+                return qs.filter(influencer=user.influencer_profile)
             except InfluencerProfile.DoesNotExist:
                 return CampaignProposal.objects.none()
         elif user.user_type == "brand":
             brand = _active_brand(self.request)
             if not brand:
                 return CampaignProposal.objects.none()
-            return CampaignProposal.objects.filter(campaign__brand=brand)
-        return CampaignProposal.objects.all()
+            return qs.filter(campaign__brand=brand)
+        return qs
 
 
 class ProposalAcceptView(APIView):
@@ -2052,7 +2143,7 @@ class MessageListView(generics.ListAPIView):
         if not is_participant:
             return Message.objects.none()
 
-        return Message.objects.filter(proposal=proposal).order_by("created_at")
+        return Message.objects.filter(proposal=proposal).select_related("sender").order_by("created_at")
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
@@ -2164,92 +2255,84 @@ class ConversationsListView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         user = request.user
         conversations = []
-        
-        # Add direct message conversations
-        dm_users = set()
+
+        # Direct messages — ordered by -created_at, so the first row seen for a
+        # peer IS the last message of that conversation (no per-peer queries).
         dm_qs = DirectMessage.objects.filter(
             models.Q(sender=user) | models.Q(recipient=user)
-        ).order_by('-created_at')
-        
+        ).select_related('sender', 'recipient').order_by('-created_at')
+        unread_by_sender = {
+            row['sender_id']: row['n']
+            for row in DirectMessage.objects.filter(recipient=user, read=False)
+            .values('sender_id').annotate(n=models.Count('id'))
+        }
+        dm_users = set()
         for dm in dm_qs:
-            other_user = dm.recipient if dm.sender == user else dm.sender
-            if other_user.id not in dm_users:
-                dm_users.add(other_user.id)
-                last_dm = dm_qs.filter(
-                    models.Q(sender=user, recipient=other_user) |
-                    models.Q(sender=other_user, recipient=user)
-                ).first()
-                
-                conversations.append({
-                    'type': 'direct',
-                    'id': f'dm_{other_user.id}',
-                    'other_user': {
-                        'id': other_user.id,
-                        'username': _conversation_display_name(other_user),
-                        'avatar': _abs_media_url(request, getattr(other_user, 'avatar', None))
-                    },
-                    'last_message': _decrypt_message_text(last_dm.content) if last_dm else '',
-                    'created_at': last_dm.created_at if last_dm else None,
-                    'unread_count': DirectMessage.objects.filter(
-                        sender=other_user,
-                        recipient=user,
-                        read=False,
-                    ).count(),
-                })
-        
-        # Add campaign proposal conversations (if has messages)
+            other_user = dm.recipient if dm.sender_id == user.id else dm.sender
+            if other_user.id in dm_users:
+                continue
+            dm_users.add(other_user.id)
+            conversations.append({
+                'type': 'direct',
+                'id': f'dm_{other_user.id}',
+                'other_user': {
+                    'id': other_user.id,
+                    'username': _conversation_display_name(other_user),
+                    'avatar': _abs_media_url(request, getattr(other_user, 'avatar', None))
+                },
+                'last_message': _decrypt_message_text(dm.content),
+                'created_at': dm.created_at,
+                'unread_count': unread_by_sender.get(other_user.id, 0),
+            })
+
+        # Campaign proposal conversations (if they have messages). Messages are
+        # prefetched newest-first: last message + unread count come from cache.
+        proposals = None
         if user.user_type == "brand":
-            try:
-                brand = _active_brand(request)
-                if not brand:
-                    raise BrandProfile.DoesNotExist
-                proposals = CampaignProposal.objects.filter(campaign__brand=brand, messages__isnull=False).distinct().order_by('-updated_at')
-                for proposal in proposals:
-                    last_msg = proposal.messages.order_by('-created_at').first()
-                    if last_msg:
-                        conversations.append({
-                            'type': 'campaign',
-                            'id': f'campaign_{proposal.id}',
-                            'proposal_id': proposal.id,
-                            'campaign': proposal.campaign.title,
-                            'other_user': {
-                                'id': proposal.influencer.user.id,
-                                'username': _conversation_display_name(proposal.influencer.user),
-                                'avatar': _abs_media_url(request, getattr(proposal.influencer.user, 'avatar', None))
-                            },
-                            'last_message': _decrypt_message_text(last_msg.content),
-                            'created_at': last_msg.created_at,
-                            'unread_count': proposal.messages.filter(read=False).exclude(sender=user).count(),
-                        })
-            except BrandProfile.DoesNotExist:
-                pass
+            brand = _active_brand(request)
+            if brand:
+                proposals = CampaignProposal.objects.filter(
+                    campaign__brand=brand, messages__isnull=False,
+                ).distinct().select_related('campaign', 'influencer__user')
         elif user.user_type == "influencer":
             try:
-                influencer = user.influencer_profile
-                proposals = CampaignProposal.objects.filter(influencer=influencer, messages__isnull=False).distinct().order_by('-updated_at')
-                for proposal in proposals:
-                    last_msg = proposal.messages.order_by('-created_at').first()
-                    if last_msg:
-                        conversations.append({
-                            'type': 'campaign',
-                            'id': f'campaign_{proposal.id}',
-                            'proposal_id': proposal.id,
-                            'campaign': proposal.campaign.title,
-                            'other_user': {
-                                'id': proposal.campaign.brand.user.id,
-                                'username': _conversation_display_name(proposal.campaign.brand.user),
-                                'avatar': _abs_media_url(request, getattr(proposal.campaign.brand.user, 'avatar', None))
-                            },
-                            'last_message': _decrypt_message_text(last_msg.content),
-                            'created_at': last_msg.created_at,
-                            'unread_count': proposal.messages.filter(read=False).exclude(sender=user).count(),
-                        })
+                proposals = CampaignProposal.objects.filter(
+                    influencer=user.influencer_profile, messages__isnull=False,
+                ).distinct().select_related('campaign__brand__user')
             except InfluencerProfile.DoesNotExist:
-                pass
-        
+                proposals = None
+
+        if proposals is not None:
+            proposals = proposals.order_by('-updated_at').prefetch_related(
+                models.Prefetch('messages', queryset=Message.objects.order_by('-created_at')),
+            )
+            for proposal in proposals:
+                messages = list(proposal.messages.all())
+                if not messages:
+                    continue
+                last_msg = messages[0]
+                other = (
+                    proposal.influencer.user if user.user_type == "brand"
+                    else proposal.campaign.brand.user
+                )
+                conversations.append({
+                    'type': 'campaign',
+                    'id': f'campaign_{proposal.id}',
+                    'proposal_id': proposal.id,
+                    'campaign': proposal.campaign.title,
+                    'other_user': {
+                        'id': other.id,
+                        'username': _conversation_display_name(other),
+                        'avatar': _abs_media_url(request, getattr(other, 'avatar', None))
+                    },
+                    'last_message': _decrypt_message_text(last_msg.content),
+                    'created_at': last_msg.created_at,
+                    'unread_count': sum(1 for m in messages if not m.read and m.sender_id != user.id),
+                })
+
         # Sort by most recent
-        conversations.sort(key=lambda x: x['created_at'] if x['created_at'] else '', reverse=True)
-        
+        conversations.sort(key=lambda x: x['created_at'], reverse=True)
+
         return Response(conversations)
 
 
@@ -2265,7 +2348,7 @@ class DirectMessageListView(generics.ListAPIView):
         return DirectMessage.objects.filter(
             models.Q(sender=user, recipient_id=other_user_id) |
             models.Q(sender_id=other_user_id, recipient=user)
-        ).order_by('created_at')
+        ).select_related('sender', 'recipient').order_by('created_at')
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
@@ -2435,7 +2518,7 @@ class UserReviewListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Review.objects.filter(reviewee_id=self.kwargs["pk"]).order_by("-created_at")
+        return Review.objects.filter(reviewee_id=self.kwargs["pk"]).select_related("reviewer", "reviewee").order_by("-created_at")
 
 
 # ---------------------------------------------------------------------------
@@ -2482,13 +2565,17 @@ class AdminUserListView(generics.ListAPIView):
 
 
 class AdminCampaignListView(generics.ListAPIView):
-    queryset = Campaign.objects.all().order_by("-created_at")
+    queryset = Campaign.objects.select_related("brand").order_by("-created_at")
     serializer_class = CampaignSerializer
     permission_classes = [IsAdminUser]
 
 
 class AdminProposalListView(generics.ListAPIView):
-    queryset = CampaignProposal.objects.all().order_by("-created_at")
+    queryset = CampaignProposal.objects.select_related(
+        "campaign__brand", "influencer__user",
+    ).prefetch_related(
+        models.Prefetch("submissions", queryset=ContentSubmission.objects.order_by("-created_at")),
+    ).order_by("-created_at")
     serializer_class = CampaignProposalSerializer
     permission_classes = [IsAdminUser]
 

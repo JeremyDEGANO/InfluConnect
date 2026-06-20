@@ -167,3 +167,24 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--aurora-line)); border-radius: 999px; border: 2px solid #fff; }
 ::-webkit-scrollbar-thumb:hover { background: hsl(220 9% 75%); }
+
+/* ---------------------------------------------------------------------------
+   App native (Capacitor) — la classe .native-app est posée par src/lib/native.ts
+   --------------------------------------------------------------------------- */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+html.native-app {
+  -webkit-tap-highlight-color: transparent;
+  /* Sensation app : pas de sélection de texte accidentelle ni de rebond global */
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior-y: none;
+}
+html.native-app input,
+html.native-app textarea,
+html.native-app [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+html.native-app ::-webkit-scrollbar { width: 0; height: 0; }

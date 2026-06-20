@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from .models import ApiAuditLog, ApiKey, WebhookDelivery, WebhookEndpoint
 from .services import api_keys as api_keys_service
+from .services import plans as plans_service
 from .services import webhooks as webhooks_service
 from .workspace import get_user_role_for_brand, resolve_active_brand
 
@@ -118,6 +119,9 @@ class ApiKeyListCreateView(APIView):
         brand = _admin_brand(request)
         if not brand:
             return Response({"detail": "No brand workspace."}, status=403)
+        plans_service.require_feature(
+            brand, "api_access", "L'accès API n'est pas inclus dans votre abonnement.",
+        )
         name = (request.data.get("name") or "").strip()
         scopes = request.data.get("scopes") or []
         ip_allowlist = request.data.get("ip_allowlist") or []
@@ -261,6 +265,9 @@ class WebhookEndpointListCreateView(APIView):
         brand = _admin_brand(request)
         if not brand:
             return Response({"detail": "No brand workspace."}, status=403)
+        plans_service.require_feature(
+            brand, "api_access", "Les webhooks ne sont pas inclus dans votre abonnement.",
+        )
         url = (request.data.get("url") or "").strip()
         url_error = webhooks_service.validate_webhook_url(url)
         if url_error:
