@@ -34,7 +34,7 @@ def translate(text: str, target_lang: str) -> str:
         return text  # Not configured — silent no-op
 
     target = target_lang.upper()
-    cache_key = hashlib.md5(f"{text}\x00{target}".encode()).hexdigest()
+    cache_key = hashlib.sha256(f"{text}\x00{target}".encode()).hexdigest()
 
     # L1 — in-process
     if cache_key in _cache:

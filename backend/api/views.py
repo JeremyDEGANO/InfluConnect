@@ -1,8 +1,8 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import base64
 import binascii
 import logging
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings as django_settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.core.files.base import ContentFile
@@ -20,19 +20,22 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import (
     User, InfluencerProfile, SocialNetwork, BrandProfile, BrandMembership,
-    Campaign, CampaignProposal, Event, EventInvitation, ContentSubmission,
+    Campaign, CampaignDocument, CampaignProposal, Event, EventInvitation, ContentSubmission,
     Message, DirectMessage, Review, Notification, PlatformSettings, AuditLog,
 )
 from .serializers import (
     UserSerializer, InfluencerProfileSerializer, InfluencerProfileWithPaymentSerializer,
     SocialNetworkSerializer, BrandProfileSerializer,
-    CampaignSerializer, CampaignProposalSerializer, EventSerializer, EventInvitationSerializer, ContentSubmissionSerializer,
+    BrandPublicSerializer,
+    CampaignSerializer, CampaignDocumentSerializer, CampaignProposalSerializer, EventSerializer, EventInvitationSerializer, ContentSubmissionSerializer,
     MessageSerializer, DirectMessageSerializer, ReviewSerializer, NotificationSerializer, PlatformSettingsSerializer,
     RegisterSerializer, LoginSerializer, _abs_media_url,
 )
-from .throttling import LoginRateThrottle, RegisterRateThrottle
+from .throttling import EventInvitePublicThrottle, LoginRateThrottle, RegisterRateThrottle
 from .services import email_service, stripe_service
 from .services import plans as plans_service
+from .constants import INFLUENCER_COMPLETION_THRESHOLD
+from .services.completion import compute_influencer_completion, is_marketplace_ready
 from .services.pdf_service import generate_contract_pdf
 from .constants import CONTENT_THEMES
 from .workspace import resolve_active_brand, get_user_role_for_brand, user_can_access_brand
@@ -225,18 +228,29 @@ def _refresh_signed_contract_pdf(proposal):
 
 def _extract_signature_payload(request_data, signer_user, proposal):
     mode = str(request_data.get("signature_mode") or "").strip()
-    value = str(request_data.get("signature_value") or "").strip()
-    data = request_data.get("signature_data") or ""
+    if mode not in {"draw", "brand_name", "person_name"}:
+        raise ValidationError({"signature_mode": "Unsupported signature mode."})
 
     if signer_user.user_type == "brand":
-        default_value = proposal.campaign.brand.company_name
+        brand_value = proposal.campaign.brand.company_name
     else:
-        default_value = proposal.influencer.display_name or signer_user.get_full_name() or signer_user.username
+        brand_value = proposal.influencer.display_name or signer_user.get_full_name() or signer_user.username
+    person_value = signer_user.get_full_name().strip() or signer_user.username
 
-    if mode == "brand_name" and not value:
-        value = default_value
-    elif mode == "person_name" and not value:
-        value = signer_user.get_full_name().strip() or getattr(proposal.influencer, "display_name", "") or signer_user.username
+    value = brand_value if mode == "brand_name" else person_value if mode == "person_name" else ""
+    data = ""
+    if mode == "draw":
+        raw_data = str(request_data.get("signature_data") or "")
+        prefix = "data:image/png;base64,"
+        if not raw_data.startswith(prefix) or len(raw_data) > 700000:
+            raise ValidationError({"signature_data": "A valid PNG signature is required."})
+        try:
+            decoded = base64.b64decode(raw_data[len(prefix):], validate=True)
+        except (ValueError, binascii.Error):
+            raise ValidationError({"signature_data": "A valid PNG signature is required."})
+        if len(decoded) > 500000 or not decoded.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValidationError({"signature_data": "A valid PNG signature is required."})
+        data = raw_data
 
     return {
         "mode": mode,
@@ -357,6 +371,7 @@ def _sign_proposal(proposal, signer_user, ip=None, signature_payload=None):
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
+    refresh["auth_version"] = user.auth_version
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
@@ -427,6 +442,15 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             tokens = get_tokens_for_user(user)
+            # Confirm the address is real before anything is sent to it. Never
+            # fatal: a mail outage must not block signing up.
+            # Imported here: views_auth imports from this module at runtime.
+            from .views_auth import send_verification_email
+
+            try:
+                send_verification_email(user)
+            except Exception:
+                logger.exception("verification email failed for user %s", user.pk)
             # CDC §5.1 — brand registration kicks off the validation workflow
             if user.user_type == "brand":
                 profile = user.brand_profile
@@ -510,12 +534,24 @@ class MeView(APIView):
 
     def _update(self, request, partial):
         user = request.user
+        requested_email = str(request.data.get("email") or "").strip()
+        if requested_email and requested_email.lower() != (user.email or "").lower():
+            if user.is_sso_account:
+                return Response(
+                    {"email": "Email changes for SSO accounts must be made by your identity provider."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            current_password = request.data.get("current_password") or ""
+            if not user.check_password(current_password):
+                return Response({"current_password": "Current password is required."}, status=status.HTTP_400_BAD_REQUEST)
         user_data = {k: v for k, v in request.data.items()
-                     if k not in ("influencer_profile", "brand_profile")}
+                     if k not in ("influencer_profile", "brand_profile", "current_password")}
         # Remap uploaded 'avatar' file to 'avatar_upload' (the writable serializer field).
         if "avatar" in request.FILES:
             user_data["avatar_upload"] = request.FILES["avatar"]
-        user_serializer = UserSerializer(user, data=user_data, partial=True)
+        user_serializer = UserSerializer(
+            user, data=user_data, partial=True, context={"request": request},
+        )
         if not user_serializer.is_valid():
             return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         user_serializer.save()
@@ -524,7 +560,8 @@ class MeView(APIView):
             profile_data = request.data.get("influencer_profile", {})
             if profile_data:
                 ps = InfluencerProfileWithPaymentSerializer(
-                    user.influencer_profile, data=profile_data, partial=True
+                    user.influencer_profile, data=profile_data, partial=True,
+                    context={"request": request},
                 )
                 if not ps.is_valid():
                     return Response(ps.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -532,7 +569,10 @@ class MeView(APIView):
         elif user.user_type == "brand" and hasattr(user, "brand_profile"):
             profile_data = request.data.get("brand_profile", {})
             if profile_data:
-                ps = BrandProfileSerializer(user.brand_profile, data=profile_data, partial=True)
+                ps = BrandProfileSerializer(
+                    user.brand_profile, data=profile_data, partial=True,
+                    context={"request": request},
+                )
                 if not ps.is_valid():
                     return Response(ps.errors, status=status.HTTP_400_BAD_REQUEST)
                 ps.save()
@@ -551,7 +591,9 @@ class InfluencerListView(generics.ListAPIView):
     def get_queryset(self):
         qs = InfluencerProfile.objects.select_related("user").prefetch_related("social_networks")
         if self.request.user.user_type == "brand":
-            qs = qs.filter(onboarding_completed=True)
+            qs = qs.prefetch_related("media_kit_images")
+            complete_ids = [p.id for p in qs if is_marketplace_ready(p)]
+            qs = qs.filter(id__in=complete_ids)
 
         search = (self.request.query_params.get("search") or "").strip()
         if search:
@@ -590,6 +632,12 @@ class InfluencerListView(generics.ListAPIView):
         location = self.request.query_params.get("location")
         if location:
             qs = qs.filter(user__location__icontains=location)
+
+        ugc = (self.request.query_params.get("ugc") or "").lower()
+        if ugc in ("1", "true", "yes"):
+            qs = qs.filter(is_ugc_creator=True)
+        elif ugc in ("0", "false", "no"):
+            qs = qs.filter(is_ugc_creator=False)
 
         return qs.distinct()
 
@@ -641,9 +689,21 @@ class InfluencerProfileUpdateView(APIView):
         profile = self._get_profile(request)
         if profile is None:
             return Response({"detail": "Influencer profile not found."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = InfluencerProfileWithPaymentSerializer(profile, data=request.data, partial=partial)
+        serializer = InfluencerProfileWithPaymentSerializer(
+            profile, data=request.data, partial=partial, context={"request": request},
+        )
         if serializer.is_valid():
             serializer.save()
+            # Keep the stored completion score fresh so onboarding banners and
+            # marketplace visibility (100% completion gate) reflect the latest edit.
+            completion = compute_influencer_completion(profile)
+            if profile.profile_completion_percent != completion or (
+                completion >= INFLUENCER_COMPLETION_THRESHOLD and not profile.onboarding_completed
+            ):
+                profile.profile_completion_percent = completion
+                if completion >= INFLUENCER_COMPLETION_THRESHOLD:
+                    profile.onboarding_completed = True
+                profile.save(update_fields=["profile_completion_percent", "onboarding_completed"])
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -745,7 +805,7 @@ class SocialNetworkViewSet(viewsets.ModelViewSet):
 
 class BrandDetailView(generics.RetrieveAPIView):
     queryset = BrandProfile.objects.select_related("user")
-    serializer_class = BrandProfileSerializer
+    serializer_class = BrandPublicSerializer
     permission_classes = [IsAuthenticated]
 
 
@@ -767,7 +827,14 @@ class BrandProfileUpdateView(APIView):
         profile = self._get_profile(request)
         if profile is None:
             return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = BrandProfileSerializer(profile, data=request.data, partial=partial)
+        if get_user_role_for_brand(request.user, profile) not in ("owner", "admin"):
+            return Response(
+                {"detail": "Only workspace owners/admins can update the brand profile."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = BrandProfileSerializer(
+            profile, data=request.data, partial=partial, context={"request": request},
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -1058,6 +1125,8 @@ class CampaignSendProposalsView(APIView):
         brand = _active_brand(request)
         if not brand:
             return Response({"detail": "Campaign not found."}, status=status.HTTP_404_NOT_FOUND)
+        if get_user_role_for_brand(request.user, brand) not in ("owner", "admin"):
+            return Response({"detail": "Only workspace owners/admins can send proposals."}, status=status.HTTP_403_FORBIDDEN)
         try:
             campaign = Campaign.objects.get(pk=pk, brand=brand)
         except Campaign.DoesNotExist:
@@ -1065,7 +1134,6 @@ class CampaignSendProposalsView(APIView):
 
         influencer_ids = request.data.get("influencer_ids", [])
         proposed_price = request.data.get("proposed_price", campaign.price_per_influencer or 0)
-        plans_service.enforce_monthly_contacts(brand, requested=len(influencer_ids))
         created = []
         skipped = []
 
@@ -1115,11 +1183,130 @@ class CampaignSendProposalsView(APIView):
         return Response({"created": created, "skipped": skipped}, status=status.HTTP_201_CREATED)
 
 
+class CampaignBriefFileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        campaign = Campaign.objects.select_related('brand').filter(pk=pk).first()
+        if not campaign or not campaign.brief_files:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        is_brand = request.user.user_type == 'brand' and user_can_access_brand(request.user, campaign.brand)
+        is_influencer = (
+            request.user.user_type == 'influencer'
+            and hasattr(request.user, 'influencer_profile')
+            and CampaignProposal.objects.filter(
+                campaign=campaign, influencer=request.user.influencer_profile,
+            ).exists()
+        )
+        if not (is_brand or is_influencer or request.user.is_staff):
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        return FileResponse(
+            campaign.brief_files.open('rb'),
+            as_attachment=True,
+            filename=campaign.brief_files.name.rsplit('/', 1)[-1],
+        )
+
+
+def _campaign_viewer_can_access(user, campaign) -> bool:
+    if user.is_staff:
+        return True
+    if user.user_type == 'brand':
+        return user_can_access_brand(user, campaign.brand)
+    if user.user_type == 'influencer' and hasattr(user, 'influencer_profile'):
+        return CampaignProposal.objects.filter(
+            campaign=campaign, influencer=user.influencer_profile,
+        ).exists()
+    return False
+
+
+class CampaignDocumentListCreateView(APIView):
+    """Brand-side brief attachments (PDF/images, max 5 per campaign)."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request, pk):
+        campaign = Campaign.objects.select_related('brand').filter(pk=pk).first()
+        if not campaign:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not _campaign_viewer_can_access(request.user, campaign):
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        return Response(CampaignDocumentSerializer(
+            campaign.documents.all(), many=True, context={"request": request},
+        ).data)
+
+    def post(self, request, pk):
+        campaign = Campaign.objects.select_related('brand').filter(pk=pk).first()
+        if not campaign:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if request.user.user_type != 'brand' or not user_can_access_brand(request.user, campaign.brand):
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        if get_user_role_for_brand(request.user, campaign.brand) not in ("owner", "admin"):
+            return Response({"detail": "Only owners/admins can attach documents."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        uploaded = request.FILES.get('file')
+        if not uploaded:
+            return Response({"file": "This field is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if campaign.documents.count() >= CampaignDocument.MAX_PER_CAMPAIGN:
+            return Response(
+                {"detail": f"A campaign can have at most {CampaignDocument.MAX_PER_CAMPAIGN} documents."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = CampaignDocumentSerializer(
+            data={"file": uploaded, "label": (request.data.get('label') or '')[:140]},
+            context={"request": request},
+        )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        document = serializer.save(campaign=campaign, uploaded_by=request.user)
+        return Response(
+            CampaignDocumentSerializer(document, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CampaignDocumentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, document_id):
+        document = CampaignDocument.objects.select_related('campaign__brand').filter(pk=document_id).first()
+        if not document:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        brand = document.campaign.brand
+        if request.user.user_type != 'brand' or not user_can_access_brand(request.user, brand):
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        if get_user_role_for_brand(request.user, brand) not in ("owner", "admin"):
+            return Response({"detail": "Only owners/admins can delete documents."},
+                            status=status.HTTP_403_FORBIDDEN)
+        document.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CampaignDocumentDownloadView(APIView):
+    """Serve campaign documents to the brand team and invited influencers only."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, document_id):
+        document = CampaignDocument.objects.select_related('campaign__brand').filter(pk=document_id).first()
+        if not document or not document.file:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not _campaign_viewer_can_access(request.user, document.campaign):
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        return FileResponse(
+            document.file.open('rb'),
+            as_attachment=False,
+            filename=document.file.name.rsplit('/', 1)[-1],
+        )
+
+
 class EventViewSet(viewsets.ModelViewSet):
     serializer_class = EventSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        if not plans_service.is_platform_feature_enabled("events"):
+            return Event.objects.none()
         user = self.request.user
         if user.user_type == "brand":
             brand = _active_brand(self.request)
@@ -1140,26 +1327,40 @@ class EventViewSet(viewsets.ModelViewSet):
         brand = _active_brand(self.request)
         if not brand:
             raise PermissionDenied("Brand profile not found.")
+        if get_user_role_for_brand(self.request.user, brand) not in ("owner", "admin"):
+            raise PermissionDenied("Only workspace owners/admins can create events.")
         if brand.validation_status != "approved":
             raise PermissionDenied("Your brand account must be approved before creating events.")
+        plans_service.require_platform_feature("events")
         plans_service.require_feature(brand, "events")
         serializer.save(brand=brand)
 
     def perform_destroy(self, instance):
-        if instance.brand.user != self.request.user and not self.request.user.is_staff:
+        plans_service.require_platform_feature("events")
+        if get_user_role_for_brand(self.request.user, instance.brand) not in ("owner", "admin"):
             raise PermissionDenied("You do not own this event.")
         instance.delete()
+
+    def perform_update(self, serializer):
+        plans_service.require_platform_feature("events")
+        instance = serializer.instance
+        if get_user_role_for_brand(self.request.user, instance.brand) not in ("owner", "admin"):
+            raise PermissionDenied("Only workspace owners/admins can update events.")
+        serializer.save()
 
 
 class EventInviteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        plans_service.require_platform_feature("events")
         if request.user.user_type != "brand":
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
         brand = _active_brand(request)
         if not brand:
             return Response({"detail": "Event not found."}, status=status.HTTP_404_NOT_FOUND)
+        if get_user_role_for_brand(request.user, brand) not in ("owner", "admin"):
+            return Response({"detail": "Only workspace owners/admins can invite attendees."}, status=status.HTTP_403_FORBIDDEN)
         try:
             event = Event.objects.get(pk=pk, brand=brand)
         except Event.DoesNotExist:
@@ -1250,6 +1451,8 @@ class EventInvitationListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        if not plans_service.is_platform_feature_enabled("events"):
+            return EventInvitation.objects.none()
         user = self.request.user
         token = (self.request.query_params.get('invitation') or '').strip()
         if user.user_type == 'influencer':
@@ -1271,8 +1474,10 @@ class EventInvitationListView(generics.ListAPIView):
 
 class EventInvitationRespondView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [EventInvitePublicThrottle]
 
     def post(self, request):
+        plans_service.require_platform_feature("events")
         token = (request.data.get('invitation_token') or '').strip()
         status_value = (request.data.get('status') or '').strip().lower()
         plus_ones = int(request.data.get('plus_ones', 0) or 0)
@@ -1334,8 +1539,10 @@ class EventInvitationRespondView(APIView):
 
 class EventInvitationDetailByTokenView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [EventInvitePublicThrottle]
 
     def get(self, request, invite_token):
+        plans_service.require_platform_feature("events")
         try:
             invitation = EventInvitation.objects.select_related('event', 'influencer__user', 'checked_in_by').get(invite_token=invite_token)
         except EventInvitation.DoesNotExist:
@@ -1347,6 +1554,7 @@ class EventCheckInView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        plans_service.require_platform_feature("events")
         if request.user.user_type != 'brand':
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         token = str(request.data.get('invitation_token') or '').strip()
@@ -1479,7 +1687,7 @@ class ProposalAcceptView(APIView):
         proposal, err = _get_proposal_for_influencer(request, pk)
         if err:
             return err
-        if proposal.status not in ("pending", "counter_offer"):
+        if proposal.status != "pending":
             return Response(
                 {"detail": "Proposal cannot be accepted in its current state."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1510,6 +1718,11 @@ class ProposalDeclineView(APIView):
         proposal, err = _get_proposal_for_influencer(request, pk)
         if err:
             return err
+        if proposal.status != "pending":
+            return Response(
+                {"detail": "Proposal cannot be declined in its current state."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         decline_reason = request.data.get("decline_reason", "")
         if not decline_reason:
             return Response({"detail": "decline_reason is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1540,9 +1753,24 @@ class ProposalCounterOfferView(APIView):
         proposal, err = _get_proposal_for_influencer(request, pk)
         if err:
             return err
+        if proposal.status != "pending":
+            return Response(
+                {"detail": "A counter offer can only be made on a pending proposal."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         counter_price = request.data.get("counter_price")
         if counter_price is None:
             return Response({"detail": "counter_price is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            counter_price = Decimal(str(counter_price)).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({"detail": "counter_price must be a valid amount."}, status=status.HTTP_400_BAD_REQUEST)
+        max_amount = Decimal(str(getattr(django_settings, "MAX_PROPOSAL_AMOUNT_EUR", 1000000)))
+        if counter_price <= 0 or counter_price > max_amount:
+            return Response(
+                {"detail": f"counter_price must be between 0.01 and {max_amount}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         proposal.status = "counter_offer"
         proposal.counter_price = counter_price
         proposal.counter_message = request.data.get("counter_message", "")
@@ -1571,6 +1799,8 @@ class ProposalAcceptCounterView(APIView):
         proposal, err = _get_proposal_for_brand(request, pk)
         if err:
             return err
+        if get_user_role_for_brand(request.user, proposal.campaign.brand) not in ("owner", "admin"):
+            return Response({"detail": "Only workspace owners/admins can accept a counter offer."}, status=status.HTTP_403_FORBIDDEN)
         if proposal.status != "counter_offer":
             return Response({"detail": "No counter offer to accept."}, status=status.HTTP_400_BAD_REQUEST)
         proposal.proposed_price = proposal.counter_price
@@ -1623,22 +1853,27 @@ class ProposalCancelView(APIView):
 class BrandPublicDetailView(generics.RetrieveAPIView):
     """Public brand profile view (auth required) — used by influencers to inspect a brand."""
     permission_classes = [IsAuthenticated]
-    serializer_class = BrandProfileSerializer
+    serializer_class = BrandPublicSerializer
     queryset = BrandProfile.objects.all()
 
 
 class ProposalSignContractView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            proposal = CampaignProposal.objects.get(pk=pk)
+            proposal = CampaignProposal.objects.select_for_update().select_related(
+                "campaign__brand", "influencer__user",
+            ).get(pk=pk)
         except CampaignProposal.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if not proposal.contract_pdf:
             return Response({"detail": "Contract must be generated first."},
                             status=status.HTTP_400_BAD_REQUEST)
+        if proposal.status != "accepted":
+            return Response({"detail": "Contract cannot be signed in its current state."}, status=status.HTTP_400_BAD_REQUEST)
         # Consent flag is required by UI for legal acknowledgement.
         if request.data.get("consent") is not True:
             return Response({"detail": "Consent is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1737,6 +1972,7 @@ class ProposalSignSessionDetailView(APIView):
 class ProposalSignSessionCompleteView(APIView):
     permission_classes = [AllowAny]
 
+    @transaction.atomic
     def post(self, request, token):
         proposal_id, user_id = _decode_sign_session_token(token)
         if not proposal_id or not user_id:
@@ -1746,7 +1982,7 @@ class ProposalSignSessionCompleteView(APIView):
             return Response({"detail": "Consent is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            proposal = CampaignProposal.objects.select_related(
+            proposal = CampaignProposal.objects.select_for_update().select_related(
                 "campaign__brand__user", "influencer__user"
             ).get(pk=proposal_id)
             signer = User.objects.get(pk=user_id)
@@ -1755,6 +1991,8 @@ class ProposalSignSessionCompleteView(APIView):
 
         if _session_used_for_signer(proposal, signer):
             return Response({"detail": "This signing link has already been used."}, status=status.HTTP_400_BAD_REQUEST)
+        if proposal.status != "accepted":
+            return Response({"detail": "Contract cannot be signed in its current state."}, status=status.HTTP_400_BAD_REQUEST)
 
         if signer.user_type == "brand" and get_user_role_for_brand(signer, proposal.campaign.brand) not in ("owner", "admin"):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
@@ -1782,16 +2020,30 @@ class ProposalSignSessionCompleteView(APIView):
 class ProposalFundEscrowView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request, pk):
         proposal, err = _get_proposal_for_brand(request, pk)
         if err:
             return err
+        proposal = CampaignProposal.objects.select_for_update().select_related("campaign__brand__user").get(pk=proposal.pk)
+        if get_user_role_for_brand(request.user, proposal.campaign.brand) not in ("owner", "admin"):
+            return Response({"detail": "Only workspace owners/admins can fund escrow."}, status=status.HTTP_403_FORBIDDEN)
         if proposal.status != "contract_signed":
             return Response(
                 {"detail": "Contract must be signed before funding escrow."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        amount = Decimal(str(request.data.get("amount", proposal.proposed_price)))
+        amount = Decimal(str(proposal.proposed_price)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            return Response({"detail": "Proposal amount must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+        supplied_amount = request.data.get("amount")
+        if supplied_amount is not None:
+            try:
+                supplied_amount = Decimal(str(supplied_amount)).quantize(Decimal("0.01"))
+            except (InvalidOperation, TypeError, ValueError):
+                return Response({"detail": "amount must be a valid amount."}, status=status.HTTP_400_BAD_REQUEST)
+            if supplied_amount != amount:
+                return Response({"detail": "Escrow amount must match the accepted proposal price."}, status=status.HTTP_400_BAD_REQUEST)
         # Stripe stub — create escrow PaymentIntent
         brand_profile = proposal.campaign.brand
         if not brand_profile.stripe_customer_id:
@@ -1799,11 +2051,21 @@ class ProposalFundEscrowView(APIView):
                 email=brand_profile.user.email, name=brand_profile.company_name,
             )
             brand_profile.save(update_fields=["stripe_customer_id"])
-        pi = stripe_service.create_escrow_payment_intent(
-            customer_id=brand_profile.stripe_customer_id,
-            amount_eur=amount, proposal_id=proposal.id,
-        )
-        stripe_service.confirm_escrow_payment(pi["id"])
+        try:
+            pi = stripe_service.create_escrow_payment_intent(
+                customer_id=brand_profile.stripe_customer_id,
+                amount_eur=amount, proposal_id=proposal.id,
+            )
+            confirmation = stripe_service.confirm_escrow_payment(pi["id"])
+        except stripe_service.PaymentConfigurationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except NotImplementedError:
+            return Response({"detail": "Live Stripe payments are not available yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception:
+            logger.exception("escrow funding failed for proposal %s", proposal.id)
+            return Response({"detail": "Escrow funding failed."}, status=status.HTTP_502_BAD_GATEWAY)
+        if confirmation.get("status") != "succeeded":
+            return Response({"detail": "Stripe did not confirm the escrow payment."}, status=status.HTTP_502_BAD_GATEWAY)
         proposal.stripe_payment_intent_id = pi["id"]
         proposal.escrow_amount = amount
         proposal.escrow_funded = True
@@ -1853,10 +2115,10 @@ class ProposalSubmitContentView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        data = request.data.copy()
-        submission_type = data.get("submission_type")
-        publication_url = data.get("publication_url")
+        submission_type = request.data.get("submission_type")
+        publication_url = request.data.get("publication_url")
         uploaded_file = request.FILES.get("uploaded_file")
+        screenshot = request.FILES.get("screenshot")
 
         if submission_type == "link" and not publication_url:
             return Response({"detail": "publication_url is required for link submissions."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1865,9 +2127,22 @@ class ProposalSubmitContentView(APIView):
 
         # For pre-publication review, a file-only submission is valid.
         if submission_type == "upload" and not publication_url:
-            data["publication_url"] = ""
+            publication_url = ""
 
-        data["proposal"] = proposal.pk
+        # Never QueryDict.copy() here: it deep-copies uploaded files and
+        # corrupts their underlying handles.
+        data = {
+            "proposal": proposal.pk,
+            "submission_type": submission_type,
+            "publication_url": publication_url,
+        }
+        for key in ("publication_date", "initial_stats", "final_stats"):
+            if key in request.data:
+                data[key] = request.data.get(key)
+        if uploaded_file is not None:
+            data["uploaded_file"] = uploaded_file
+        if screenshot is not None:
+            data["screenshot"] = screenshot
         serializer = ContentSubmissionSerializer(data=data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1963,10 +2238,16 @@ class ProposalSubmissionAssetView(APIView):
 class ProposalValidateContentView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request, pk):
         proposal, err = _get_proposal_for_brand(request, pk)
         if err:
             return err
+        proposal = CampaignProposal.objects.select_for_update().select_related(
+            "campaign__brand", "influencer__user",
+        ).get(pk=proposal.pk)
+        if get_user_role_for_brand(request.user, proposal.campaign.brand) not in ("owner", "admin"):
+            return Response({"detail": "Only workspace owners/admins can validate content."}, status=status.HTTP_403_FORBIDDEN)
         if proposal.status != "content_submitted":
             return Response({"detail": "No content to validate."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2000,6 +2281,7 @@ class ProposalValidateContentView(APIView):
                     influencer_account_id=proposal.influencer.stripe_account_id or None,
                     amount_eur=Decimal(str(proposal.escrow_amount)),
                     commission_rate=commission_rate,
+                    idempotency_key=f"proposal-{proposal.id}-escrow-release",
                 )
                 proposal.stripe_transfer_id = release["transfer_id"]
                 proposal.escrow_released = True
@@ -2025,8 +2307,16 @@ class ProposalValidateContentView(APIView):
                     ),
                     proposal=proposal,
                 )
+            except stripe_service.PaymentConfigurationError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except NotImplementedError:
+                return Response({"detail": "Live Stripe payouts are not available yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             except Exception:
-                pass
+                logger.exception("escrow release failed for proposal %s", proposal.id)
+                return Response(
+                    {"detail": "Content was validated, but payment release failed and remains pending."},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
         create_notification(
             user=proposal.influencer.user,
             notification_type="content_validated",
@@ -2048,6 +2338,8 @@ class ProposalRejectContentView(APIView):
         proposal, err = _get_proposal_for_brand(request, pk)
         if err:
             return err
+        if get_user_role_for_brand(request.user, proposal.campaign.brand) not in ("owner", "admin"):
+            return Response({"detail": "Only workspace owners/admins can reject content."}, status=status.HTTP_403_FORBIDDEN)
         if proposal.status != "content_submitted":
             return Response({"detail": "No content to reject."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2084,17 +2376,43 @@ class ProposalRejectContentView(APIView):
 class ProposalReleasePaymentView(APIView):
     permission_classes = [IsAdminUser]
 
+    @transaction.atomic
     def post(self, request, pk):
         try:
-            proposal = CampaignProposal.objects.get(pk=pk)
+            proposal = CampaignProposal.objects.select_for_update().select_related("influencer__user").get(pk=pk)
         except CampaignProposal.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if proposal.escrow_released:
+            return Response(CampaignProposalSerializer(proposal).data)
         if proposal.status not in ("validated", "disputed"):
             return Response(
                 {"detail": "Payment can only be released for validated or resolved proposals."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if not proposal.escrow_funded or not proposal.escrow_amount or not proposal.stripe_payment_intent_id:
+            return Response({"detail": "A funded escrow is required before payment release."}, status=status.HTTP_400_BAD_REQUEST)
+        settings_obj = PlatformSettings.get_instance()
+        commission_rate = _effective_commission_rate_for_proposal(
+            proposal, Decimal(str(settings_obj.commission_rate)),
+        )
+        try:
+            release = stripe_service.release_escrow_to_influencer(
+                payment_intent_id=proposal.stripe_payment_intent_id,
+                influencer_account_id=proposal.influencer.stripe_account_id or None,
+                amount_eur=Decimal(str(proposal.escrow_amount)),
+                commission_rate=commission_rate,
+                idempotency_key=f"proposal-{proposal.id}-escrow-release",
+            )
+        except stripe_service.PaymentConfigurationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except NotImplementedError:
+            return Response({"detail": "Live Stripe payouts are not available yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception:
+            logger.exception("admin escrow release failed for proposal %s", proposal.id)
+            return Response({"detail": "Payment release failed."}, status=status.HTTP_502_BAD_GATEWAY)
+        proposal.stripe_transfer_id = release["transfer_id"]
         proposal.escrow_released = True
+        proposal.escrow_released_at = timezone.now()
         proposal.status = "paid"
         proposal.save()
         create_notification(
@@ -2125,6 +2443,7 @@ class MessageListView(generics.ListAPIView):
         return ctx
 
     def get_queryset(self):
+        self._proposal_access_granted = False
         pk = self.kwargs["pk"]
         user = self.request.user
         try:
@@ -2143,14 +2462,16 @@ class MessageListView(generics.ListAPIView):
         if not is_participant:
             return Message.objects.none()
 
+        self._proposal_access_granted = True
         return Message.objects.filter(proposal=proposal).select_related("sender").order_by("created_at")
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
-        Message.objects.filter(
-            proposal_id=self.kwargs.get("pk"),
-            read=False,
-        ).exclude(sender=request.user).update(read=True)
+        if getattr(self, "_proposal_access_granted", False):
+            Message.objects.filter(
+                proposal_id=self.kwargs.get("pk"),
+                read=False,
+            ).exclude(sender=request.user).update(read=True)
         return response
 
 
@@ -2184,10 +2505,15 @@ class MessageCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        data = request.data.copy()
-        data["proposal"] = pk
-        data["content"] = _encrypt_message_text(content)
-        serializer = MessageSerializer(data=data)
+        # Never QueryDict.copy() here: it deep-copies the uploaded file and
+        # corrupts its underlying handle.
+        payload = {
+            "proposal": pk,
+            "content": _encrypt_message_text(content),
+        }
+        if attachment is not None:
+            payload["attachments"] = attachment
+        serializer = MessageSerializer(data=payload)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         msg = serializer.save(sender=request.user)
@@ -2197,14 +2523,19 @@ class MessageCreateView(APIView):
         else:
             recipients = [proposal.influencer.user]
 
+        sender_name = _conversation_display_name(user)
         for recipient in recipients:
             if recipient.id == user.id:
                 continue
             create_notification(
                 user=recipient,
                 notification_type="new_message",
-                title="New message",
-                message=f'You have a new message from {user.username} about "{proposal.campaign.title}".',
+                title=_notif_text(recipient, "Nouveau message", "New message"),
+                message=_notif_text(
+                    recipient,
+                    f'Vous avez reçu un nouveau message de {sender_name} à propos de « {proposal.campaign.title} ».',
+                    f'You have a new message from {sender_name} about "{proposal.campaign.title}".',
+                ),
                 proposal=proposal,
             )
         return Response(MessageSerializer(msg, context={"request": request}).data, status=status.HTTP_201_CREATED)
@@ -2395,6 +2726,26 @@ class DirectMessageCreateView(APIView):
         )
 
 
+class InfluencerMediaKitDownloadView(APIView):
+    """Serve an influencer media kit PDF to signed-in users only."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            profile = InfluencerProfile.objects.select_related('user').get(pk=pk)
+        except InfluencerProfile.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not profile.media_kit_pdf:
+            return Response({"detail": "Media kit not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return FileResponse(
+            profile.media_kit_pdf.open('rb'),
+            as_attachment=False,
+            filename=profile.media_kit_pdf.name.rsplit('/', 1)[-1],
+        )
+
+
 class CampaignMessageAttachmentView(APIView):
     """Serve campaign message attachments only to conversation participants."""
     permission_classes = [IsAuthenticated]
@@ -2425,7 +2776,7 @@ class CampaignMessageAttachmentView(APIView):
 
         return FileResponse(
             msg.attachments.open('rb'),
-            as_attachment=False,
+            as_attachment=True,
             filename=msg.attachments.name.rsplit('/', 1)[-1],
         )
 
@@ -2449,7 +2800,7 @@ class DirectMessageAttachmentView(APIView):
 
         return FileResponse(
             dm.attachments.open('rb'),
-            as_attachment=False,
+            as_attachment=True,
             filename=dm.attachments.name.rsplit('/', 1)[-1],
         )
 
@@ -2502,12 +2853,16 @@ class ReviewCreateView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         review = serializer.save(reviewer=user)
-        _update_average_rating(reviewee)
+        reviewer_name = _conversation_display_name(user)
         create_notification(
             user=reviewee,
             notification_type="new_review",
-            title="New review",
-            message=f"{user.username} left you a {review.rating}/5 review.",
+            title=_notif_text(reviewee, "Nouvel avis", "New review"),
+            message=_notif_text(
+                reviewee,
+                f"{reviewer_name} vous a laissé un avis {review.rating}/5.",
+                f"{reviewer_name} left you a {review.rating}/5 review.",
+            ),
             proposal=proposal,
         )
         return Response(ReviewSerializer(review).data, status=status.HTTP_201_CREATED)
@@ -2518,7 +2873,9 @@ class UserReviewListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Review.objects.filter(reviewee_id=self.kwargs["pk"]).select_related("reviewer", "reviewee").order_by("-created_at")
+        return Review.objects.filter(
+            reviewee_id=self.kwargs["pk"], is_published=True,
+        ).select_related("reviewer", "reviewee").order_by("-created_at")
 
 
 # ---------------------------------------------------------------------------

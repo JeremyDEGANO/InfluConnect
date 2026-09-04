@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from decimal import Decimal
+import math
 import secrets
 import requests
 
@@ -27,7 +28,7 @@ from django.core.files.base import ContentFile
 from django.db import connections
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponse
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
@@ -46,7 +47,7 @@ from .models import (
     AmbassadorProgram, AuditLog, BrandProfile, Campaign, CampaignProposal,
     CampaignVideoTracking, CampaignVideoDailyStats,
     CastingApplication, ContractTemplate, DirectMessage, InfluencerProfile,
-    MediaKitImage, Notification, Review,
+    MediaKitImage, Notification, PlatformSettings, Review,
     SocialNetwork, SocialVideo, SocialFraudFlag, User,
     SupportTicket, SupportTicketImage,
     InfluencerReferralInvite,
@@ -59,17 +60,21 @@ from .serializers import (
     SocialStatsSnapshotSerializer, SocialFraudFlagSerializer,
     CampaignVideoTrackingSerializer,
     SupportTicketSerializer, SupportTicketAdminUpdateSerializer, SupportTicketImageSerializer,
-    _validate_influencer_pseudo, suggest_influencer_pseudos,
+    _validate_influencer_pseudo, sanitize_contract_html, suggest_influencer_pseudos,
+    validate_contract_source, validate_pdf, validate_uploaded_file,
 )
 from .services import email_service, stripe_service
+from .services import address_lookup
+from .throttling import AddressLookupThrottle
 from .services import plans as plans_service
-from .views import _brand_users
+from .views import _brand_users, _notif_text, _conversation_display_name
 from .workspace import (
     get_user_role_for_brand,
     resolve_active_brand,
     user_can_access_brand,
 )
-from .services.completion import compute_influencer_completion
+from .constants import INFLUENCER_COMPLETION_THRESHOLD
+from .services.completion import compute_influencer_completion, is_marketplace_ready
 from .services.pdf_service import generate_contract_pdf, generate_media_kit_pdf
 from .services.insights_reporting import (
     build_campaign_report_payload,
@@ -197,7 +202,7 @@ class GifProxyView(APIView):
         return Response({"data": payload.get("data", [])})
 
 def _notify(user, type_: str, title: str, message: str, proposal=None, send_email: bool = False,
-            email_subject: str | None = None, email_body: str | None = None) -> None:
+            email_subject: str | None = None, email_body: str | None = None) -> Notification:
     notif = Notification.objects.create(
         user=user, notification_type=type_, title=title, message=message,
         related_proposal=proposal,
@@ -211,6 +216,7 @@ def _notify(user, type_: str, title: str, message: str, proposal=None, send_emai
         if ok:
             notif.email_sent = True
             notif.save(update_fields=["email_sent"])
+    return notif
 
 
 # ---------------------------------------------------------------------------
@@ -221,32 +227,48 @@ class SubscriptionPlansView(APIView):
     permission_classes = []  # public
 
     def get(self, request):
+        settings_row = PlatformSettings.get_instance()
+        annual_discount = float(settings_row.annual_discount_percent or 0)
+        commission_rate = float(settings_row.commission_rate or 0)
+
         plans = []
         for plan in plans_service.get_plan_configs():
-            f = plan["features"]
+            f = dict(plan["features"])
+            for key in plans_service.PLATFORM_FEATURE_FIELDS:
+                if key in f and not plans_service.is_platform_feature_enabled(key):
+                    f[key] = False
+
+            monthly = float(plan["price_eur_monthly"])
+            # Floor to whole euros so the public page never shows cents, and derive
+            # the total + savings from that rounded value to stay self-consistent.
+            annual_monthly_equivalent = math.floor(monthly * (1 - annual_discount / 100))
+            annual_total = annual_monthly_equivalent * 12
             plans.append({
                 "code": plan["code"],
                 "id": plan["code"],
                 "name": plan["name"],
-                "price_eur": plan["price_eur_monthly"],
-                "price_eur_monthly": plan["price_eur_monthly"],
+                "price_eur": monthly,
+                "price_eur_monthly": monthly,
+                "price_eur_monthly_billed_annually": annual_monthly_equivalent,
+                "price_eur_annual_total": annual_total,
+                "annual_savings_eur": round(monthly * 12 - annual_total, 2),
+                "annual_months_free": round((monthly * 12 - annual_total) / monthly, 1) if monthly else 0,
                 # Raw matrix (admin-configurable) — used by Pricing/Compare pages
                 "features": f,
                 # Legacy display block kept for backward compatibility
                 "display": {
                     "campaigns_per_month": "unlimited" if f["concurrent_campaigns"] == -1 else f["concurrent_campaigns"],
-                    "contacts": "unlimited" if f["monthly_influencer_contacts"] == -1 else f["monthly_influencer_contacts"],
-                    "analytics": "Avancées" if f["advanced_analytics"] else "Basiques",
-                    "support": {
-                        "none": "Standard",
-                        "email_48h": "Email (48h)",
-                        "email_phone_24h": "Email & Tél. (24h)",
-                    }.get(f["priority_support"], "Standard"),
+                    "analytics": "Avancées" if f.get("advanced_analytics") else "Basiques",
                     "custom_contracts": f["contract_templates_max"] != 0,
-                    "dedicated_manager": f["dedicated_account_manager"],
                 },
             })
-        return Response({"plans": plans, "feature_defs": plans_service.PLAN_FEATURE_DEFS})
+        return Response({
+            "plans": plans,
+            "feature_defs": plans_service.PLAN_FEATURE_DEFS,
+            "public_feature_keys": plans_service.PUBLIC_FEATURE_KEYS,
+            "annual_discount_percent": annual_discount,
+            "commission_rate": commission_rate,
+        })
 
 
 class StripeConfigView(APIView):
@@ -259,6 +281,25 @@ class StripeConfigView(APIView):
         return Response({
             "publishable_key": getattr(settings, "STRIPE_PUBLISHABLE_KEY", "") or "",
             "live": stripe_service.is_live(),
+        })
+
+
+class PublicStatsView(APIView):
+    """Real marketplace counters for the landing page (no invented numbers)."""
+    permission_classes = []
+
+    def get(self, request):
+        creators = InfluencerProfile.objects.filter(
+            user__user_type="influencer", user__is_active=True,
+        ).count()
+        brands = BrandProfile.objects.filter(validation_status="approved").count()
+        paid = CampaignProposal.objects.filter(status="paid").aggregate(
+            total=Sum("escrow_amount"),
+        )["total"] or 0
+        return Response({
+            "creators": creators,
+            "brands": brands,
+            "total_paid_eur": float(paid),
         })
 
 
@@ -357,23 +398,27 @@ class BrandSubscriptionChangeView(APIView):
         if plan not in SUBSCRIPTION_PLANS:
             return Response({"detail": "Invalid plan."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Stripe stub — create or update subscription
-        if not profile.stripe_customer_id:
-            profile.stripe_customer_id = stripe_service.create_customer(
-                email=request.user.email,
-                name=profile.company_name,
-            )
-        if profile.stripe_subscription_id:
-            stripe_service.change_subscription_plan(
-                profile.stripe_subscription_id, SUBSCRIPTION_PLANS[plan]["stripe_price_id"],
-            )
-            action = "subscription_changed"
-        else:
-            sub = stripe_service.create_subscription(
-                profile.stripe_customer_id, SUBSCRIPTION_PLANS[plan]["stripe_price_id"],
-            )
-            profile.stripe_subscription_id = sub["id"]
-            action = "subscription_created"
+        try:
+            if not profile.stripe_customer_id:
+                profile.stripe_customer_id = stripe_service.create_customer(
+                    email=request.user.email,
+                    name=profile.company_name,
+                )
+            if profile.stripe_subscription_id:
+                stripe_service.change_subscription_plan(
+                    profile.stripe_subscription_id, SUBSCRIPTION_PLANS[plan]["stripe_price_id"],
+                )
+                action = "subscription_changed"
+            else:
+                sub = stripe_service.create_subscription(
+                    profile.stripe_customer_id, SUBSCRIPTION_PLANS[plan]["stripe_price_id"],
+                )
+                profile.stripe_subscription_id = sub["id"]
+                action = "subscription_created"
+        except stripe_service.PaymentConfigurationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except NotImplementedError:
+            return Response({"detail": "Live Stripe subscriptions are not available yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         profile.subscription_plan = plan
         profile.subscription_active = True
@@ -382,8 +427,14 @@ class BrandSubscriptionChangeView(APIView):
 
         _audit(request.user, action, "BrandProfile", profile.id,
                metadata={"plan": plan}, ip=_client_ip(request))
-        _notify(request.user, "subscription_changed", "Abonnement mis à jour",
-                f"Votre abonnement a été modifié vers {SUBSCRIPTION_PLANS[plan]['name']}.",
+        _notify(request.user,
+                "subscription_changed",
+                _notif_text(request.user, "Abonnement mis à jour", "Subscription updated"),
+                _notif_text(
+                    request.user,
+                    f"Votre abonnement a été modifié vers {SUBSCRIPTION_PLANS[plan]['name']}.",
+                    f"Your subscription has been changed to {SUBSCRIPTION_PLANS[plan]['name']}.",
+                ),
                 send_email=True)
         return Response(BrandProfileSerializer(profile).data)
 
@@ -401,7 +452,12 @@ class BrandSubscriptionCancelView(APIView):
             return Response({"detail": "Only owners/admins can manage the subscription."},
                             status=status.HTTP_403_FORBIDDEN)
         if profile.stripe_subscription_id:
-            stripe_service.cancel_subscription(profile.stripe_subscription_id)
+            try:
+                stripe_service.cancel_subscription(profile.stripe_subscription_id)
+            except stripe_service.PaymentConfigurationError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except NotImplementedError:
+                return Response({"detail": "Live Stripe subscriptions are not available yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         profile.subscription_active = False
         profile.save()
         _audit(request.user, "subscription_cancelled", "BrandProfile", profile.id,
@@ -465,6 +521,13 @@ class SupportTicketImageUploadView(generics.CreateAPIView):
         image_file = request.FILES.get('image')
         if not image_file:
             return Response({'detail': 'No image provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_uploaded_file(
+                image_file, max_bytes=10 * 1024 * 1024,
+                extensions={'.jpg', '.jpeg', '.png', '.gif', '.webp'},
+            )
+        except ValidationError as exc:
+            return Response({'image': exc.detail}, status=status.HTTP_400_BAD_REQUEST)
         obj = SupportTicketImage.objects.create(ticket=ticket, image=image_file)
         serializer = SupportTicketImageSerializer(obj, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -564,6 +627,14 @@ class AdminOverviewView(APIView):
         else:
             next_month_start = month_start.replace(month=month_start.month + 1)
 
+        # Secondary environments (multi-société) are BrandProfile rows owned by an
+        # inactive `ws_*@workspace.local` stub user, created from an existing
+        # company and copying its plan. They are not customers of their own:
+        # counting them would double-bill every KPI and revenue projection, so
+        # every admin metric below is scoped to real companies only.
+        real_companies = BrandProfile.objects.exclude(user__email__endswith='@workspace.local')
+        billable_companies = real_companies.filter(validation_status='approved')
+
         # Admin-configured prices (DB overrides over constants defaults)
         plan_prices = {
             plan['code']: Decimal(str(plan.get('price_eur_monthly', 0)))
@@ -571,22 +642,21 @@ class AdminOverviewView(APIView):
         }
 
         active_plan_counts = {
-            plan_id: BrandProfile.objects.filter(
+            plan_id: billable_companies.filter(
                 subscription_active=True,
                 subscription_plan=plan_id,
             ).count()
             for plan_id in SUBSCRIPTION_PLANS.keys()
         }
         approved_not_active_plan_counts = {
-            plan_id: BrandProfile.objects.filter(
-                validation_status='approved',
+            plan_id: billable_companies.filter(
                 subscription_active=False,
                 subscription_plan=plan_id,
             ).count()
             for plan_id in SUBSCRIPTION_PLANS.keys()
         }
         pending_validation_plan_counts = {
-            plan_id: BrandProfile.objects.filter(
+            plan_id: real_companies.filter(
                 validation_status='pending',
                 subscription_plan=plan_id,
             ).count()
@@ -598,7 +668,7 @@ class AdminOverviewView(APIView):
         }
 
         agency_active_plan_counts = {
-            plan_id: BrandProfile.objects.filter(
+            plan_id: billable_companies.filter(
                 is_agency=True,
                 subscription_active=True,
                 subscription_plan=plan_id,
@@ -606,7 +676,7 @@ class AdminOverviewView(APIView):
             for plan_id in SUBSCRIPTION_PLANS.keys()
         }
         agency_non_active_plan_counts = {
-            plan_id: BrandProfile.objects.filter(
+            plan_id: billable_companies.filter(
                 is_agency=True,
                 subscription_active=False,
                 subscription_plan=plan_id,
@@ -614,20 +684,40 @@ class AdminOverviewView(APIView):
             for plan_id in SUBSCRIPTION_PLANS.keys()
         }
 
-        projected_this_month = sum(
-            int(active_plan_counts[plan_id] + approved_not_active_plan_counts[plan_id]) * plan_prices[plan_id]
-            for plan_id in SUBSCRIPTION_PLANS.keys()
-        )
-        projected_next_month = sum(
-            int(
-                active_plan_counts[plan_id]
-                + approved_not_active_plan_counts[plan_id]
-                + pending_validation_plan_counts[plan_id]
-            ) * plan_prices[plan_id]
-            for plan_id in SUBSCRIPTION_PLANS.keys()
-        )
+        def _monthly_revenue(queryset) -> Decimal:
+            """Billed monthly revenue for a set of companies.
 
-        brands_qs = BrandProfile.objects.select_related('user', 'validated_by').annotate(
+            Uses the negotiated per-brand price when there is one, otherwise the
+            admin-configured plan price (Admin -> Plans & tarifs).
+            """
+            total = Decimal('0')
+            for plan_code, override in queryset.values_list('subscription_plan', 'subscription_price_override'):
+                if override is not None:
+                    total += Decimal(str(override))
+                else:
+                    total += plan_prices.get(plan_code or '', Decimal('0'))
+            return total
+
+        # Only a live subscription is revenue. Everything else is a company
+        # still on the free tier (they can test until they contract), so
+        # counting their plan price would invent money we do not bill.
+        subscribed = billable_companies.filter(subscription_active=True)
+        mrr_active = _monthly_revenue(subscribed)
+
+        # Potential, deliberately kept apart from MRR and NOT dated: these
+        # companies convert whenever they contract their first collaboration,
+        # which may be next month or never.
+        approved_not_subscribed = billable_companies.filter(subscription_active=False)
+        pending_validation = real_companies.filter(validation_status='pending')
+        potential_approved = _monthly_revenue(approved_not_subscribed)
+        potential_pending = _monthly_revenue(pending_validation)
+
+        # Kept for the existing payload shape; `projected_this_month` is now
+        # strictly the billed MRR.
+        projected_this_month = mrr_active
+        projected_next_month = mrr_active + potential_approved + potential_pending
+
+        brands_qs = real_companies.select_related('user', 'validated_by').annotate(
             active_members_count=Count('memberships', filter=Q(memberships__status='active'), distinct=True),
             campaigns_count=Count('campaigns', distinct=True),
         ).order_by('-user__created_at')
@@ -719,11 +809,12 @@ class AdminOverviewView(APIView):
             'kpis': {
                 'users_total': User.objects.count(),
                 'users_new_last_30d': User.objects.filter(created_at__gte=now - timedelta(days=30)).count(),
-                'brands_total': BrandProfile.objects.count(),
-                'agencies_total': BrandProfile.objects.filter(is_agency=True).count(),
-                'agencies_with_plan': BrandProfile.objects.filter(is_agency=True).exclude(subscription_plan__isnull=True).exclude(subscription_plan='').count(),
-                'brands_pending_validation': BrandProfile.objects.filter(validation_status='pending').count(),
-                'brands_active_subscription': BrandProfile.objects.filter(subscription_active=True).count(),
+                'brands_total': real_companies.count(),
+                'agencies_total': real_companies.filter(is_agency=True).count(),
+                'agencies_with_plan': real_companies.filter(is_agency=True).exclude(subscription_plan__isnull=True).exclude(subscription_plan='').count(),
+                'brands_pending_validation': real_companies.filter(validation_status='pending').count(),
+                'brands_active_subscription': billable_companies.filter(subscription_active=True).count(),
+                'workspaces_total': BrandProfile.objects.filter(user__email__endswith='@workspace.local').count(),
                 'influencers_total': User.objects.filter(user_type='influencer').count(),
                 'campaigns_total': Campaign.objects.count(),
                 'campaigns_live': Campaign.objects.filter(status='active').count(),
@@ -732,6 +823,15 @@ class AdminOverviewView(APIView):
             },
             'subscription_projection': {
                 'currency': 'EUR',
+                # Billed today.
+                'mrr_active': float(mrr_active),
+                'active_subscriptions': subscribed.count(),
+                # Not billed: free-tier companies that could convert. No date
+                # attached on purpose — conversion is triggered by contracting.
+                'potential_approved_eur': float(potential_approved),
+                'potential_approved_count': approved_not_subscribed.count(),
+                'potential_pending_eur': float(potential_pending),
+                'potential_pending_count': pending_validation.count(),
                 'month_start': month_start,
                 'next_month_start': next_month_start,
                 'projected_this_month': float(projected_this_month),
@@ -748,6 +848,130 @@ class AdminOverviewView(APIView):
             'brands': brands_data,
             'users': users_data,
             'live_campaigns': live_campaigns_data,
+        })
+
+
+class AddressAutocompleteView(APIView):
+    """Address suggestions for the profile forms.
+
+    Authenticated only: this proxies free public geocoders, so it must not be
+    an open relay.
+    """
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [AddressLookupThrottle]
+
+    def get(self, request):
+        query = request.query_params.get("q") or ""
+        country = request.query_params.get("country") or "FR"
+        # kind=city powers the influencer form, which stores a city only.
+        kind = (request.query_params.get("kind") or "address").lower()
+        try:
+            if kind == "city":
+                results = address_lookup.search_cities(query, country=country, limit=5)
+            else:
+                results = address_lookup.search(query, country=country, limit=5)
+        except address_lookup.AddressLookupError:
+            # Suggestions are an assist, never a blocker: let the user type on.
+            return Response(
+                {"results": [], "detail": "Address lookup is temporarily unavailable."},
+                status=status.HTTP_200_OK,
+            )
+        return Response({"results": results})
+
+
+class AdminHistoryView(APIView):
+    """Month-by-month history for the admin cockpit charts.
+
+    `?months=3|6|12` (default 6). Every series is derived from real
+    timestamps, so an empty month is a real zero, never a gap.
+    """
+    permission_classes = [IsAdminUser]
+    ALLOWED_MONTHS = (3, 6, 12)
+
+    def get(self, request):
+        try:
+            months = int(request.query_params.get('months', 6))
+        except (TypeError, ValueError):
+            months = 6
+        if months not in self.ALLOWED_MONTHS:
+            months = 6
+
+        now = timezone.now()
+        current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Month boundaries, oldest first, ending with the current (partial) month.
+        starts = []
+        cursor = current_month_start
+        for _ in range(months):
+            starts.append(cursor)
+            cursor = (cursor - timedelta(days=1)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        starts.reverse()
+        bounds = []
+        for index, start in enumerate(starts):
+            end = starts[index + 1] if index + 1 < len(starts) else None
+            bounds.append((start, end))
+
+        commission_rate = Decimal(str(PlatformSettings.get_instance().commission_rate or 0))
+        real_companies = BrandProfile.objects.exclude(user__email__endswith='@workspace.local')
+
+        def _window(queryset, field, start, end):
+            filters = {f'{field}__gte': start}
+            if end is not None:
+                filters[f'{field}__lt'] = end
+            return queryset.filter(**filters)
+
+        points = []
+        for start, end in bounds:
+            # Revenue actually collected: commission on released escrow.
+            released = _window(
+                CampaignProposal.objects.filter(escrow_released=True), 'escrow_released_at', start, end,
+            )
+            gmv = released.aggregate(total=Sum('escrow_amount'))['total'] or Decimal('0')
+            commission = (Decimal(str(gmv)) * commission_rate / Decimal('100')).quantize(Decimal('0.01'))
+
+            proposals = _window(CampaignProposal.objects.all(), 'created_at', start, end)
+            # Budget committed by brands over the month (escrow funded).
+            funded = _window(
+                CampaignProposal.objects.filter(escrow_funded=True), 'escrow_funded_at', start, end,
+            )
+            budget = funded.aggregate(total=Sum('escrow_amount'))['total'] or Decimal('0')
+
+            points.append({
+                'month': start.date().isoformat(),
+                'label': f'{start.year}-{start.month:02d}',
+                'is_current_month': end is None,
+                # Revenue
+                'gmv_eur': float(gmv),
+                'commission_eur': float(commission),
+                # Influencers actually working that month
+                'active_influencers': (
+                    _window(
+                        CampaignProposal.objects.filter(
+                            status__in=['contract_signed', 'in_progress', 'content_submitted', 'validated', 'paid'],
+                        ),
+                        'created_at', start, end,
+                    ).values('influencer_id').distinct().count()
+                ),
+                # Campaigns & proposals
+                'campaigns_created': _window(Campaign.objects.all(), 'created_at', start, end).count(),
+                'proposals_sent': proposals.count(),
+                'proposals_accepted': proposals.filter(
+                    status__in=['accepted', 'contract_signed', 'in_progress', 'content_submitted', 'validated', 'paid'],
+                ).count(),
+                'budget_committed_eur': float(budget),
+                # Growth
+                'new_companies': _window(real_companies, 'user__created_at', start, end).count(),
+                'new_influencers': _window(
+                    User.objects.filter(user_type='influencer'), 'created_at', start, end,
+                ).count(),
+            })
+
+        return Response({
+            'months': months,
+            'currency': 'EUR',
+            'commission_rate': float(commission_rate),
+            'points': points,
         })
 
 
@@ -868,6 +1092,7 @@ class AdminBrandUpdateView(APIView):
         allowed = {
             'company_name', 'website', 'sector', 'description', 'validation_notes', 'validation_status',
             'subscription_plan', 'subscription_price_override',
+            'siret', 'billing_address', 'billing_postal_code', 'billing_city', 'billing_country',
         }
         changed = {}
 
@@ -939,34 +1164,29 @@ class AdminBrandApproveView(APIView):
         profile.validation_status = "approved"
         profile.validated_at = timezone.now()
         profile.validated_by = request.user
-        # Auto-activate subscription on approval (Stripe stub charge would happen here)
-        if profile.subscription_plan and not profile.subscription_active:
-            if not profile.stripe_customer_id:
-                profile.stripe_customer_id = stripe_service.create_customer(
-                    email=profile.user.email, name=profile.company_name,
-                )
-            sub = stripe_service.create_subscription(
-                profile.stripe_customer_id,
-                SUBSCRIPTION_PLANS[profile.subscription_plan]["stripe_price_id"],
-            )
-            profile.stripe_subscription_id = sub["id"]
-            profile.subscription_active = True
-            profile.subscription_expires_at = timezone.now() + timedelta(days=30)
         profile.save()
 
         _audit(request.user, "brand_validated", "BrandProfile", profile.id,
                ip=_client_ip(request))
-        _notify(profile.user, "brand_validated", "Compte validé",
+        notif = _notify(
+            profile.user, "brand_validated",
+            _notif_text(profile.user, "Compte validé", "Account approved"),
+            _notif_text(
+                profile.user,
                 "Votre compte InfluConnect a été validé. Vous pouvez maintenant créer vos campagnes.",
-                send_email=True,
-                email_body=email_service.send_brand_validated.__doc__ or
-                          "Votre compte InfluConnect a été validé.")
-        # Use dedicated template
-        email_service.send_brand_validated(
-            profile.user.email,
-            profile.company_name,
-            language=profile.user.language_preference,
+                "Your InfluConnect account has been approved. You can now create your campaigns.",
+            ),
         )
+        # Single dedicated template email (avoids sending a duplicate generic email).
+        if profile.user.email:
+            sent = email_service.send_brand_validated(
+                profile.user.email,
+                profile.company_name,
+                language=profile.user.language_preference,
+            )
+            if sent:
+                notif.email_sent = True
+                notif.save(update_fields=["email_sent"])
         return Response(BrandAdminSerializer(profile).data)
 
 
@@ -989,21 +1209,34 @@ class AdminBrandRejectView(APIView):
 
         _audit(request.user, "brand_rejected", "BrandProfile", profile.id,
                metadata={"reason": reason}, ip=_client_ip(request))
-        _notify(profile.user, "brand_rejected", "Inscription refusée",
-                f"Motif : {reason}", send_email=True)
-        email_service.send_brand_rejected(
-            profile.user.email,
-            profile.company_name,
-            reason,
-            language=profile.user.language_preference,
+        notif = _notify(
+            profile.user, "brand_rejected",
+            _notif_text(profile.user, "Inscription refusée", "Registration rejected"),
+            _notif_text(profile.user, f"Motif : {reason}", f"Reason: {reason}"),
         )
+        # Single dedicated template email (avoids sending a duplicate generic email).
+        if profile.user.email:
+            sent = email_service.send_brand_rejected(
+                profile.user.email,
+                profile.company_name,
+                reason,
+                language=profile.user.language_preference,
+            )
+            if sent:
+                notif.email_sent = True
+                notif.save(update_fields=["email_sent"])
         return Response(BrandAdminSerializer(profile).data)
 
 
 # ---------------------------------------------------------------------------
 # Brand onboarding (CDC §5.1) — required fields & submit-for-validation
 # ---------------------------------------------------------------------------
-BRAND_REQUIRED_FIELDS = ["company_name", "siret", "website", "sector", "description", "logo"]
+BRAND_REQUIRED_FIELDS = [
+    "company_name", "siret", "website", "sector", "description", "logo",
+    # Needed to issue a compliant invoice, so it is required up front
+    # rather than chased after the first campaign.
+    "billing_address", "billing_postal_code", "billing_city",
+]
 
 
 def _brand_missing_fields(profile):
@@ -1034,11 +1267,13 @@ class BrandOnboardingStatusView(APIView):
         # until onboarding is complete and explicitly submitted.
         if profile.validation_status == "pending" and missing:
             effective_status = "draft"
+        email_verified = bool(request.user.email_verified)
         return Response({
             "validation_status": effective_status,
             "validation_notes": profile.validation_notes,
             "missing_fields": missing,
-            "ready_to_submit": len(missing) == 0,
+            "email_verified": email_verified,
+            "ready_to_submit": len(missing) == 0 and email_verified,
             "can_create_campaigns": profile.validation_status == "approved",
         })
 
@@ -1054,6 +1289,16 @@ class BrandSubmitForValidationView(APIView):
             return Response({"detail": "Brand profile not found."}, status=status.HTTP_404_NOT_FOUND)
         if profile.validation_status == "approved":
             return Response({"detail": "Already approved."}, status=status.HTTP_400_BAD_REQUEST)
+        # Our team reviews this file and emails the outcome: a confirmed
+        # address is the precondition for the whole workflow.
+        if not request.user.email_verified:
+            return Response(
+                {
+                    "detail": "Confirmez votre adresse email avant de soumettre votre dossier.",
+                    "code": "email_not_verified",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
         missing = _brand_missing_fields(profile)
         if missing:
             return Response(
@@ -1191,7 +1436,7 @@ class InfluencerOnboardingStatusView(APIView):
         completion = compute_influencer_completion(profile)
         if profile.profile_completion_percent != completion:
             profile.profile_completion_percent = completion
-            if completion >= 80 and not profile.onboarding_completed:
+            if completion >= INFLUENCER_COMPLETION_THRESHOLD and not profile.onboarding_completed:
                 profile.onboarding_completed = True
             profile.save(update_fields=["profile_completion_percent", "onboarding_completed"])
         return Response({
@@ -1239,9 +1484,12 @@ class MediaKitGenerateView(APIView):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
         profile = request.user.influencer_profile
         completion = compute_influencer_completion(profile)
-        if completion < 80:
+        if completion < INFLUENCER_COMPLETION_THRESHOLD:
             return Response(
-                {"detail": "Profile must be at least 80% complete.", "completion": completion},
+                {
+                    "detail": f"Profile must be at least {INFLUENCER_COMPLETION_THRESHOLD}% complete.",
+                    "completion": completion,
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if not profile.collaboration_pitch or len(profile.collaboration_pitch.strip()) < 20:
@@ -1275,13 +1523,10 @@ class MediaKitUploadView(APIView):
         f = request.FILES.get("file")
         if not f:
             return Response({"detail": "file is required."}, status=status.HTTP_400_BAD_REQUEST)
-        # Validation: type + size (max 10 MB)
-        name_lower = (f.name or "").lower()
-        ctype = (f.content_type or "").lower()
-        if not name_lower.endswith(".pdf") or "pdf" not in ctype:
-            return Response({"detail": "Only PDF files are accepted."}, status=status.HTTP_400_BAD_REQUEST)
-        if f.size and f.size > 10 * 1024 * 1024:
-            return Response({"detail": "File too large (10 MB max)."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_pdf(f)
+        except ValidationError as exc:
+            return Response({"detail": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
         profile = request.user.influencer_profile
         filename = f"media_kit_custom_{profile.id}_{timezone.now():%Y%m%d_%H%M%S}.pdf"
         profile.media_kit_pdf.save(filename, f, save=False)
@@ -1323,6 +1568,16 @@ class ProposalGenerateContractView(APIView):
         if proposal.status not in ("accepted", "counter_offer"):
             return Response({"detail": "Proposal must be accepted first."},
                             status=status.HTTP_400_BAD_REQUEST)
+
+        # Free until the first signed collaboration: contracting is the paywall.
+        if not bool(getattr(proposal.campaign.brand, "subscription_active", False)):
+            return Response(
+                {
+                    "detail": "Choisissez votre formule pour contractualiser cette collaboration et sécuriser le paiement.",
+                    "code": "subscription_required",
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
         
         # Optional: brand can specify which template to use
         template_id = request.data.get("template_id")
@@ -1354,10 +1609,27 @@ class ProposalGenerateContractView(APIView):
         proposal.contract_pdf.save(filename, ContentFile(pdf), save=False)
         proposal.save()
         # Only notify influencer that contract is ready for signing
-        _notify(proposal.influencer.user, "contract_ready", "Contrat prêt à signer",
-                f"La marque a généré le contrat pour « {proposal.campaign.title} ». "
-                f"Veuillez le relire et le signer.",
-                proposal=proposal, send_email=True)
+        influencer_user = proposal.influencer.user
+        notif = _notify(
+            influencer_user, "contract_ready",
+            _notif_text(influencer_user, "Contrat prêt à signer", "Contract ready to sign"),
+            _notif_text(
+                influencer_user,
+                f"La marque a généré le contrat pour « {proposal.campaign.title} ». Veuillez le relire et le signer.",
+                f'The brand has generated the contract for "{proposal.campaign.title}". Please review and sign it.',
+            ),
+            proposal=proposal,
+        )
+        if influencer_user.email:
+            sent = email_service.send_contract_ready_for_signature(
+                influencer_user.email,
+                "influencer",
+                proposal.campaign.title,
+                language=influencer_user.language_preference,
+            )
+            if sent:
+                notif.email_sent = True
+                notif.save(update_fields=["email_sent"])
         brand_contacts = _brand_users(proposal.campaign.brand)
         if brand_contacts and brand_contacts[0].email:
             email_service.send_contract_ready_for_signature(
@@ -1380,6 +1652,11 @@ class CastingListView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         from .serializers import CampaignSerializer
         qs = Campaign.objects.filter(is_casting=True, status="active").select_related("brand").order_by("-created_at")
+        ugc = (request.query_params.get("ugc") or "").lower()
+        if ugc in ("1", "true", "yes"):
+            qs = qs.filter(is_ugc=True)
+        elif ugc in ("0", "false", "no"):
+            qs = qs.filter(is_ugc=False)
         return Response(CampaignSerializer(qs, many=True, context={"request": request}).data)
 
 
@@ -1405,9 +1682,16 @@ class CastingApplyView(APIView):
             motivation=motivation,
             examples=request.data.get("examples", []),
         )
+        applicant_name = _conversation_display_name(request.user)
         for recipient in _brand_users(campaign.brand):
-            _notify(recipient, "casting_application", "Nouvelle candidature",
-                    f"{profile.display_name or request.user.username} a postulé à « {campaign.title} ».",
+            _notify(recipient,
+                    "casting_application",
+                    _notif_text(recipient, "Nouvelle candidature", "New application"),
+                    _notif_text(
+                        recipient,
+                        f"{applicant_name} a postulé à « {campaign.title} ».",
+                        f'{applicant_name} applied to "{campaign.title}".',
+                    ),
                     send_email=True)
         return Response(CastingApplicationSerializer(app).data, status=status.HTTP_201_CREATED)
 
@@ -1443,6 +1727,8 @@ class CastingApplicationDecisionView(APIView):
         if (request.user.user_type != "brand"
                 or not user_can_access_brand(request.user, app.campaign.brand)):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        if get_user_role_for_brand(request.user, app.campaign.brand) not in ("owner", "admin"):
+            return Response({"detail": "Only workspace owners/admins can decide applications."}, status=status.HTTP_403_FORBIDDEN)
         decision = request.data.get("decision")
         if decision not in ("selected", "rejected"):
             return Response({"detail": "Invalid decision."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1505,6 +1791,8 @@ class AmbassadorProgramViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        if not plans_service.is_platform_feature_enabled("ambassador_programs"):
+            return AmbassadorProgram.objects.none()
         user = self.request.user
         if user.user_type == "brand":
             brand = resolve_active_brand(user, request=self.request)
@@ -1523,8 +1811,27 @@ class AmbassadorProgramViewSet(viewsets.ModelViewSet):
         if brand is None:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("No brand workspace.")
+        if get_user_role_for_brand(self.request.user, brand) not in ("owner", "admin"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only workspace owners/admins can create ambassador programs.")
+        plans_service.require_platform_feature("ambassador_programs")
         plans_service.require_feature(brand, "ambassador_programs")
         serializer.save(brand=brand)
+
+    def perform_update(self, serializer):
+        plans_service.require_platform_feature("ambassador_programs")
+        instance = serializer.instance
+        if get_user_role_for_brand(self.request.user, instance.brand) not in ("owner", "admin"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only workspace owners/admins can update ambassador programs.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        plans_service.require_platform_feature("ambassador_programs")
+        if get_user_role_for_brand(self.request.user, instance.brand) not in ("owner", "admin"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only workspace owners/admins can delete ambassador programs.")
+        instance.delete()
 
 
 # ---------------------------------------------------------------------------
@@ -1550,6 +1857,9 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
         if profile is None:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("No brand workspace.")
+        if get_user_role_for_brand(self.request.user, profile) not in ("owner", "admin"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only workspace owners/admins can manage contract templates.")
         max_templates = plans_service.get_limit(profile, "contract_templates_max")
         if max_templates == 0:
             from rest_framework.exceptions import PermissionDenied
@@ -1559,6 +1869,19 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
             ContractTemplate.objects.filter(brand=profile).count(),
         )
         serializer.save(brand=profile)
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        if get_user_role_for_brand(self.request.user, instance.brand) not in ("owner", "admin"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only workspace owners/admins can manage contract templates.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if get_user_role_for_brand(self.request.user, instance.brand) not in ("owner", "admin"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only workspace owners/admins can manage contract templates.")
+        instance.delete()
 
     @staticmethod
     def _docx_to_html(file_obj) -> str:
@@ -1604,6 +1927,7 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
         upload = request.FILES.get("file")
         if not upload:
             raise ValidationError({"file": "No file provided."})
+        validate_contract_source(upload)
         name = (upload.name or "").lower()
         if name.endswith(".docx"):
             html = self._docx_to_html(upload)
@@ -1615,6 +1939,7 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
         else:
             raise ValidationError({"file": "Only .docx or .pdf files are supported."})
 
+        html = sanitize_contract_html(html)
         if not html.strip():
             raise ValidationError({
                 "file": "Could not extract content from this file. Please verify the file is a valid .docx/.pdf document.",
@@ -1634,7 +1959,7 @@ class ContractTemplateViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)
         return FileResponse(
             template.source_file.open('rb'),
-            as_attachment=False,
+            as_attachment=True,
             filename=template.source_file.name.rsplit('/', 1)[-1],
         )
 
@@ -2171,6 +2496,8 @@ class AdminReviewPublishView(APIView):
         review.moderated_by = request.user
         review.moderated_at = timezone.now()
         review.save()
+        from .views import _update_average_rating
+        _update_average_rating(review.reviewee)
         _audit(request.user, "review_moderated", "Review", review.id,
                metadata={"action": "publish"}, ip=_client_ip(request))
         return Response(ReviewSerializer(review).data)
@@ -2231,7 +2558,12 @@ class InfluencerStripeOnboardView(APIView):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
         profile = request.user.influencer_profile
         if not profile.stripe_account_id:
-            acct = stripe_service.create_connected_account(email=request.user.email)
+            try:
+                acct = stripe_service.create_connected_account(email=request.user.email)
+            except stripe_service.PaymentConfigurationError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except NotImplementedError:
+                return Response({"detail": "Live Stripe Connect onboarding is not available yet."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             profile.stripe_account_id = acct["id"]
             profile.stripe_onboarding_url = acct["onboarding_url"]
             profile.save()
@@ -2249,9 +2581,19 @@ class PublicMarketplaceView(generics.ListAPIView):
     permission_classes = []
 
     def get_queryset(self):
-        return InfluencerProfile.objects.filter(
+        candidates = InfluencerProfile.objects.filter(
             user__user_type="influencer",
-        ).select_related("user").prefetch_related("social_networks").order_by("-user__created_at", "-id")
+            user__is_active=True,
+            is_verified=True,
+        ).select_related("user").prefetch_related("social_networks", "media_kit_images").order_by("-user__created_at", "-id")
+
+        ugc = (self.request.query_params.get("ugc") or "").lower()
+        if ugc in ("1", "true", "yes"):
+            candidates = candidates.filter(is_ugc_creator=True)
+
+        # Only list influencers a brand can actually evaluate.
+        complete_ids = [p.id for p in candidates if is_marketplace_ready(p)]
+        return candidates.filter(id__in=complete_ids)
 
 
 class MarketplaceContactInfluencerView(APIView):
@@ -2284,8 +2626,6 @@ class MarketplaceContactInfluencerView(APIView):
         except InfluencerProfile.DoesNotExist:
             return Response({"detail": "Influencer not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        plans_service.enforce_monthly_contacts(brand)
-
         sender_name = (brand.company_name or user.username).strip()
 
         # Create DirectMessage
@@ -2294,7 +2634,6 @@ class MarketplaceContactInfluencerView(APIView):
             recipient=influencer.user,
             content=message
         )
-        # Counted against the monthly_influencer_contacts plan limit
         _audit(user, "marketplace_contact", target_type="BrandProfile",
                target_id=brand.id, metadata={"influencer_id": influencer.id})
         
@@ -2328,6 +2667,7 @@ class InfluencerReferralOverviewView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        plans_service.require_platform_feature("referral_program")
         if request.user.user_type != 'influencer':
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         try:
@@ -2352,6 +2692,7 @@ class InfluencerReferralInviteListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        plans_service.require_platform_feature("referral_program")
         if request.user.user_type != 'influencer':
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         try:
@@ -2378,6 +2719,7 @@ class InfluencerReferralInviteListCreateView(APIView):
         })
 
     def post(self, request):
+        plans_service.require_platform_feature("referral_program")
         if request.user.user_type != 'influencer':
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         try:

@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db.models.functions import Lower
 import secrets
 import uuid
 
@@ -29,13 +30,18 @@ class User(AbstractUser):
 
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES)
     auth_provider = models.CharField(max_length=20, choices=AUTH_PROVIDER_CHOICES, default='local')
-    language_preference = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default='en')
+    language_preference = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default='fr')
+    # Email ownership check. Accounts stay usable while unverified: the flag
+    # gates outward-facing actions rather than login, so a typo is recoverable.
+    email_verified = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     location = models.CharField(max_length=200, blank=True)
     totp_secret = models.CharField(max_length=64, blank=True)
     totp_enabled = models.BooleanField(default=False)
     email_2fa_enabled = models.BooleanField(default=False)
+    auth_version = models.PositiveIntegerField(default=0)
     active_brand_workspace = models.ForeignKey(
         'BrandProfile', null=True, blank=True, on_delete=models.SET_NULL,
         related_name='active_users',
@@ -77,6 +83,10 @@ class InfluencerProfile(models.Model):
     payment_details = models.TextField(blank=True)  # encrypted via Fernet
     is_verified = models.BooleanField(default=False)
     average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+
+    # UGC = content produced for the brand's own channels (no posting on the
+    # creator's audience). Declared at signup and filterable in the marketplace.
+    is_ugc_creator = models.BooleanField(default=False)
 
     # Onboarding & Media Kit (CDC §4.2)
     onboarding_completed = models.BooleanField(default=False)
@@ -261,7 +271,12 @@ class BrandProfile(models.Model):
     sector = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
     website = models.URLField(blank=True)
+    # Structured postal address: needed for compliant invoicing, and validated
+    # at onboarding rather than left to a single free-text blob.
     billing_address = models.TextField(blank=True)
+    billing_postal_code = models.CharField(max_length=16, blank=True)
+    billing_city = models.CharField(max_length=120, blank=True)
+    billing_country = models.CharField(max_length=2, blank=True, default='FR')
 
     # Subscription
     subscription_plan = models.CharField(max_length=20, null=True, blank=True, choices=SUBSCRIPTION_PLAN_CHOICES)
@@ -335,6 +350,7 @@ class BrandMembership(models.Model):
     invited_at = models.DateTimeField(auto_now_add=True)
     joined_at = models.DateTimeField(null=True, blank=True)
     invited_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='brand_invitations_sent')
+    provisioned_by_sso = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -368,6 +384,7 @@ class OrganizationMembership(models.Model):
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    provisioned_by_sso = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -416,7 +433,7 @@ class TeamInvitation(models.Model):
         ordering = ['-created_at']
         constraints = [
             models.UniqueConstraint(
-                fields=['organization', 'invited_email'],
+                Lower('invited_email'), models.F('organization'),
                 condition=models.Q(status='pending'),
                 name='uniq_pending_team_invitation_per_email',
             ),
@@ -505,6 +522,9 @@ class Campaign(models.Model):
     is_casting = models.BooleanField(default=False)
     casting_criteria = models.JSONField(default=dict, blank=True)
 
+    # Campaign asks for UGC content delivered to the brand rather than posted.
+    is_ugc = models.BooleanField(default=False)
+
     # Number of influencers the campaign is looking for (1 = single, N = multi-slot)
     max_influencers = models.PositiveIntegerField(default=1)
 
@@ -521,6 +541,26 @@ class Campaign(models.Model):
 
     def __str__(self):
         return f'{self.title} ({self.brand.company_name})'
+
+
+class CampaignDocument(models.Model):
+    """Extra brief attachments a brand shares with influencers (max 5 per campaign)."""
+
+    MAX_PER_CAMPAIGN = 5
+
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='documents')
+    file = models.FileField(upload_to='campaign_documents/')
+    label = models.CharField(max_length=140, blank=True)
+    uploaded_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name='campaign_documents',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f'CampaignDocument[{self.id}] {self.campaign_id}'
 
 
 class CampaignProposal(models.Model):
@@ -578,6 +618,14 @@ class CampaignProposal(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['campaign', 'influencer'],
+                name='uniq_campaign_proposal_per_influencer',
+            ),
+        ]
 
     def __str__(self):
         return f'Proposal: {self.campaign.title} → {self.influencer.user.username}'
@@ -721,6 +769,14 @@ class Review(models.Model):
     )
     moderated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['proposal', 'reviewer'],
+                name='uniq_review_per_proposal_reviewer',
+            ),
+        ]
 
     def __str__(self):
         return f'Review by {self.reviewer.username} → {self.reviewee.username} ({self.rating}/5)'
@@ -896,8 +952,13 @@ class AuditLog(models.Model):
 class PlatformSettings(models.Model):
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=15)
     referral_commission_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=3)
+    # Discount applied when a brand pays 12 months upfront.
+    annual_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=12)
     validation_deadline_days = models.IntegerField(default=5)
     dispute_resolution_hours = models.IntegerField(default=48)
+    ambassador_programs_enabled = models.BooleanField(default=True)
+    events_enabled = models.BooleanField(default=True)
+    referral_program_enabled = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):
         self.pk = 1

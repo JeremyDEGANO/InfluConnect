@@ -180,7 +180,8 @@ def _sync_user_access(*, user: User, sso: BrandSSOConfig, matched_mappings=None)
 
     domain mode  → default_role, org-wide or on the config's environment.
     groups mode  → role/scope of each matched group mapping.
-    Existing access is never downgraded, only created/upgraded.
+    Rights provisioned by SSO are revoked when they disappear from the token.
+    Manually granted rights are never removed by this synchronization.
     """
     from django.utils import timezone
     from ..models import BrandMembership, OrganizationMembership
@@ -188,10 +189,14 @@ def _sync_user_access(*, user: User, sso: BrandSSOConfig, matched_mappings=None)
 
     rank = {"member": 1, "admin": 2, "owner": 3}
     org = ensure_brand_organization(sso.brand)
+    desired_global = False
+    desired_environment_ids = set()
 
     def grant_global(role: str) -> None:
         membership = OrganizationMembership.objects.filter(organization=org, user=user).first()
         if membership:
+            if not membership.provisioned_by_sso:
+                return
             updates = []
             if membership.status != "active":
                 membership.status = "active"
@@ -203,12 +208,14 @@ def _sync_user_access(*, user: User, sso: BrandSSOConfig, matched_mappings=None)
                 membership.save(update_fields=updates + ["updated_at"])
         else:
             OrganizationMembership.objects.create(
-                organization=org, user=user, role=role, status="active",
+                organization=org, user=user, role=role, status="active", provisioned_by_sso=True,
             )
 
     def grant_env(brand, role: str) -> None:
         membership = BrandMembership.objects.filter(brand=brand, user=user).first()
         if membership:
+            if not membership.provisioned_by_sso:
+                return
             updates = []
             if membership.status != "active":
                 membership.status = "active"
@@ -221,24 +228,36 @@ def _sync_user_access(*, user: User, sso: BrandSSOConfig, matched_mappings=None)
         else:
             BrandMembership.objects.create(
                 brand=brand, user=user, invited_email=user.email,
-                role=role, status="active", joined_at=timezone.now(),
+                role=role, status="active", joined_at=timezone.now(), provisioned_by_sso=True,
             )
 
     if sso.provisioning_mode == "groups":
         for mapping in (matched_mappings or []):
             role = mapping.role if mapping.role in rank else "member"
             if mapping.scope == "global":
+                desired_global = True
                 grant_global(role)
             else:
                 for env in mapping.environments.all():
                     if env.organization_id == org.id:
+                        desired_environment_ids.add(env.id)
                         grant_env(env, role)
     else:
         role = sso.default_role if sso.default_role in ("admin", "member") else "member"
         if sso.apply_to_organization:
+            desired_global = True
             grant_global(role)
         else:
+            desired_environment_ids.add(sso.brand_id)
             grant_env(sso.brand, role)
+
+    if not desired_global:
+        OrganizationMembership.objects.filter(
+            organization=org, user=user, provisioned_by_sso=True,
+        ).update(status="revoked")
+    BrandMembership.objects.filter(
+        brand__organization=org, user=user, provisioned_by_sso=True,
+    ).exclude(brand_id__in=desired_environment_ids).update(status="revoked")
 
 
 def resolve_or_provision_user(*, claims: dict, sso: BrandSSOConfig) -> User:

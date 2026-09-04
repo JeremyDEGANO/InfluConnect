@@ -1,7 +1,9 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "@/lib/auth"
 import { Header } from "@/components/layout/Header"
+import { EmailVerificationBanner } from "@/components/shared/EmailVerificationBanner"
+import { PlanGuard } from "@/components/shared/PlanGuard"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { Footer } from "@/components/layout/Footer"
 import { MobileTabBar } from "@/components/layout/MobileTabBar"
@@ -20,6 +22,7 @@ const Integrations = lazy(() => import("@/pages/brand/Integrations"))
 const Register = lazy(() => import("@/pages/Register"))
 const PasswordResetRequest = lazy(() => import("@/pages/PasswordResetRequest"))
 const PasswordResetConfirm = lazy(() => import("@/pages/PasswordResetConfirm"))
+const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"))
 const MfaResetConfirm = lazy(() => import("@/pages/MfaResetConfirm"))
 const SecuritySettings = lazy(() => import("@/pages/SecuritySettings"))
 const Pricing = lazy(() => import("@/pages/Pricing"))
@@ -64,7 +67,6 @@ const About = lazy(() => import("@/pages/About"))
 const Contact = lazy(() => import("@/pages/Contact"))
 const FAQ = lazy(() => import("@/pages/FAQ"))
 const Help = lazy(() => import("@/pages/Help"))
-const Compare = lazy(() => import("@/pages/Compare"))
 const EventRsvp = lazy(() => import("@/pages/EventRsvp"))
 const Admin = lazy(() => import("@/pages/Admin"))
 const AdminBrands = lazy(() => import("@/pages/admin/Brands"))
@@ -74,6 +76,7 @@ const AdminCampaigns = lazy(() => import("@/pages/admin/Campaigns"))
 const AdminReviews = lazy(() => import("@/pages/admin/Reviews"))
 const AdminAuditLog = lazy(() => import("@/pages/admin/AuditLog"))
 const AdminPlans = lazy(() => import("@/pages/admin/Plans"))
+const AdminFeatures = lazy(() => import("@/pages/admin/Features"))
 const AdminSupport = lazy(() => import("@/pages/admin/Support"))
 const SupportPage = lazy(() => import("@/pages/Support"))
 const InfluencerOnboarding = lazy(() => import("@/pages/influencer/Onboarding"))
@@ -87,6 +90,24 @@ const RouteFallback = () => (
 )
 
 function PublicLayout() {
+  const location = useLocation()
+
+  // Anchor links like /#features are followed from any page, so the target only
+  // exists after the landing page has rendered.
+  useEffect(() => {
+    if (!location.hash) return
+    const id = location.hash.slice(1)
+    const scroll = () => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    const raf = requestAnimationFrame(() => {
+      if (!document.getElementById(id)) {
+        setTimeout(scroll, 250)
+      } else {
+        scroll()
+      }
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [location.pathname, location.hash])
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -121,6 +142,7 @@ function DashboardLayout() {
   return (
     <div className="h-screen flex flex-col bg-aurora-surface overflow-hidden">
       <Header />
+      <EmailVerificationBanner />
       <div className="flex flex-1 min-h-0">
         {!hideSidebar && <Sidebar />}
         <main key={workspaceRefreshKey} className="flex-1 overflow-y-auto relative">
@@ -184,11 +206,12 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/reset-password" element={<PasswordResetRequest />} />
           <Route path="/reset-password/confirm" element={<PasswordResetConfirm />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/security/reset-mfa" element={<MfaResetConfirm />} />
           <Route path="/marketplace/:pseudo" element={<InfluencerPublicProfile />} />
           <Route path="/pricing" element={<Navigate to="/pricing/brands" replace />} />
           <Route path="/pricing/brands" element={<Pricing />} />
-          <Route path="/pricing/agencies" element={<Pricing />} />
+          <Route path="/pricing/agencies" element={<Navigate to="/pricing/brands" replace />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/legal/terms" element={<Terms />} />
@@ -200,7 +223,7 @@ export default function App() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/faq" element={<FAQ />} />
           <Route path="/help" element={<Help />} />
-          <Route path="/compare" element={<Compare />} />
+          <Route path="/compare" element={<Navigate to="/pricing/brands" replace />} />
           <Route path="/events/rsvp/:token" element={<EventRsvp />} />
           <Route path="/invitation/:token" element={<AcceptInvitation />} />
           <Route path="/sign/mobile/:token" element={<SignMobile />} />
@@ -242,15 +265,15 @@ export default function App() {
                 <Route path="/brand/onboarding" element={<BrandOnboarding />} />
                 <Route path="/brand/profile" element={<BrandEditProfile />} />
                 <Route path="/brand/subscription" element={<Subscription />} />
-                <Route path="/brand/ambassadors" element={<AmbassadorPrograms />} />
-                <Route path="/brand/contract-templates" element={<ContractTemplates />} />
-                <Route path="/brand/castings" element={<BrandCastings />} />
-                <Route path="/brand/events" element={<BrandEvents />} />
-                <Route path="/brand/events/new" element={<NewEvent />} />
-                <Route path="/brand/events/:id" element={<BrandEventDetail />} />
+                <Route path="/brand/ambassadors" element={<PlanGuard><AmbassadorPrograms /></PlanGuard>} />
+                <Route path="/brand/contract-templates" element={<PlanGuard><ContractTemplates /></PlanGuard>} />
+                <Route path="/brand/castings" element={<PlanGuard><BrandCastings /></PlanGuard>} />
+                <Route path="/brand/events" element={<PlanGuard><BrandEvents /></PlanGuard>} />
+                <Route path="/brand/events/new" element={<PlanGuard><NewEvent /></PlanGuard>} />
+                <Route path="/brand/events/:id" element={<PlanGuard><BrandEventDetail /></PlanGuard>} />
                 <Route path="/brand/team" element={<BrandTeam />} />
-                <Route path="/brand/environments" element={<BrandEnvironments />} />
-                <Route path="/brand/integrations" element={<Integrations />} />
+                <Route path="/brand/environments" element={<PlanGuard><BrandEnvironments /></PlanGuard>} />
+                <Route path="/brand/integrations" element={<PlanGuard><Integrations /></PlanGuard>} />
                 <Route path="/brand/contracts" element={<Contracts />} />
                 <Route path="/brand/notifications" element={<Notifications />} />
                 <Route path="/brand/messages" element={<Messages />} />
@@ -268,6 +291,7 @@ export default function App() {
               <Route path="/admin/reviews" element={<AdminReviews />} />
               <Route path="/admin/audit-log" element={<AdminAuditLog />} />
               <Route path="/admin/plans" element={<AdminPlans />} />
+              <Route path="/admin/features" element={<AdminFeatures />} />
               <Route path="/admin/support" element={<AdminSupport />} />
             </Route>
           </Route>

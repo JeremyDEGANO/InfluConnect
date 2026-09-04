@@ -9,6 +9,7 @@ from . import views_sso
 from . import views_api_mgmt
 from . import views_api_v1
 from . import views_team_invitations
+from .auth_jwt import VersionedTokenRefreshSerializer
 
 router = DefaultRouter()
 router.register(r"influencers/social-networks", views.SocialNetworkViewSet, basename="social-network")
@@ -24,7 +25,7 @@ urlpatterns = [
     # ---- Auth ----
     path("auth/register/", views.RegisterView.as_view(), name="register"),
     path("auth/login/", views.LoginView.as_view(), name="login"),
-    path("auth/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
+    path("auth/refresh/", TokenRefreshView.as_view(serializer_class=VersionedTokenRefreshSerializer), name="token-refresh"),
     path("auth/me/", views.MeView.as_view(), name="me"),
     path("auth/2fa/setup/", views_auth.TOTPSetupView.as_view(), name="2fa-setup"),
     path("auth/2fa/confirm/", views_auth.TOTPConfirmView.as_view(), name="2fa-confirm"),
@@ -34,16 +35,21 @@ urlpatterns = [
     path("auth/2fa/reset/", views_auth.TOTPResetRequestView.as_view(), name="2fa-reset"),
     path("auth/2fa/reset-confirm/", views_auth.TOTPResetConfirmView.as_view(), name="2fa-reset-confirm"),
     path("auth/password-change/", views_auth.PasswordChangeView.as_view(), name="password-change"),
+    path("auth/partner-docs-code/", views_auth.PartnerDocsCodeView.as_view(), name="partner-docs-code"),
+    path("auth/verify-email/", views_auth.EmailVerificationRequestView.as_view(), name="verify-email"),
+    path("auth/verify-email-confirm/", views_auth.EmailVerificationConfirmView.as_view(), name="verify-email-confirm"),
     path("auth/password-reset/", views_auth.PasswordResetRequestView.as_view(), name="password-reset"),
     path("auth/password-reset-confirm/", views_auth.PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
 
     # ---- Reference data (public) ----
     path("reference/plans/", views_extra.SubscriptionPlansView.as_view(), name="plans"),
+    path("reference/address-autocomplete/", views_extra.AddressAutocompleteView.as_view(), name="address-autocomplete"),
     path("reference/data/", views_extra.ReferenceDataView.as_view(), name="reference-data"),
     path("gifs/", views_extra.GifProxyView.as_view(), name="gif-proxy"),
     path("influencers/pseudo-availability/", views_extra.InfluencerPseudoAvailabilityView.as_view(), name="influencer-pseudo-availability"),
     path("stripe/config/", views_extra.StripeConfigView.as_view(), name="stripe-config"),
     path("public/marketplace/", views_extra.PublicMarketplaceView.as_view(), name="public-marketplace"),
+    path("public/stats/", views_extra.PublicStatsView.as_view(), name="public-stats"),
     path("marketplace/contact/", views_extra.MarketplaceContactInfluencerView.as_view(), name="marketplace-contact-influencer"),
 
     # ---- Influencers ----
@@ -57,6 +63,7 @@ urlpatterns = [
     path("influencers/referral/", views_extra.InfluencerReferralOverviewView.as_view(), name="influencer-referral-overview"),
     path("influencers/referral/invitations/", views_extra.InfluencerReferralInviteListCreateView.as_view(), name="influencer-referral-invitations"),
     path("influencers/p/<str:pseudo>/", views.InfluencerDetailByPseudoView.as_view(), name="influencer-detail-by-pseudo"),
+    path("influencers/<int:pk>/media-kit/", views.InfluencerMediaKitDownloadView.as_view(), name="influencer-media-kit-download"),
     path("influencers/<int:pk>/", views.InfluencerDetailView.as_view(), name="influencer-detail"),
 
     # Social network OAuth (stub)
@@ -84,6 +91,10 @@ urlpatterns = [
     # ---- Campaigns extra actions ----
     path("campaigns/<int:pk>/target/", views.CampaignTargetView.as_view(), name="campaign-target"),
     path("campaigns/<int:pk>/send-proposals/", views.CampaignSendProposalsView.as_view(), name="campaign-send-proposals"),
+    path("campaigns/<int:pk>/brief/", views.CampaignBriefFileView.as_view(), name="campaign-brief-file"),
+    path("campaigns/<int:pk>/documents/", views.CampaignDocumentListCreateView.as_view(), name="campaign-documents"),
+    path("campaigns/documents/<int:document_id>/", views.CampaignDocumentDetailView.as_view(), name="campaign-document-detail"),
+    path("campaigns/documents/<int:document_id>/download/", views.CampaignDocumentDownloadView.as_view(), name="campaign-document-download"),
     path("campaigns/<int:pk>/lookalikes/", views_extra.CampaignLookalikeView.as_view(), name="campaign-lookalikes"),
     path("campaigns/<int:pk>/emv/", views_extra.CampaignEmvView.as_view(), name="campaign-emv"),
     path("campaigns/<int:pk>/export-report/", views_extra.CampaignReportExportView.as_view(), name="campaign-export-report"),
@@ -153,6 +164,7 @@ urlpatterns = [
     path("admin/proposals/", views.AdminProposalListView.as_view(), name="admin-proposals"),
     path("admin/proposals/<int:pk>/arbitrate/", views.AdminArbitrateView.as_view(), name="admin-arbitrate"),
     path("admin/overview/", views_extra.AdminOverviewView.as_view(), name="admin-overview"),
+    path("admin/history/", views_extra.AdminHistoryView.as_view(), name="admin-history"),
     path("admin/users/<int:pk>/status/", views_extra.AdminUserStatusUpdateView.as_view(), name="admin-user-status-update"),
     path("admin/users/<int:pk>/", views_extra.AdminUserUpdateView.as_view(), name="admin-user-update"),
     path("admin/financials/", views.AdminFinancialsView.as_view(), name="admin-financials"),

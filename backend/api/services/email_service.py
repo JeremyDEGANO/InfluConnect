@@ -30,9 +30,11 @@ def _frontend_url(path: str = "") -> str:
 
 
 def _normalize_language(language: str | None) -> str:
-    if (language or "").lower().startswith("fr"):
-        return "fr"
-    return "en"
+    if (language or "").lower().startswith("en"):
+        return "en"
+    # French-first platform: anything unset or unrecognised is French, never
+    # a silent English fallback.
+    return "fr"
 
 
 def _resolve_language(language: str | None, email: str | None = None) -> str:
@@ -42,7 +44,7 @@ def _resolve_language(language: str | None, email: str | None = None) -> str:
         user = User.objects.filter(email__iexact=email).only("language_preference").first()
         if user:
             return _normalize_language(user.language_preference)
-    return "en"
+    return "fr"
 
 
 def build_transactional_email_html(
@@ -643,6 +645,112 @@ def send_content_validated(influencer_email: str, campaign_title: str, language:
             ),
             cta_label=("Voir mes collaborations" if is_fr else "View my collaborations"),
             cta_url=_frontend_url("/influencer/proposals"),
+        ),
+    )
+
+
+def send_email_2fa_enabled(user_email: str, language: str | None = None) -> bool:
+    lang = _resolve_language(language, user_email)
+    is_fr = lang == "fr"
+    return send(
+        to=user_email,
+        subject=(
+            "InfluConnect — Vérification par email activée"
+            if is_fr else
+            "InfluConnect — Email verification enabled"
+        ),
+        body_text=(
+            (
+                "Bonjour,\n\n"
+                "La vérification en deux étapes par email est désormais active sur votre compte.\n"
+                "À chaque connexion, nous vous enverrons un code à 6 chiffres valable 10 minutes.\n\n"
+                "Si vous n'êtes pas à l'origine de ce changement, changez immédiatement votre mot de passe.\n\n"
+                "L'équipe InfluConnect"
+            )
+            if is_fr else
+            (
+                "Hello,\n\n"
+                "Two-step verification by email is now active on your account.\n"
+                "At each sign-in we will send you a 6-digit code valid for 10 minutes.\n\n"
+                "If you did not make this change, change your password immediately.\n\n"
+                "The InfluConnect Team"
+            )
+        ),
+        body_html=build_transactional_email_html(
+            title=("Vérification par email activée" if is_fr else "Email verification enabled"),
+            greeting=("Bonjour," if is_fr else "Hello,"),
+            paragraphs=(
+                [
+                    "La vérification en deux étapes par email est désormais active sur votre compte.",
+                    "À chaque connexion, nous vous enverrons un code à 6 chiffres valable 10 minutes.",
+                    "Cet email confirme aussi que votre adresse reçoit bien nos messages.",
+                ]
+                if is_fr else
+                [
+                    "Two-step verification by email is now active on your account.",
+                    "At each sign-in we will send you a 6-digit code valid for 10 minutes.",
+                    "This email also confirms your address correctly receives our messages.",
+                ]
+            ),
+            cta_label=("Gérer ma sécurité" if is_fr else "Manage my security"),
+            cta_url=_frontend_url("/settings/security"),
+            footer_note=(
+                "Si vous n'êtes pas à l'origine de ce changement, changez immédiatement votre mot de passe."
+                if is_fr else
+                "If you did not make this change, change your password immediately."
+            ),
+        ),
+    )
+
+
+def send_email_verification(user_email: str, verify_url: str, language: str | None = None) -> bool:
+    lang = _resolve_language(language, user_email)
+    is_fr = lang == "fr"
+    return send(
+        to=user_email,
+        subject=(
+            "InfluConnect \u2014 Confirmez votre adresse email"
+            if is_fr else
+            "InfluConnect \u2014 Confirm your email address"
+        ),
+        body_text=(
+            (
+                "Bonjour,\n\n"
+                "Confirmez votre adresse email pour activer toutes les fonctionnalit\u00e9s de votre compte.\n"
+                f"Cliquez sur le lien suivant (valide 24h) : {verify_url}\n\n"
+                "Si vous n'\u00eates pas \u00e0 l'origine de cette inscription, ignorez ce message.\n\n"
+                "L'\u00e9quipe InfluConnect"
+            )
+            if is_fr else
+            (
+                "Hello,\n\n"
+                "Confirm your email address to unlock every feature of your account.\n"
+                f"Use this link within 24 hours: {verify_url}\n\n"
+                "If you did not create this account, you can ignore this email.\n\n"
+                "The InfluConnect Team"
+            )
+        ),
+        body_html=build_transactional_email_html(
+            title=("Confirmez votre adresse email" if is_fr else "Confirm your email address"),
+            greeting=("Bonjour," if is_fr else "Hello,"),
+            paragraphs=(
+                [
+                    "Confirmez votre adresse email pour activer toutes les fonctionnalit\u00e9s de votre compte.",
+                    "Ce lien est valide pendant 24 heures.",
+                ]
+                if is_fr else
+                [
+                    "Confirm your email address to unlock every feature of your account.",
+                    "This link is valid for 24 hours.",
+                ]
+            ),
+            cta_label=("Confirmer mon email" if is_fr else "Confirm my email"),
+            cta_url=verify_url,
+            footer_note=(
+                "Si vous n'\u00eates pas \u00e0 l'origine de cette inscription, ignorez ce message."
+                if is_fr else
+                "If you did not create this account, you can ignore this email."
+            ),
         ),
     )
 

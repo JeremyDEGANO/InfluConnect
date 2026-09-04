@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/lib/auth"
+import { accessContext, canAccessPath } from "@/lib/planAccess"
 import { Button } from "@/components/ui/button"
 
 type TourRole = "brand" | "influencer"
@@ -11,18 +12,25 @@ type TourStep = {
   titleKey: string
   descKey: string
   ctaKey: string
+  /**
+   * Sidebar link to highlight. Some steps navigate to a page that has no menu
+   * entry of its own (a "new X" form, the marketplace): without this the
+   * highlight found nothing and the step looked broken.
+   */
+  anchor?: string
 }
 
-const TOUR_VERSION = "v3"
+const TOUR_VERSION = "v4"
 const TOUR_REPLAY_EVENT = "tour:replay"
 
 const BRAND_STEPS: TourStep[] = [
-  { path: "/brand/campaigns/new", titleKey: "tour.brand.step1.title", descKey: "tour.brand.step1.desc", ctaKey: "tour.brand.step1.cta" },
-  { path: "/marketplace", titleKey: "tour.brand.step2.title", descKey: "tour.brand.step2.desc", ctaKey: "tour.brand.step2.cta" },
+  { path: "/brand/campaigns/new", anchor: "/brand/campaigns/new", titleKey: "tour.brand.step1.title", descKey: "tour.brand.step1.desc", ctaKey: "tour.brand.step1.cta" },
+  { path: "/marketplace", anchor: "/marketplace", titleKey: "tour.brand.step2.title", descKey: "tour.brand.step2.desc", ctaKey: "tour.brand.step2.cta" },
   { path: "/brand/messages", titleKey: "tour.brand.step3.title", descKey: "tour.brand.step3.desc", ctaKey: "tour.brand.step3.cta" },
   { path: "/brand/events", titleKey: "tour.brand.step4.title", descKey: "tour.brand.step4.desc", ctaKey: "tour.brand.step4.cta" },
+  // Contracts and contract templates used to be two steps saying the same
+  // thing; one step covers the contract lifecycle, templates included.
   { path: "/brand/contracts", titleKey: "tour.brand.step5.title", descKey: "tour.brand.step5.desc", ctaKey: "tour.brand.step5.cta" },
-  { path: "/brand/contract-templates", titleKey: "tour.brand.step6.title", descKey: "tour.brand.step6.desc", ctaKey: "tour.brand.step6.cta" },
   { path: "/brand/ambassadors", titleKey: "tour.brand.step7.title", descKey: "tour.brand.step7.desc", ctaKey: "tour.brand.step7.cta" },
   { path: "/brand/integrations", titleKey: "tour.brand.step8.title", descKey: "tour.brand.step8.desc", ctaKey: "tour.brand.step8.cta" },
   { path: "/brand/team", titleKey: "tour.brand.step9.title", descKey: "tour.brand.step9.desc", ctaKey: "tour.brand.step9.cta" },
@@ -60,11 +68,15 @@ export function PortalGuidedTour() {
     && (role !== "brand" || isBrandApproved)
   )
 
+  // Only walk through what this subscription actually includes: showing the
+  // API/integrations step to a plan without API access advertised a feature
+  // the user cannot use, and its CTA led to a page they should not reach.
+  const accessCtx = useMemo(() => accessContext(user), [user])
   const steps = useMemo(() => {
-    if (role === "brand") return BRAND_STEPS
+    if (role === "brand") return BRAND_STEPS.filter((s) => canAccessPath(s.path, accessCtx))
     if (role === "influencer") return INFLUENCER_STEPS
     return []
-  }, [role])
+  }, [role, accessCtx])
 
   const homePath = role === "brand" ? "/brand/dashboard" : role === "influencer" ? "/influencer/dashboard" : null
 
@@ -143,15 +155,28 @@ export function PortalGuidedTour() {
         setSidebarRect(null)
       }
 
-      const currentPath = steps[index].path
-      const selector = `aside a[href='${currentPath}'], a[href='${currentPath}']`
-      const el = document.querySelector(selector) as HTMLElement | null
+      const current = steps[index]
+      // Try the explicit anchor, then the step path, then the closest parent
+      // section (e.g. /brand/events for /brand/events/new).
+      const candidates = [current.anchor, current.path]
+        .filter((value): value is string => Boolean(value))
+      const parent = current.path.split("/").slice(0, 3).join("/")
+      if (parent && !candidates.includes(parent)) candidates.push(parent)
+
+      let el: HTMLElement | null = null
+      for (const candidate of candidates) {
+        el = document.querySelector(
+          `aside a[href='${candidate}'], a[href='${candidate}']`,
+        ) as HTMLElement | null
+        if (el) break
+      }
       if (!el) {
+        // No menu entry to point at: the card still shows, centred, rather
+        // than leaving a step that looks dead.
         setTargetRect(null)
         return
       }
-      const rect = el.getBoundingClientRect()
-      setTargetRect(rect)
+      setTargetRect(el.getBoundingClientRect())
     }
 
     updateRect()

@@ -57,11 +57,24 @@ export default function Integrations() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const { user } = useAuth()
-  const docsToken = useMemo(() => localStorage.getItem("access_token") || "", [])
-  const swaggerHref = useMemo(() => {
-    const base = docsUrl("/api/partner/docs/")
-    return docsToken ? `${base}?token=${encodeURIComponent(docsToken)}` : base
-  }, [docsToken])
+  const [openingDocs, setOpeningDocs] = useState(false)
+
+  const openPartnerDocs = async () => {
+    const popup = window.open("about:blank", "_blank")
+    if (popup) popup.opener = null
+    setOpeningDocs(true)
+    try {
+      const { data } = await api.post("/auth/partner-docs-code/")
+      const target = `${docsUrl("/api/partner/docs/")}?code=${encodeURIComponent(data.code)}`
+      if (popup) popup.location.href = target
+      else window.location.href = target
+    } catch {
+      popup?.close()
+      toast({ variant: "destructive", title: t("common.error") })
+    } finally {
+      setOpeningDocs(false)
+    }
+  }
 
   // Tabs are gated by the subscription plan (same rule as the backend).
   // Absent payload (older session cache) → permissive, backend still enforces.
@@ -101,9 +114,9 @@ export default function Integrations() {
           <Link to="/docs/integrations" className="inline-flex items-center gap-1 text-aurora-blue hover:underline text-sm">
             <BookOpen className="h-4 w-4" /> {t("integrations.read_docs", "Read the integration docs")}
           </Link>
-          <a href={swaggerHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-aurora-blue hover:underline text-sm">
+          <button type="button" onClick={openPartnerDocs} disabled={openingDocs} className="inline-flex items-center gap-1 text-aurora-blue hover:underline text-sm disabled:opacity-50">
             <ExternalLink className="h-4 w-4" /> {t("integrations.api_reference", "Open API reference (Swagger)")}
-          </a>
+          </button>
         </div>
       </div>
       <Tabs defaultValue={defaultTab} className="w-full">

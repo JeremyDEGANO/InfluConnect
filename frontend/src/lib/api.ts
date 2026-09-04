@@ -19,7 +19,7 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token")
+  const token = sessionStorage.getItem("access_token")
   const selectedBrandId = localStorage.getItem("selected_brand_id")
   const rawUrl = String(config.url || "")
   const path = rawUrl.startsWith("http") ? new URL(rawUrl).pathname : rawUrl
@@ -51,21 +51,22 @@ api.interceptors.response.use(
       !original.url?.includes("/auth/")
     ) {
       original._retry = true
-      const refresh = localStorage.getItem("refresh_token")
+      const refresh = sessionStorage.getItem("refresh_token")
       if (refresh) {
         try {
           const { data } = await axios.post(
             `${api.defaults.baseURL}/auth/refresh/`,
             { refresh },
           )
-          localStorage.setItem("access_token", data.access)
+          sessionStorage.setItem("access_token", data.access)
+          if (data.refresh) sessionStorage.setItem("refresh_token", data.refresh)
           if (original.headers) {
             original.headers.Authorization = `Bearer ${data.access}`
           }
           return api(original)
         } catch {
-          localStorage.removeItem("access_token")
-          localStorage.removeItem("refresh_token")
+          sessionStorage.removeItem("access_token")
+          sessionStorage.removeItem("refresh_token")
           window.location.href = "/login"
         }
       }

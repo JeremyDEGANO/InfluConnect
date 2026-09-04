@@ -33,6 +33,7 @@ interface Influencer {
   social_networks: SocialNetwork[]
   average_rating: number | null
   total_collaborations: number
+  is_ugc_creator?: boolean
 }
 
 const ALL_THEMES = ["Beauty", "Fashion", "Tech", "Food", "Travel", "Fitness", "Gaming", "Lifestyle", "Finance", "Education"]
@@ -77,6 +78,7 @@ export default function Marketplace() {
   const [theme, setTheme] = useState<string>("")
   const [platforms, setPlatforms] = useState<string[]>([])
   const [followerRangeIdx, setFollowerRangeIdx] = useState<number | null>(null)
+  const [ugcOnly, setUgcOnly] = useState(false)
   const [sortBy, setSortBy] = useState<string>("random")
   const [showFilters, setShowFilters] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
@@ -154,6 +156,7 @@ export default function Marketplace() {
       list = list.filter((i) => (i.display_name ?? "").toLowerCase().includes(s) || (i.city ?? "").toLowerCase().includes(s))
     }
     if (theme) list = list.filter((i) => i.content_themes?.some((t) => t.toLowerCase() === theme.toLowerCase()))
+    if (ugcOnly) list = list.filter((i) => i.is_ugc_creator)
     if (platforms.length > 0) {
       list = list.filter((i) => i.social_networks?.some((sn) => platforms.includes(sn.platform)))
     }
@@ -176,10 +179,10 @@ export default function Marketplace() {
       list = [...list].sort((a, b) => (b.total_collaborations ?? 0) - (a.total_collaborations ?? 0))
     }
     return list
-  }, [items, search, theme, platforms, followerRangeIdx, sortBy])
+  }, [items, search, theme, platforms, followerRangeIdx, sortBy, ugcOnly])
 
-  const activeFilterCount = (theme ? 1 : 0) + platforms.length + (followerRangeIdx !== null ? 1 : 0)
-  const clearFilters = () => { setTheme(""); setPlatforms([]); setFollowerRangeIdx(null); setSortBy("random") }
+  const activeFilterCount = (theme ? 1 : 0) + platforms.length + (followerRangeIdx !== null ? 1 : 0) + (ugcOnly ? 1 : 0)
+  const clearFilters = () => { setTheme(""); setPlatforms([]); setFollowerRangeIdx(null); setSortBy("random"); setUgcOnly(false) }
   const lang = i18n.language?.startsWith("fr") ? "FR" : "EN"
 
   const fmt = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
@@ -255,6 +258,15 @@ export default function Marketplace() {
             {/* Expandable filters panel */}
             {showFilters && (
               <div className="border-t border-aurora-line pt-4 space-y-4">
+                {/* Content type */}
+                <div>
+                  <p className="text-xs font-semibold text-aurora-ink-3 uppercase tracking-wide mb-2">{t("marketplace.filter_profile_type", "Type de profil")}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant={!ugcOnly ? "info" : "outline"} className="cursor-pointer" onClick={() => setUgcOnly(false)}>{t("marketplace.filter_all")}</Badge>
+                    <Badge variant={ugcOnly ? "info" : "outline"} className="cursor-pointer" onClick={() => setUgcOnly(true)}>{t("marketplace.filter_ugc", "Créateurs UGC")}</Badge>
+                  </div>
+                </div>
+
                 {/* Themes */}
                 <div>
                   <p className="text-xs font-semibold text-aurora-ink-3 uppercase tracking-wide mb-2">{t("marketplace.filter_theme", "Thème")}</p>
@@ -342,7 +354,12 @@ export default function Marketplace() {
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <p className="font-semibold text-aurora-ink truncate">{inf.display_name || `Influencer #${inf.id}`}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="font-semibold text-aurora-ink truncate">{inf.display_name || `Influencer #${inf.id}`}</p>
+                            {inf.is_ugc_creator && (
+                              <Badge variant="info" className="shrink-0 text-[10px] px-1.5 py-0">UGC</Badge>
+                            )}
+                          </div>
                           {inf.city && <p className="text-xs text-aurora-ink-3 flex items-center gap-1"><MapPin className="h-3 w-3" />{inf.city}</p>}
                         </div>
                       </div>

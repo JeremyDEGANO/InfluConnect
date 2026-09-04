@@ -63,7 +63,36 @@ docker compose -p InfluConnect -f docker-compose.prod.yml --env-file .env.prod u
 ```
 
 The `-p InfluConnect` flag fixes the project name so container names are
-predictable (`InfluConnect-backend-1`, `InfluConnect-frontend-1`, `InfluConnect-db-1`).
+predictable (`InfluConnect-backend-1`, `InfluConnect-frontend-1`, `InfluConnect-db-1`,
+`InfluConnect-scheduler-1`).
+
+### The scheduler service
+
+`scheduler` runs the recurring jobs from the same image as the backend:
+
+| Job | Cadence | What it does |
+|---|---|---|
+| `refresh_social_stats` | daily, 04h server-local | Refreshes OAuth tokens, pulls follower/engagement stats, writes the daily snapshot, runs fraud detection |
+| `refresh_campaign_videos` | daily, 05h server-local | Updates per-video stats inside each 30-day tracking window |
+
+Without this service running, influencer stats only update when someone presses
+"sync" by hand. Check it is alive:
+
+```bash
+docker compose -p InfluConnect -f docker-compose.prod.yml logs -f scheduler
+```
+
+You should see `Scheduler started (...)` on boot, then a `running <job>` /
+`finished in Ns` pair each time a job fires. To force a refresh immediately
+without waiting for the next window:
+
+```bash
+docker compose -p InfluConnect -f docker-compose.prod.yml exec scheduler \
+    python manage.py run_scheduler --once
+```
+
+Change the hour with `--stats-hour` (e.g. `command: ["python", "manage.py",
+"run_scheduler", "--stats-hour", "2"]` in the compose file).
 
 Check everything is up:
 

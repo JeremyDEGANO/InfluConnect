@@ -1,20 +1,18 @@
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.core.cache import cache
+from rest_framework.authentication import BaseAuthentication
+
+from .models import User
 
 
-class QueryParamJWTAuthentication(JWTAuthentication):
-    """JWT auth that also accepts ?token=<access_jwt> for docs pages."""
+class DocsCodeAuthentication(BaseAuthentication):
+    """Short-lived, docs-only query code. It is not an API credential."""
 
     def authenticate(self, request):
-        header = self.get_header(request)
-        if header is not None:
-            raw_token = self.get_raw_token(header)
-            if raw_token is None:
-                return None
-            validated_token = self.get_validated_token(raw_token)
-            return self.get_user(validated_token), validated_token
-
-        query_token = request.query_params.get("token")
-        if not query_token:
+        code = (request.query_params.get("code") or "").strip()
+        if not code or len(code) > 96:
             return None
-        validated_token = self.get_validated_token(query_token.encode("utf-8"))
-        return self.get_user(validated_token), validated_token
+        user_id = cache.get(f"partner-docs:{code}")
+        if not user_id:
+            return None
+        user = User.objects.filter(pk=user_id, is_active=True).first()
+        return (user, code) if user else None

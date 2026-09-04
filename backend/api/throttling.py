@@ -25,3 +25,12 @@ class MFAResetRateThrottle(IPRateThrottle):
 
 class RegisterRateThrottle(IPRateThrottle):
     scope = "auth_register"
+
+
+class EventInvitePublicThrottle(IPRateThrottle):
+    scope = "event_invite_public"
+
+
+class AddressLookupThrottle(IPRateThrottle):
+    """Typeahead fires often; this shields the free upstream geocoders."""
+    scope = "address_lookup"

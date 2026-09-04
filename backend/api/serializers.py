@@ -10,13 +10,16 @@ import hashlib
 import secrets
 import re
 import unicodedata
+import bleach
+import zipfile
+import os
 
 from .services.translation_service import translate as _translate
 
 from .models import (
     User, InfluencerProfile, SocialNetwork, SocialVideo, SocialStatsSnapshot,
     SocialFraudFlag, BrandProfile,
-    Campaign, CampaignProposal, CampaignVideoTracking, CampaignVideoDailyStats,
+    Campaign, CampaignDocument, CampaignProposal, CampaignVideoTracking, CampaignVideoDailyStats,
     Event, EventInvitation, ContentSubmission,
     Message, DirectMessage, Review, Notification, PlatformSettings,
     ContractTemplate, CastingApplication, AmbassadorProgram, AuditLog,
@@ -24,7 +27,7 @@ from .models import (
     SupportTicketImage,
     InfluencerReferralInvite,
 )
-from .workspace import get_user_brand_workspaces, get_user_role_for_brand
+from .workspace import get_user_brand_workspaces, get_user_role_for_brand, user_can_access_brand
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +87,86 @@ def _abs_media_url(request, file_field):
 
 
 PSEUDO_REGEX = re.compile(r'^[\w.-]+\Z', re.UNICODE)
+
+CONTRACT_HTML_TAGS = {
+    'p', 'br', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'strong', 'b', 'em', 'i', 'u', 's', 'blockquote', 'code', 'pre',
+    'ul', 'ol', 'li', 'a', 'mark',
+}
+CONTRACT_HTML_ATTRIBUTES = {'a': ['href', 'title', 'target', 'rel']}
+
+
+def sanitize_contract_html(value: str) -> str:
+    return bleach.clean(
+        value or '',
+        tags=CONTRACT_HTML_TAGS,
+        attributes=CONTRACT_HTML_ATTRIBUTES,
+        protocols={'http', 'https', 'mailto'},
+        strip=True,
+        strip_comments=True,
+    )
+
+
+def validate_uploaded_file(file_obj, *, max_bytes: int, extensions: set[str], content_types: set[str] | None = None):
+    if not file_obj:
+        return file_obj
+    if file_obj.size > max_bytes:
+        raise serializers.ValidationError(f'File exceeds the {max_bytes // (1024 * 1024)} MB limit.')
+    name = (file_obj.name or '').lower()
+    extension = '.' + name.rsplit('.', 1)[-1] if '.' in name else ''
+    if extension not in extensions:
+        raise serializers.ValidationError('Unsupported file extension.')
+    content_type = (getattr(file_obj, 'content_type', '') or '').lower()
+    if content_types and content_type not in content_types:
+        raise serializers.ValidationError('Unsupported file content type.')
+    return file_obj
+
+
+def validate_pdf(file_obj, *, max_bytes: int = 10 * 1024 * 1024):
+    validate_uploaded_file(
+        file_obj, max_bytes=max_bytes, extensions={'.pdf'},
+        content_types={'application/pdf'},
+    )
+    position = file_obj.tell()
+    try:
+        if file_obj.read(5) != b'%PDF-':
+            raise serializers.ValidationError('Invalid PDF file signature.')
+    finally:
+        file_obj.seek(position)
+    return file_obj
+
+
+def validate_contract_source(file_obj):
+    validate_uploaded_file(
+        file_obj, max_bytes=10 * 1024 * 1024, extensions={'.pdf', '.docx'},
+        content_types={
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+    )
+    if (file_obj.name or '').lower().endswith('.pdf'):
+        return validate_pdf(file_obj)
+    position = file_obj.tell()
+    try:
+        if not zipfile.is_zipfile(file_obj):
+            raise serializers.ValidationError('Invalid DOCX file signature.')
+        file_obj.seek(0)
+        with zipfile.ZipFile(file_obj) as archive:
+            names = set(archive.namelist())
+            if '[Content_Types].xml' not in names or 'word/document.xml' not in names:
+                raise serializers.ValidationError('Invalid DOCX document structure.')
+            if len(names) > 2000 or sum(item.file_size for item in archive.infolist()) > 50 * 1024 * 1024:
+                raise serializers.ValidationError('DOCX expanded content is too large.')
+    finally:
+        file_obj.seek(position)
+    return file_obj
+
+
+SAFE_ATTACHMENT_EXTENSIONS = {
+    '.pdf', '.docx', '.xlsx', '.csv', '.txt',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.mp4', '.mov', '.webm',
+}
 
 
 def _normalize_pseudo_base(value: str) -> str:
@@ -333,7 +416,7 @@ class InfluencerProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'pseudo', 'bio', 'display_name', 'gender', 'collaboration_pitch', 'avatar', 'city', 'languages', 'content_themes',
             'content_types_offered', 'pricing', 'payment_method',
-            'is_verified', 'average_rating', 'social_networks',
+            'is_verified', 'is_ugc_creator', 'average_rating', 'social_networks',
             'onboarding_completed', 'profile_completion_percent',
             'media_kit_pdf', 'media_kit_generated_at', 'media_kit_is_custom', 'media_kit_images',
             'content_links',
@@ -401,8 +484,16 @@ class InfluencerProfileSerializer(serializers.ModelSerializer):
         return _abs_media_url(request, getattr(obj.user, 'avatar', None))
 
     def get_media_kit_pdf(self, obj):
+        # Served through an authenticated endpoint: the raw /media/ URL would be
+        # world-readable and enumerable.
+        if not getattr(obj, 'media_kit_pdf', None):
+            return None
         request = self.context.get('request')
-        return _abs_media_url(request, getattr(obj, 'media_kit_pdf', None))
+        user = getattr(request, 'user', None)
+        if not (user and getattr(user, 'is_authenticated', False)):
+            return None
+        url = reverse('influencer-media-kit-download', kwargs={'pk': obj.pk})
+        return request.build_absolute_uri(url) if request else url
 
 
 class MediaKitImageSerializer(serializers.ModelSerializer):
@@ -439,16 +530,65 @@ class BrandProfileSerializer(serializers.ModelSerializer):
         model = BrandProfile
         fields = [
             'id', 'company_name', 'siret', 'logo', 'logo_upload', 'sector', 'description',
-            'website', 'billing_address',
+            'website', 'billing_address', 'billing_postal_code', 'billing_city', 'billing_country',
             'subscription_plan', 'subscription_active', 'subscription_expires_at',
             'validation_status', 'validation_notes', 'validated_at',
             'average_rating',
             'is_agency', 'agency_default_commission_percent',
         ]
         read_only_fields = [
+            'subscription_plan',
             'subscription_active', 'subscription_expires_at',
             'validation_status', 'validation_notes', 'validated_at',
             'average_rating',
+            'is_agency', 'agency_default_commission_percent',
+        ]
+
+    def get_logo(self, obj):
+        request = self.context.get('request')
+        return _abs_media_url(request, getattr(obj, 'logo', None))
+
+    def validate_siret(self, value):
+        # A SIRET is exactly 14 digits; spaces are common when copy-pasted.
+        cleaned = re.sub(r'\s+', '', value or '')
+        if not cleaned:
+            return ''
+        if not cleaned.isdigit() or len(cleaned) != 14:
+            raise serializers.ValidationError(
+                'Le SIRET doit contenir exactement 14 chiffres.'
+            )
+        return cleaned
+
+    def validate_billing_postal_code(self, value):
+        cleaned = re.sub(r'\s+', '', value or '')
+        if not cleaned:
+            return ''
+        # Keep this permissive enough for non-French codes while catching typos.
+        if not re.fullmatch(r'[A-Za-z0-9\-]{4,10}', cleaned):
+            raise serializers.ValidationError('Code postal invalide.')
+        return cleaned.upper()
+
+    def validate_billing_city(self, value):
+        cleaned = (value or '').strip()
+        if cleaned and len(cleaned) < 2:
+            raise serializers.ValidationError('Ville invalide.')
+        return cleaned
+
+    def validate_billing_country(self, value):
+        cleaned = (value or '').strip().upper()
+        if cleaned and not re.fullmatch(r'[A-Z]{2}', cleaned):
+            raise serializers.ValidationError('Utilisez un code pays ISO à 2 lettres (ex. FR).')
+        return cleaned
+
+
+class BrandPublicSerializer(serializers.ModelSerializer):
+    logo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BrandProfile
+        fields = [
+            'id', 'company_name', 'logo', 'sector', 'description', 'website',
+            'average_rating', 'is_agency',
         ]
 
     def get_logo(self, obj):
@@ -503,17 +643,32 @@ class UserSerializer(serializers.ModelSerializer):
     active_brand_workspace_id = serializers.IntegerField(read_only=True)
     active_brand_role = serializers.SerializerMethodField()
     active_brand = serializers.SerializerMethodField()
+    platform_features = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'user_type', 'auth_provider', 'sso_enabled', 'language_preference', 'avatar', 'avatar_upload', 'phone', 'location',
-            'totp_enabled', 'email_2fa_enabled',
+            'totp_enabled', 'email_2fa_enabled', 'email_verified',
             'created_at', 'updated_at', 'influencer_profile', 'brand_profile',
             'brand_environments', 'active_brand_workspace_id', 'active_brand_role', 'active_brand',
+            'platform_features',
         ]
-        read_only_fields = ['user_type', 'auth_provider', 'sso_enabled', 'created_at', 'updated_at', 'totp_enabled', 'email_2fa_enabled']
+        # email_verified must never be writable: it is set only by consuming
+        # a signed one-time link.
+        read_only_fields = [
+            'user_type', 'auth_provider', 'sso_enabled', 'created_at', 'updated_at',
+            'totp_enabled', 'email_2fa_enabled', 'email_verified',
+        ]
+
+    def update(self, instance, validated_data):
+        # A new address has not been proven yet: re-verify it.
+        new_email = validated_data.get('email')
+        if new_email and new_email.lower() != (instance.email or '').lower():
+            validated_data['email_verified'] = False
+            validated_data['email_verified_at'] = None
+        return super().update(instance, validated_data)
 
     def validate_email(self, value):
         value = (value or '').strip()
@@ -567,6 +722,14 @@ class UserSerializer(serializers.ModelSerializer):
             'plan_price_eur_monthly': plans_service.get_brand_price(brand),
         }
 
+    def get_platform_features(self, obj):
+        from .services import plans as plans_service
+
+        return {
+            key: plans_service.is_platform_feature_enabled(key)
+            for key in plans_service.PLATFORM_FEATURE_FIELDS
+        }
+
 
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150, required=False, default='')
@@ -586,7 +749,13 @@ class RegisterSerializer(serializers.Serializer):
     is_agency = serializers.BooleanField(required=False, default=False)
     # Influencer-specific
     display_name = serializers.CharField(max_length=100, required=False, default='')
+    is_ugc_creator = serializers.BooleanField(required=False, default=False)
     referral_code = serializers.CharField(max_length=20, required=False, default='', allow_blank=True)
+    # Sent by the frontend so transactional emails match the language the user
+    # signed up in; without it every account silently fell back to English.
+    language_preference = serializers.ChoiceField(
+        choices=['fr', 'en'], required=False, allow_blank=True, default='fr',
+    )
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
@@ -599,9 +768,8 @@ class RegisterSerializer(serializers.Serializer):
         if attrs['user_type'] == 'brand':
             if not attrs.get('company_name'):
                 raise serializers.ValidationError({'company_name': 'Required for brand registration.'})
-            # CDC §5.1 — choosing a subscription plan is mandatory for all brand accounts.
-            if not attrs.get('subscription_plan'):
-                raise serializers.ValidationError({'subscription_plan': 'Required for brand registration.'})
+            # No plan required at signup: brands are free until they contract a
+            # collaboration, where the subscription paywall kicks in.
             if attrs.get('is_agency') and attrs.get('subscription_plan') == 'starter':
                 raise serializers.ValidationError({'subscription_plan': 'Agency accounts require Growth or Pro.'})
         if not attrs.get('username'):
@@ -614,6 +782,9 @@ class RegisterSerializer(serializers.Serializer):
             attrs['username'] = username
         elif User.objects.filter(username=attrs['username']).exists():
             raise serializers.ValidationError({'username': 'Username already taken.'})
+        admin_username = (os.getenv('ADMIN_USERNAME') or 'admin').strip().lower()
+        if attrs['username'].strip().lower() == admin_username:
+            raise serializers.ValidationError({'username': 'This username is reserved.'})
         if attrs.get('user_type') == 'influencer':
             try:
                 attrs['display_name'] = _validate_influencer_pseudo(
@@ -624,6 +795,10 @@ class RegisterSerializer(serializers.Serializer):
                 raise serializers.ValidationError({'display_name': exc.detail})
             referral_code = (attrs.get('referral_code') or '').strip().upper()
             if referral_code:
+                from .services import plans as plans_service
+
+                if not plans_service.is_platform_feature_enabled('referral_program'):
+                    raise serializers.ValidationError({'referral_code': 'The referral program is currently unavailable.'})
                 referrer = InfluencerProfile.objects.filter(referral_code=referral_code).select_related('user').first()
                 if not referrer:
                     raise serializers.ValidationError({'referral_code': 'Invalid referral code.'})
@@ -639,11 +814,13 @@ class RegisterSerializer(serializers.Serializer):
             user_type=validated_data['user_type'],
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
+            language_preference=(validated_data.get('language_preference') or 'fr'),
         )
         if user.user_type == 'influencer':
             profile = InfluencerProfile.objects.create(
                 user=user,
                 display_name=validated_data.get('display_name', ''),
+                is_ugc_creator=bool(validated_data.get('is_ugc_creator', False)),
                 referral_code=_generate_unique_referral_code(),
             )
             referrer = validated_data.get('_referrer_profile')
@@ -675,7 +852,7 @@ class RegisterSerializer(serializers.Serializer):
                 siret=validated_data.get('siret', ''),
                 website=validated_data.get('website', ''),
                 sector=validated_data.get('sector', ''),
-                subscription_plan=validated_data.get('subscription_plan'),
+                subscription_plan=validated_data.get('subscription_plan') or '',
                 is_agency=bool(validated_data.get('is_agency', False)),
             )
             user.active_brand_workspace = brand_profile
@@ -704,6 +881,15 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Invalid credentials.')
         if not user.is_active:
             raise serializers.ValidationError('Account is disabled.')
+        if user.user_type in ('brand', 'admin'):
+            from .services import sso_office365
+
+            sso = sso_office365.resolve_sso_config_by_email(user.email or '')
+            if sso and sso.enforce_sso:
+                role = get_user_role_for_brand(user, sso.brand)
+                owner_fallback = sso.allow_local_fallback_for_owner and role == 'owner'
+                if not owner_fallback:
+                    raise serializers.ValidationError('Password login is disabled. Use your organization SSO.')
         attrs['user'] = user
         return attrs
 
@@ -711,18 +897,44 @@ class LoginSerializer(serializers.Serializer):
 # ---------------------------------------------------------------------------
 # Campaign
 # ---------------------------------------------------------------------------
+class CampaignDocumentSerializer(serializers.ModelSerializer):
+    file_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CampaignDocument
+        fields = ['id', 'campaign', 'file', 'file_name', 'label', 'created_at']
+        read_only_fields = ['id', 'campaign', 'created_at']
+
+    def get_file_name(self, obj):
+        return obj.file.name.rsplit('/', 1)[-1] if obj.file else ''
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        url = reverse('campaign-document-download', kwargs={'document_id': instance.pk})
+        data['file'] = request.build_absolute_uri(url) if request else url
+        return data
+
+    def validate_file(self, value):
+        return validate_uploaded_file(
+            value, max_bytes=10 * 1024 * 1024,
+            extensions={'.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'},
+        )
+
+
 class CampaignSerializer(serializers.ModelSerializer):
     brand_name = serializers.CharField(source='brand.company_name', read_only=True)
     brand_logo = serializers.SerializerMethodField()
+    documents = CampaignDocumentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Campaign
         fields = [
             'id', 'brand', 'brand_name', 'brand_logo', 'title', 'description', 'campaign_type',
             'status', 'products', 'shipping_info', 'deliverables_requested',
-            'brief_text', 'brief_files', 'target_networks', 'content_format', 'content_formats',
+            'brief_text', 'brief_files', 'documents', 'target_networks', 'content_format', 'content_formats',
             'price_per_influencer', 'deadline', 'target_filters',
-            'is_casting', 'casting_criteria', 'max_influencers', 'image_rights', 'contract_template',
+            'is_casting', 'casting_criteria', 'is_ugc', 'max_influencers', 'image_rights', 'contract_template',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['brand', 'created_at', 'updated_at']
@@ -730,6 +942,22 @@ class CampaignSerializer(serializers.ModelSerializer):
     def get_brand_logo(self, obj):
         request = self.context.get('request')
         return _abs_media_url(request, getattr(obj.brand, 'logo', None))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.brief_files:
+            request = self.context.get('request')
+            url = reverse('campaign-brief-file', kwargs={'pk': instance.pk})
+            data['brief_files'] = request.build_absolute_uri(url) if request else url
+        else:
+            data['brief_files'] = None
+        return data
+
+    def validate_brief_files(self, value):
+        return validate_uploaded_file(
+            value, max_bytes=25 * 1024 * 1024,
+            extensions=SAFE_ATTACHMENT_EXTENSIONS,
+        )
 
 
 class EventInvitationSerializer(serializers.ModelSerializer):
@@ -775,7 +1003,7 @@ class EventInvitationSerializer(serializers.ModelSerializer):
 
 class EventSerializer(serializers.ModelSerializer):
     brand_name = serializers.CharField(source='brand.company_name', read_only=True)
-    invitations = EventInvitationSerializer(many=True, read_only=True)
+    invitations = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -784,6 +1012,21 @@ class EventSerializer(serializers.ModelSerializer):
             'starts_at', 'ends_at', 'status', 'max_invitees', 'invitations', 'created_at', 'updated_at',
         ]
         read_only_fields = ['brand', 'created_at', 'updated_at']
+
+    def get_invitations(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        invitations = obj.invitations.all()
+        if not user or not getattr(user, 'is_authenticated', False):
+            return []
+        if user.user_type == 'influencer':
+            invitations = invitations.filter(influencer__user=user)
+        elif user.user_type == 'brand':
+            if not user_can_access_brand(user, obj.brand):
+                return []
+        elif not user.is_staff:
+            return []
+        return EventInvitationSerializer(invitations, many=True, context=self.context).data
 
 
 class ContractTemplateSerializer(serializers.ModelSerializer):
@@ -801,6 +1044,15 @@ class ContractTemplateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         url = reverse('contract-template-source-file', kwargs={'pk': obj.pk})
         return request.build_absolute_uri(url) if request else url
+
+    def validate_body_html(self, value):
+        cleaned = sanitize_contract_html(value)
+        if not cleaned.strip():
+            raise serializers.ValidationError('Contract content cannot be empty.')
+        return cleaned
+
+    def validate_source_file(self, value):
+        return validate_contract_source(value)
 
 
 # ---------------------------------------------------------------------------
@@ -946,6 +1198,18 @@ class ContentSubmissionSerializer(serializers.ModelSerializer):
             data['screenshot'] = None
         return data
 
+    def validate_uploaded_file(self, value):
+        return validate_uploaded_file(
+            value, max_bytes=100 * 1024 * 1024,
+            extensions={'.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.webm'},
+        )
+
+    def validate_screenshot(self, value):
+        return validate_uploaded_file(
+            value, max_bytes=10 * 1024 * 1024,
+            extensions={'.jpg', '.jpeg', '.png', '.gif', '.webp'},
+        )
+
 
 # ---------------------------------------------------------------------------
 # Message / Review / Notification
@@ -964,6 +1228,12 @@ class MessageSerializer(serializers.ModelSerializer):
     def get_sender_avatar(self, obj):
         request = self.context.get('request')
         return _abs_media_url(request, getattr(obj.sender, 'avatar', None))
+
+    def validate_attachments(self, value):
+        return validate_uploaded_file(
+            value, max_bytes=25 * 1024 * 1024,
+            extensions=SAFE_ATTACHMENT_EXTENSIONS,
+        )
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -992,6 +1262,12 @@ class DirectMessageSerializer(serializers.ModelSerializer):
     def get_sender_avatar(self, obj):
         request = self.context.get('request')
         return _abs_media_url(request, getattr(obj.sender, 'avatar', None))
+
+    def validate_attachments(self, value):
+        return validate_uploaded_file(
+            value, max_bytes=25 * 1024 * 1024,
+            extensions=SAFE_ATTACHMENT_EXTENSIONS,
+        )
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -1176,7 +1452,7 @@ class AmbassadorProgramSerializer(serializers.ModelSerializer):
             'name', 'description', 'monthly_budget', 'kpis', 'bonus_rules',
             'status', 'starts_at', 'ends_at', 'auto_renew', 'created_at',
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['brand', 'created_at']
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -1193,7 +1469,38 @@ class AuditLogSerializer(serializers.ModelSerializer):
 class PlatformSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformSettings
-        fields = ['commission_rate', 'referral_commission_discount_percent', 'validation_deadline_days', 'dispute_resolution_hours']
+        fields = [
+            'commission_rate', 'referral_commission_discount_percent',
+            'annual_discount_percent',
+            'validation_deadline_days', 'dispute_resolution_hours',
+            'ambassador_programs_enabled', 'events_enabled',
+            'referral_program_enabled',
+        ]
+
+    def validate_commission_rate(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('Commission rate must be between 0 and 100.')
+        return value
+
+    def validate_annual_discount_percent(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('Annual discount must be between 0 and 100.')
+        return value
+
+    def validate_referral_commission_discount_percent(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('Referral discount must be between 0 and 100.')
+        return value
+
+    def validate_validation_deadline_days(self, value):
+        if value < 1 or value > 30:
+            raise serializers.ValidationError('Validation deadline must be between 1 and 30 days.')
+        return value
+
+    def validate_dispute_resolution_hours(self, value):
+        if value < 1 or value > 720:
+            raise serializers.ValidationError('Dispute resolution must be between 1 and 720 hours.')
+        return value
 
 
 # ---------------------------------------------------------------------------

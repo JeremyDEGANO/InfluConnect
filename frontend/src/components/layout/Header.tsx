@@ -52,16 +52,11 @@ export function Header() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 text-[13px] font-medium">
-          {!isAuthenticated && (
-            <>
-              <Link to="/#features" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.features")}</Link>
-              <Link to="/#how-it-works" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.how_it_works")}</Link>
-              <Link to="/pricing/brands" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.pricing")}</Link>
-              <Link to="/compare" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.compare")}</Link>
-              <Link to="/about" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.about", "À propos")}</Link>
-              <Link to="/contact" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.contact", "Contact")}</Link>
-            </>
-          )}
+          <Link to="/#features" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.features")}</Link>
+          <Link to="/#how-it-works" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.how_it_works")}</Link>
+          <Link to="/pricing/brands" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.pricing")}</Link>
+          <Link to="/about" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.about", "À propos")}</Link>
+          <Link to="/contact" className="px-3 py-1.5 rounded-full text-aurora-ink-2 hover:text-aurora-ink hover:bg-aurora-surface transition-all ease-aurora">{t("nav.contact", "Contact")}</Link>
         </nav>
 
         <div className="flex items-center gap-2">

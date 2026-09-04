@@ -9,6 +9,7 @@ import { FreshnessBadge, VerifiedBadge } from "@/components/social/SocialStatusB
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { AddressAutocomplete } from "@/components/shared/AddressAutocomplete"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -180,6 +181,7 @@ export default function InfluencerEditProfile() {
   const [user_form, setUserForm] = useState({
     first_name: "", last_name: "", email: "", phone: "", location: "",
   })
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState("")
   const [initialDisplayName, setInitialDisplayName] = useState("")
   const [profile_form, setProfileForm] = useState({
     bio: "", display_name: "", gender: "", collaboration_pitch: "", payment_method: "", payment_details: "",
@@ -293,15 +295,8 @@ export default function InfluencerEditProfile() {
   const languageOptions = reference?.languages ?? FALLBACK_LANGUAGES
   const countryOptions = reference?.countries ?? FALLBACK_COUNTRIES
   const citiesByCountry = reference?.cities_by_country ?? FALLBACK_CITIES_BY_COUNTRY
-  const cityOptions = citiesByCountry[selectedCountry] ?? []
   const selectedDialCode = countryOptions.find((c) => c.code === phoneCountry)?.dial_code ?? "+33"
   const completionLabels = reference?.completion_labels ?? FALLBACK_COMPLETION_LABELS
-
-  useEffect(() => {
-    if (user_form.location && !cityOptions.includes(user_form.location)) {
-      setUserForm((prev) => ({ ...prev, location: "" }))
-    }
-  }, [selectedCountry])
 
   const ctLabel = useMemo(() => {
     const m: Record<string, string> = {}
@@ -544,7 +539,13 @@ export default function InfluencerEditProfile() {
         setAvatarFile(null)
       }
       const cleanPhone = toE164Phone(user_form.phone, selectedDialCode)
-      await api.patch("/auth/me/", { ...user_form, phone: cleanPhone })
+      const emailChanged = user_form.email.trim().toLowerCase() !== (user?.email || "").trim().toLowerCase()
+      await api.patch("/auth/me/", {
+        ...user_form,
+        phone: cleanPhone,
+        ...(emailChanged ? { current_password: emailCurrentPassword } : {}),
+      })
+      if (emailChanged) setEmailCurrentPassword("")
       const pricingObj: Record<string, number> = {}
       contentTypes.forEach((ct) => {
         const v = Number(pricing[ct] ?? 0)
@@ -666,6 +667,12 @@ export default function InfluencerEditProfile() {
             <div>
               <Label>{t("auth.email")}</Label>
               <Input className="mt-1" type="email" value={user_form.email} onChange={(e) => setUserForm({ ...user_form, email: e.target.value })} />
+              {user_form.email.trim().toLowerCase() !== (user?.email || "").trim().toLowerCase() && (
+                <div className="mt-2">
+                  <Label>{t("security.current_password")}</Label>
+                  <Input className="mt-1" type="password" autoComplete="current-password" value={emailCurrentPassword} onChange={(e) => setEmailCurrentPassword(e.target.value)} required />
+                </div>
+              )}
             </div>
             <div>
               <Label>{t("influencer_profile.display_name", "Pseudo / nom public")}</Label>
@@ -747,14 +754,18 @@ export default function InfluencerEditProfile() {
             </div>
             <div className="sm:col-span-2">
               <Label>{t("influencer_profile.location", "Ville")}</Label>
-              <select
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={user_form.location}
-                onChange={(e) => setUserForm({ ...user_form, location: e.target.value })}
-              >
-                <option value="">{t("influencer_profile.city_placeholder")}</option>
-                {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <div className="mt-1">
+                {/* Free-text with suggestions: the old fixed list left creators
+                    in smaller towns unable to state where they are. */}
+                <AddressAutocomplete
+                  kind="city"
+                  country={selectedCountry}
+                  value={user_form.location}
+                  placeholder={t("influencer_profile.city_placeholder")}
+                  onChange={(city) => setUserForm({ ...user_form, location: city })}
+                  onSelect={(s) => setUserForm({ ...user_form, location: s.city || s.label })}
+                />
+              </div>
             </div>
             <div className="sm:col-span-2">
               <Label>{t("influencer_profile.avatar", "Photo de profil")}</Label>

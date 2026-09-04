@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useContext,
@@ -7,6 +8,7 @@ import {
   type ReactNode,
 } from "react"
 import api from "./api"
+import i18n from "@/i18n"
 
 export interface User {
   id: number
@@ -21,6 +23,7 @@ export interface User {
   location: string
   totp_enabled?: boolean
   email_2fa_enabled?: boolean
+  email_verified?: boolean
   created_at: string
   updated_at: string
   influencer_profile?: Record<string, unknown>
@@ -38,6 +41,7 @@ export interface User {
     plan_features?: Record<string, boolean | number | string>
     plan_price_eur_monthly?: number
   } | null
+  platform_features?: Record<string, boolean>
 }
 
 /** Feature entitlements of the active brand plan (admin-configurable). */
@@ -69,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchUser = useCallback(async () => {
-    const token = localStorage.getItem("access_token")
+    const token = sessionStorage.getItem("access_token")
     if (!token) {
       setUser(null)
       setIsLoading(false)
@@ -84,8 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setUser(data)
     } catch {
-      localStorage.removeItem("access_token")
-      localStorage.removeItem("refresh_token")
+      sessionStorage.removeItem("access_token")
+      sessionStorage.removeItem("refresh_token")
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -107,8 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data?.email_otp_required && !data.access) {
       return { user: null, email_otp_required: true }
     }
-    localStorage.setItem("access_token", data.access)
-    localStorage.setItem("refresh_token", data.refresh)
+    sessionStorage.setItem("access_token", data.access)
+    sessionStorage.setItem("refresh_token", data.refresh)
     if (data?.user?.active_brand_workspace_id) {
       localStorage.setItem("selected_brand_id", String(data.user.active_brand_workspace_id))
     } else {
@@ -119,9 +123,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const register = async (payload: Record<string, string | boolean>): Promise<User> => {
-    const { data } = await api.post("/auth/register/", payload)
-    localStorage.setItem("access_token", data.access)
-    localStorage.setItem("refresh_token", data.refresh)
+    // Tell the backend which language to write transactional emails in,
+    // unless the caller already picked one.
+    const language = i18n.language?.toLowerCase().startsWith("en") ? "en" : "fr"
+    const { data } = await api.post("/auth/register/", {
+      language_preference: language,
+      ...payload,
+    })
+    sessionStorage.setItem("access_token", data.access)
+    sessionStorage.setItem("refresh_token", data.refresh)
     if (data?.user?.active_brand_workspace_id) {
       localStorage.setItem("selected_brand_id", String(data.user.active_brand_workspace_id))
     } else {
@@ -146,8 +156,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    localStorage.removeItem("access_token")
-    localStorage.removeItem("refresh_token")
+    sessionStorage.removeItem("access_token")
+    sessionStorage.removeItem("refresh_token")
     localStorage.removeItem("selected_brand_id")
     setUser(null)
   }

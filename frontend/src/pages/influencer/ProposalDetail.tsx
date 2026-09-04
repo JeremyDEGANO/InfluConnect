@@ -13,6 +13,8 @@ import { CounterOfferDialog } from "@/components/shared/CounterOfferDialog"
 import { ReviewDialog } from "@/components/shared/ReviewDialog"
 import { SignContractDialog } from "@/components/shared/SignContractDialog"
 import { PaymentDialog } from "@/components/shared/PaymentDialog"
+import { DeclineReasonDialog } from "@/components/shared/DeclineReasonDialog"
+import { CampaignDocuments } from "@/components/shared/CampaignDocuments"
 import { ContractWorkflow } from "@/components/shared/ContractWorkflow"
 import CampaignTrackedVideos from "@/components/social/CampaignTrackedVideos"
 import { useToast } from "@/hooks/use-toast"
@@ -96,6 +98,8 @@ export default function ProposalDetail() {
   const [showReview, setShowReview] = useState(false)
   const [showSignDialog, setShowSignDialog] = useState(false)
   const [showPayDialog, setShowPayDialog] = useState(false)
+  const [showDeclineDialog, setShowDeclineDialog] = useState(false)
+  const [showRejectContentDialog, setShowRejectContentDialog] = useState(false)
 
   const isBrand = user?.user_type === "brand"
 
@@ -134,20 +138,28 @@ export default function ProposalDetail() {
   }, [id])
 
   const handleAction = async (action: "accept" | "decline") => {
+    if (action === "decline") {
+      setShowDeclineDialog(true)
+      return
+    }
     setActionLoading(true)
     try {
-      const payload = action === "decline"
-        ? {
-            decline_reason:
-              (prompt(t("proposal_detail.reject_reason", "Raison du refus ?")) ?? "").trim(),
-          }
-        : undefined
-      if (action === "decline" && !payload?.decline_reason) {
-        return
-      }
-      const res = await api.post(`/proposals/${id}/${action}/`, payload)
+      const res = await api.post(`/proposals/${id}/accept/`)
       setProposal((prev) => prev ? { ...prev, status: res.data.status ?? prev.status } : prev)
-      toast({ title: action === "accept" ? t("proposals.accept") + "!" : t("proposals.decline") })
+      toast({ title: t("proposals.accept") + "!" })
+      await reload()
+    } catch (e: any) {
+      toast({ title: t("common.error"), description: getApiErrorMessage(e), variant: "destructive" })
+    }
+    finally { setActionLoading(false) }
+  }
+
+  const confirmDecline = async (reason: string) => {
+    setActionLoading(true)
+    try {
+      const res = await api.post(`/proposals/${id}/decline/`, { decline_reason: reason })
+      setProposal((prev) => prev ? { ...prev, status: res.data.status ?? prev.status } : prev)
+      toast({ title: t("proposals.decline") })
       await reload()
     } catch (e: any) {
       toast({ title: t("common.error"), description: getApiErrorMessage(e), variant: "destructive" })
@@ -214,8 +226,10 @@ export default function ProposalDetail() {
   }
 
   const handleReject = async () => {
-    const reason = prompt(t("proposal_detail.reject_reason", "Raison du refus ?")) ?? ""
-    if (!reason) return
+    setShowRejectContentDialog(true)
+  }
+
+  const confirmRejectContent = async (reason: string) => {
     setActionLoading(true)
     try {
       await rejectContent(Number(id), { rejection_reason: "other", rejection_comment: reason })
@@ -298,6 +312,13 @@ export default function ProposalDetail() {
                 {proposal.campaign_description && (
                   <div className="p-3 bg-blue-50 rounded-xl">
                     <p className="text-aurora-ink-2 text-sm">{proposal.campaign_description}</p>
+                  </div>
+                )}
+
+                {proposal.campaign && (
+                  <div>
+                    <p className="text-xs text-aurora-ink-3 uppercase font-medium mb-2">{t("campaign_documents.title")}</p>
+                    <CampaignDocuments campaignId={proposal.campaign} />
                   </div>
                 )}
 
@@ -570,6 +591,19 @@ export default function ProposalDetail() {
         amount={Number(proposal.proposed_price) || 0}
         description="Les fonds sont sécurisés par InfluConnect et libérés à l'influenceur après validation du contenu."
         ctaLabel="Bloquer"
+      />
+      <DeclineReasonDialog
+        open={showDeclineDialog}
+        onOpenChange={setShowDeclineDialog}
+        onConfirm={confirmDecline}
+      />
+      <DeclineReasonDialog
+        open={showRejectContentDialog}
+        onOpenChange={setShowRejectContentDialog}
+        onConfirm={confirmRejectContent}
+        title={t("decline_dialog.content_title")}
+        description={t("decline_dialog.content_description")}
+        confirmLabel={t("decline_dialog.content_confirm")}
       />
     </div>
   )

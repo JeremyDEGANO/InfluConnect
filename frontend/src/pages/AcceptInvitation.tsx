@@ -83,8 +83,8 @@ export default function AcceptInvitation() {
         password,
       })
       if (data?.access) {
-        localStorage.setItem("access_token", data.access)
-        localStorage.setItem("refresh_token", data.refresh)
+        sessionStorage.setItem("access_token", data.access)
+        sessionStorage.setItem("refresh_token", data.refresh)
         if (data?.user?.active_brand_workspace_id) {
           localStorage.setItem("selected_brand_id", String(data.user.active_brand_workspace_id))
         }

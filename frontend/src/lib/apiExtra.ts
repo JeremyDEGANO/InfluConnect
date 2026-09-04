@@ -3,11 +3,8 @@ import api from "./api"
 // ====== Types ======
 export interface PlanDisplay {
   campaigns_per_month: number | "unlimited"
-  contacts: number | "unlimited"
   analytics: string
-  support: string
   custom_contracts?: boolean
-  dedicated_manager?: boolean
 }
 export type PlanFeatureValue = boolean | number | string
 export interface Plan {
@@ -137,6 +134,14 @@ export interface AdminOverview {
     projected_this_month: number
     projected_next_month: number
     delta_next_vs_this: number
+    /** Actually billed: companies with a live subscription. */
+    mrr_active: number
+    active_subscriptions: number
+    /** Free-tier companies that could convert — not dated, not revenue. */
+    potential_approved_eur: number
+    potential_approved_count: number
+    potential_pending_eur: number
+    potential_pending_count: number
     active_plan_counts: Record<string, number>
     pending_plan_counts: Record<string, number>
   }
@@ -144,6 +149,13 @@ export interface AdminOverview {
   brands: AdminOverviewBrand[]
   users: AdminOverviewUser[]
   live_campaigns: AdminOverviewLiveCampaign[]
+}
+export interface PlatformFeatureSettings {
+  ambassador_programs_enabled: boolean
+  events_enabled: boolean
+  referral_program_enabled: boolean
+  commission_rate?: string | number
+  annual_discount_percent?: string | number
 }
 export interface SupportTicketImage {
   id: number
@@ -316,6 +328,12 @@ export const updateAdminPlan = (
   code: string,
   payload: { name?: string; price_eur_monthly?: number | string | null; features?: Record<string, PlanFeatureValue> },
 ) => api.patch(`/admin/plans/${code}/`, payload).then((r) => r.data)
+
+export const fetchPlatformFeatureSettings = () =>
+  api.get<PlatformFeatureSettings>("/admin/settings/").then((r) => r.data)
+
+export const updatePlatformFeatureSettings = (payload: PlatformFeatureSettings) =>
+  api.patch<PlatformFeatureSettings>("/admin/settings/", payload).then((r) => r.data)
 
 // ====== Admin brand validation ======
 export const fetchPendingBrands = (status = "all") =>
@@ -515,6 +533,31 @@ export const fetchAuditLog = (page = 1, action?: string) => {
 // ====== Admin overview ======
 export const fetchAdminOverview = () =>
   api.get<AdminOverview>("/admin/overview/").then((r) => r.data)
+
+export interface AdminHistoryPoint {
+  month: string
+  label: string
+  is_current_month: boolean
+  gmv_eur: number
+  commission_eur: number
+  active_influencers: number
+  campaigns_created: number
+  proposals_sent: number
+  proposals_accepted: number
+  budget_committed_eur: number
+  new_companies: number
+  new_influencers: number
+}
+
+export interface AdminHistory {
+  months: number
+  currency: string
+  commission_rate: number
+  points: AdminHistoryPoint[]
+}
+
+export const fetchAdminHistory = (months: 3 | 6 | 12) =>
+  api.get<AdminHistory>(`/admin/history/?months=${months}`).then((r) => r.data)
 
 export const fetchCampaignEmv = (campaignId: number) =>
   api.get<CampaignEmv>(`/campaigns/${campaignId}/emv/`).then((r) => r.data)

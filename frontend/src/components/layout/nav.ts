@@ -2,6 +2,7 @@
 // shell mobile (tab bar + page "Plus"). Le filtrage (plan, agence, onboarding)
 // vit dans useNavItems pour que les deux rendus restent cohérents.
 import { useEffect, useState } from "react"
+import { accessContext, canAccessPath } from "@/lib/planAccess"
 import api from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { fetchOnboarding } from "@/lib/apiExtra"
@@ -64,6 +65,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: "nav.admin_brands", href: "/admin/brands", icon: Building2, section: "work" },
   { label: "nav.admin_reviews", href: "/admin/reviews", icon: Star, section: "work" },
   { label: "nav.admin_plans", href: "/admin/plans", icon: CreditCard, section: "work" },
+  { label: "nav.admin_features", href: "/admin/features", icon: Sparkles, section: "work" },
   { label: "nav.admin_audit", href: "/admin/audit-log", icon: ScrollText, section: "work" },
   { label: "nav.admin_support", href: "/admin/support", icon: LifeBuoy, section: "account" },
 ]
@@ -137,9 +139,8 @@ export function useNavItems(): NavItem[] {
 
   // Feature gating by subscription plan (admin-configurable). Absent payload
   // (older session cache) → permissive, the backend still enforces.
-  const planFeatures = user?.active_brand?.plan_features
-  const featureOn = (key: string) => !planFeatures || Boolean(planFeatures[key])
-  const environmentsCount = user?.brand_environments?.length ?? 0
+  const platformFeatures = user?.platform_features
+  const accessCtx = accessContext(user)
 
   return user?.user_type === "brand"
     ? BRAND_NAV.filter((item) => {
@@ -147,23 +148,16 @@ export function useNavItems(): NavItem[] {
         if (isAgency && (item.href === "/brand/campaigns" || item.href === "/brand/campaigns/new" || item.href === "/brand/castings")) {
           return false
         }
-        if (item.href === "/brand/ambassadors" && !featureOn("ambassador_programs")) return false
-        if (item.href === "/brand/events" && !featureOn("events")) return false
-        if (item.href === "/brand/castings" && !featureOn("open_castings")) return false
-        if (item.href === "/brand/contract-templates" && planFeatures && Number(planFeatures.contract_templates_max ?? 0) === 0) return false
-        // Integrations menu only makes sense when at least one integration is included
-        if (
-          item.href === "/brand/integrations"
-          && !featureOn("api_access")
-          && !featureOn("sso_office365_google")
-          && !featureOn("slack_teams_integration")
-          && !featureOn("crm_integration")
-        ) return false
-        // Keep environments visible when the user already belongs to several
-        if (item.href === "/brand/environments" && !featureOn("multi_environments") && environmentsCount <= 1) return false
-        return true
+        // Plan gating lives in planAccess.ts, shared with the route guards and
+        // the guided tour so the menu and the URLs can never disagree.
+        return canAccessPath(item.href, accessCtx)
       })
     : user?.user_type === "admin"
       ? ADMIN_NAV
-      : INFLUENCER_NAV.filter((item) => item.href !== "/influencer/onboarding" || onboardingCompleted !== true)
+      : INFLUENCER_NAV.filter((item) => {
+          if (item.href === "/influencer/onboarding" && onboardingCompleted === true) return false
+          if (item.href === "/influencer/referral" && platformFeatures?.referral_program === false) return false
+          if (item.href === "/influencer/events" && platformFeatures?.events === false) return false
+          return true
+        })
 }

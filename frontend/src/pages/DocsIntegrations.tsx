@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
@@ -312,14 +312,24 @@ print(r.json())  # { "sso": true, "provider": "office365", "enforce": true, "bra
 
 export default function DocsIntegrations() {
   const { t } = useTranslation()
-  const swaggerHref = useMemo(() => {
-    const base = String(api.defaults.baseURL || "/api")
-    const root = base.startsWith("http") ? base.replace(/\/api\/?$/, "") : ""
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    const url = `${root}/api/partner/docs/`
-    return token ? `${url}?token=${encodeURIComponent(token)}` : url
-  }, [])
-  const isAuthed = typeof window !== "undefined" && !!localStorage.getItem("access_token")
+  const [openingDocs, setOpeningDocs] = useState(false)
+  const isAuthed = typeof window !== "undefined" && !!sessionStorage.getItem("access_token")
+
+  const openPartnerDocs = async () => {
+    const popup = window.open("about:blank", "_blank")
+    if (popup) popup.opener = null
+    setOpeningDocs(true)
+    try {
+      const { data } = await api.post("/auth/partner-docs-code/")
+      const base = String(api.defaults.baseURL || "/api")
+      const root = base.startsWith("http") ? base.replace(/\/api\/?$/, "") : ""
+      const target = `${root}/api/partner/docs/?code=${encodeURIComponent(data.code)}`
+      if (popup) popup.location.href = target
+      else window.location.href = target
+    } finally {
+      setOpeningDocs(false)
+    }
+  }
   return (
     <div className="min-h-screen bg-aurora-bg-1">
       <header className="border-b border-aurora-line bg-white sticky top-0 z-10">
@@ -356,12 +366,10 @@ export default function DocsIntegrations() {
               {t("docs.api_reference_intro", "Browse and try every endpoint of the Partner API directly from your browser. Access is restricted to authenticated brand and agency workspaces — sign in first, then open the interactive reference.")}
             </p>
             {isAuthed ? (
-              <a href={swaggerHref} target="_blank" rel="noreferrer">
-                <Button className="inline-flex items-center gap-2">
+              <Button className="inline-flex items-center gap-2" onClick={openPartnerDocs} disabled={openingDocs}>
                   <ExternalLink className="h-4 w-4" />
                   {t("docs.api_reference_open", "Open the API reference")}
-                </Button>
-              </a>
+              </Button>
             ) : (
               <div className="flex flex-wrap gap-2">
                 <Link to="/login">

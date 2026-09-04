@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import api from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -13,8 +13,9 @@ export default function PasswordResetConfirm() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const navigate = useNavigate()
-  const [params] = useSearchParams()
-  const token = params.get("token") || ""
+  const token = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.hash.slice(1)).get("token") || ""
+    : ""
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [loading, setLoading] = useState(false)

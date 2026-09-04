@@ -1,8 +1,6 @@
-version: '3.9'
-
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
     restart: unless-stopped
     environment:
       POSTGRES_DB: influconnect
@@ -11,7 +9,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -23,6 +21,10 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - SECRET_KEY=django-insecure-dev-secret-key-change-in-production
       - DEBUG=True
@@ -76,8 +78,8 @@ services:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate &&
+             python manage.py createcachetable &&
              python manage.py ensure_admin &&
-             python manage.py collectstatic --noinput &&
              python manage.py runserver 0.0.0.0:8000"
 
   frontend:
@@ -85,6 +87,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - VITE_API_BASE_URL=http://localhost:8000
       - VITE_GIPHY_API_KEY=${VITE_GIPHY_API_KEY:-}

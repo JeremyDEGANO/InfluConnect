@@ -11,15 +11,16 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import http.client
 import ipaddress
 import json
 import secrets
 import socket
+import ssl
 import time
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
-import requests
 from django.utils import timezone
 
 from ..models import WebhookDelivery, WebhookEndpoint
@@ -37,39 +38,81 @@ def generate_secret() -> str:
     return "whsec_" + secrets.token_urlsafe(32)
 
 
-def validate_webhook_url(url: str) -> str | None:
-    """Anti-SSRF validation of a customer-supplied webhook URL.
-
-    Returns an error message, or None when the URL is acceptable:
-    HTTPS only, no credentials, public hostname (no loopback / private /
-    link-local / reserved address — checked on every resolved IP).
-    """
+def _resolve_public_webhook_url(url: str):
     try:
         parsed = urlparse(url)
     except ValueError:
-        return "Invalid URL."
+        return None, [], "Invalid URL."
     if parsed.scheme != "https":
-        return "Webhook URL must use HTTPS."
+        return None, [], "Webhook URL must use HTTPS."
     if not parsed.hostname:
-        return "Invalid URL."
+        return None, [], "Invalid URL."
     if parsed.username or parsed.password:
-        return "Credentials in webhook URLs are not allowed."
-    host = parsed.hostname
-    if host.lower() in ("localhost",) or host.endswith(".local") or host.endswith(".internal"):
-        return "Internal hostnames are not allowed."
+        return None, [], "Credentials in webhook URLs are not allowed."
+    host = parsed.hostname.lower()
+    if host == "localhost" or host.endswith(".local") or host.endswith(".internal"):
+        return None, [], "Internal hostnames are not allowed."
     try:
-        infos = socket.getaddrinfo(host, parsed.port or 443, proto=socket.IPPROTO_TCP)
+        port = parsed.port or 443
+    except ValueError:
+        return None, [], "Invalid URL port."
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except OSError:
-        return "Webhook host cannot be resolved."
+        return None, [], "Webhook host cannot be resolved."
+    addresses = []
     for info in infos:
         try:
             addr = ipaddress.ip_address(info[4][0])
         except ValueError:
-            return "Webhook host cannot be resolved."
+            return None, [], "Webhook host cannot be resolved."
         if (addr.is_private or addr.is_loopback or addr.is_link_local
                 or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
-            return "Webhook URL must point to a public address."
-    return None
+            return None, [], "Webhook URL must point to a public address."
+        if str(addr) not in addresses:
+            addresses.append(str(addr))
+    if not addresses:
+        return None, [], "Webhook host cannot be resolved."
+    return parsed, addresses, None
+
+
+def validate_webhook_url(url: str) -> str | None:
+    """Validate HTTPS and ensure every current DNS answer is public."""
+    _parsed, _addresses, error = _resolve_public_webhook_url(url)
+    return error
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, hostname: str, ip_address: str, port: int, timeout: int):
+        super().__init__(hostname, port=port, timeout=timeout, context=ssl.create_default_context())
+        self.ip_address = ip_address
+
+    def connect(self):
+        self.sock = socket.create_connection(
+            (self.ip_address, self.port), self.timeout, self.source_address,
+        )
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
+
+
+def _post_pinned(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, str]:
+    parsed, addresses, error = _resolve_public_webhook_url(url)
+    if error or parsed is None:
+        raise OSError(error or "Invalid webhook URL.")
+    port = parsed.port or 443
+    target = urlunparse(("", "", parsed.path or "/", parsed.params, parsed.query, ""))
+    last_error = None
+    for address in addresses:
+        connection = _PinnedHTTPSConnection(parsed.hostname, address, port, TIMEOUT_SEC)
+        try:
+            connection.request("POST", target, body=body, headers=headers)
+            response = connection.getresponse()
+            response_body = response.read(2001).decode("utf-8", errors="replace")[:2000]
+            return response.status, response_body
+        except OSError as exc:
+            last_error = exc
+        finally:
+            connection.close()
+    raise OSError(str(last_error or "Webhook delivery failed."))
 
 
 def sign(payload: bytes, secret: str, ts: int | None = None) -> str:
@@ -116,16 +159,16 @@ def _attempt(delivery: WebhookDelivery) -> None:
         SIGNATURE_HEADER: sign(body, delivery.endpoint.secret),
     }
     try:
-        resp = requests.post(delivery.endpoint.url, data=body, headers=headers, timeout=TIMEOUT_SEC)
-        delivery.response_status = resp.status_code
-        delivery.response_body = (resp.text or "")[:2000]
-        if 200 <= resp.status_code < 300:
+        response_status, response_body = _post_pinned(delivery.endpoint.url, body, headers)
+        delivery.response_status = response_status
+        delivery.response_body = response_body
+        if 200 <= response_status < 300:
             delivery.status = "success"
             delivery.delivered_at = timezone.now()
             delivery.endpoint.last_status = "success"
         else:
             _schedule_retry(delivery)
-    except requests.RequestException as exc:
+    except OSError as exc:
         delivery.error = str(exc)[:255]
         _schedule_retry(delivery)
     delivery.endpoint.last_delivery_at = timezone.now()

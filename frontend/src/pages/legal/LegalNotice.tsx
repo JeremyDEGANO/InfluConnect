@@ -1,8 +1,12 @@
+import { LEGAL_ENTITY, fullAddress } from "@/lib/legalEntity"
+
+const E = LEGAL_ENTITY
+
 export default function LegalNotice() {
   return (
     <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
       <h1>Mentions Légales</h1>
-      <p className="text-sm text-aurora-ink-3">Dernière mise à jour : 21 avril 2026</p>
+      <p className="text-sm text-aurora-ink-3">Dernière mise à jour : {E.lastUpdated}</p>
 
       <p>
         Conformément aux dispositions des articles 6-III et 19 de la loi n° 2004-575
@@ -13,42 +17,31 @@ export default function LegalNotice() {
 
       <h2>1. Éditeur du site</h2>
       <p>
-        <strong>InfluConnect SAS</strong>
+        <strong>{E.name}</strong>
         <br />
-        Société par actions simplifiée au capital de [montant] €
+        {E.legalForm} au capital de {E.capital}
         <br />
-        Siège social : [adresse complète], France
+        Siège social : {fullAddress()}
         <br />
-        RCS : [ville] [numéro]
+        RCS : {E.rcsCity} {E.rcsNumber}
         <br />
-        SIRET : [14 chiffres]
+        SIRET : {E.siret}
         <br />
-        N° TVA intracommunautaire : FR[11 chiffres]
+        N° TVA intracommunautaire : {E.vatNumber}
         <br />
-        Téléphone : [numéro]
+        Téléphone : {E.phone}
         <br />
-        E-mail :{" "}
-        <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
+        E-mail : <a href={`mailto:${E.email}`}>{E.email}</a>
       </p>
 
       <h2>2. Directeur de la publication</h2>
-      <p>
-        [Prénom NOM], en qualité de [Président / Directeur général] de la société
-        InfluConnect SAS.
-      </p>
+      <p>{E.publicationDirector}, en qualité de représentant légal de {E.name}.</p>
 
       <h2>3. Hébergeur</h2>
       <p>
-        <strong>OVH SAS</strong>
+        <strong>{E.hostName}</strong>
         <br />
-        2 rue Kellermann — 59100 Roubaix — France
-        <br />
-        Téléphone : +33 9 72 10 10 07
-        <br />
-        Site web :{" "}
-        <a href="https://www.ovhcloud.com" target="_blank" rel="noopener noreferrer">
-          www.ovhcloud.com
-        </a>
+        {E.hostAddress}
       </p>
 
       <h2>4. Propriété intellectuelle</h2>

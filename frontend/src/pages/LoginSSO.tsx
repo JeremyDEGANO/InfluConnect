@@ -10,25 +10,20 @@ export default function LoginSSO() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const { refreshUser } = useAuth() as unknown as { refreshUser: () => Promise<void> }
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(() => (
+    params.get("sso_error") || (params.get("code") ? null : "missing_code")
+  ))
 
   useEffect(() => {
     const code = params.get("code")
     const ssoError = params.get("sso_error")
-    if (ssoError) {
-      setError(ssoError)
-      return
-    }
-    if (!code) {
-      setError("missing_code")
-      return
-    }
+    if (ssoError || !code) return
     ;(async () => {
       try {
         // Single-use code → tokens via POST (JWTs never appear in the URL).
         const { data } = await api.post("/auth/sso/exchange/", { code })
-        localStorage.setItem("access_token", data.access)
-        localStorage.setItem("refresh_token", data.refresh)
+        sessionStorage.setItem("access_token", data.access)
+        sessionStorage.setItem("refresh_token", data.refresh)
         if (data?.user?.active_brand_workspace_id) {
           localStorage.setItem("selected_brand_id", String(data.user.active_brand_workspace_id))
         }

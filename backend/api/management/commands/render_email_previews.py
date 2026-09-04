@@ -118,7 +118,7 @@ class Command(BaseCommand):
                     "Ce lien est valide pendant 1 heure.",
                 ],
                 cta_label="Réinitialiser mon mot de passe",
-                cta_url="https://influconnect.fr/reset-password/confirm?token=example",
+                cta_url="https://influconnect.fr/reset-password/confirm#token=example",
                 footer_note="Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.",
             ),
             "13_mfa_reset.html": build_transactional_email_html(
@@ -129,7 +129,7 @@ class Command(BaseCommand):
                     "Ce lien est valide pendant 1 heure.",
                 ],
                 cta_label="Réinitialiser ma 2FA",
-                cta_url="https://influconnect.fr/security/reset-mfa?token=example",
+                cta_url="https://influconnect.fr/security/reset-mfa#token=example",
                 footer_note="Si vous n'êtes pas à l'origine de cette demande, ignorez ce message et changez immédiatement votre mot de passe.",
             ),
             "14_event_invitation.html": build_transactional_email_html(
@@ -160,7 +160,7 @@ class Command(BaseCommand):
                     "Click the button below within 1 hour to set a new password.",
                 ],
                 cta_label="Reset my password",
-                cta_url="https://influconnect.fr/reset-password/confirm?token=example",
+                cta_url="https://influconnect.fr/reset-password/confirm#token=example",
                 footer_note="If you did not request this, you can ignore this email.",
             ),
             "17_auth_login_code.html": build_transactional_email_html(
@@ -181,7 +181,7 @@ class Command(BaseCommand):
                     "Cliquez sur le bouton ci-dessous dans l'heure pour désactiver la 2FA et reconfigurer un nouvel authentificateur.",
                 ],
                 cta_label="Réinitialiser ma 2FA",
-                cta_url="https://influconnect.fr/security/reset-mfa?token=example",
+                cta_url="https://influconnect.fr/security/reset-mfa#token=example",
                 footer_note="Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
             ),
         }

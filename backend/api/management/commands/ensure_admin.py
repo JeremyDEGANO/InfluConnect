@@ -1,7 +1,9 @@
 import os
 
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
@@ -24,25 +26,26 @@ class Command(BaseCommand):
             },
         )
 
+        if not created and not (user.user_type == "admin" and user.is_staff and user.is_superuser):
+            raise CommandError(
+                f"Refusing to promote existing non-admin username '{username}'. "
+                "Choose a unique ADMIN_USERNAME or remove the conflicting account explicitly."
+            )
+
         changed = False
 
         if created:
+            try:
+                validate_password(password, user=user)
+            except ValidationError as exc:
+                user.delete()
+                raise CommandError(f"Invalid ADMIN_PASSWORD: {'; '.join(exc.messages)}") from exc
             user.set_password(password)
             changed = True
         else:
             if not user.email:
                 user.email = email
                 changed = True
-
-        if user.user_type != "admin":
-            user.user_type = "admin"
-            changed = True
-        if not user.is_staff:
-            user.is_staff = True
-            changed = True
-        if not user.is_superuser:
-            user.is_superuser = True
-            changed = True
 
         if changed:
             user.save()

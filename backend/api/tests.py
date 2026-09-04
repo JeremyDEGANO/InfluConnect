@@ -74,7 +74,9 @@ class AuthTests(TestCase):
         c = APIClient()
         res = c.post("/api/auth/login/", {"username": "old@test.com", "password": "pw12345!"}, format="json")
         c.credentials(HTTP_AUTHORIZATION=f"Bearer {res.data['access']}")
-        update = c.patch("/api/auth/me/", {"email": "new@test.com"}, format="json")
+        update = c.patch("/api/auth/me/", {
+            "email": "new@test.com", "current_password": "pw12345!",
+        }, format="json")
         self.assertEqual(update.status_code, 200, update.content)
         user.refresh_from_db()
         self.assertEqual(user.email, "new@test.com")
@@ -89,9 +91,78 @@ class AuthTests(TestCase):
         c = APIClient()
         res = c.post("/api/auth/login/", {"username": "olddup@test.com", "password": "pw12345!"}, format="json")
         c.credentials(HTTP_AUTHORIZATION=f"Bearer {res.data['access']}")
-        update = c.patch("/api/auth/me/", {"email": "exists@test.com"}, format="json")
+        update = c.patch("/api/auth/me/", {
+            "email": "exists@test.com", "current_password": "pw12345!",
+        }, format="json")
         self.assertEqual(update.status_code, 400)
         self.assertIn("email", update.data)
+
+    def test_password_change_revokes_access_and_refresh_tokens(self):
+        User.objects.create_user(
+            email="revoke@test.com", username="revoke", password="OldPass123!", user_type="influencer",
+        )
+        client = APIClient()
+        login = client.post("/api/auth/login/", {"username": "revoke@test.com", "password": "OldPass123!"}, format="json")
+        access = login.data["access"]
+        refresh = login.data["refresh"]
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        changed = client.post("/api/auth/password-change/", {
+            "current_password": "OldPass123!", "new_password": "NewPass456!",
+        }, format="json")
+        self.assertEqual(changed.status_code, 200, changed.content)
+        self.assertEqual(client.get("/api/auth/me/").status_code, 401)
+        client.credentials()
+        self.assertEqual(client.post("/api/auth/refresh/", {"refresh": refresh}, format="json").status_code, 401)
+
+    def test_enforced_sso_blocks_password_login(self):
+        from .models import BrandDomain, BrandSSOConfig
+
+        user = User.objects.create_user(
+            email="employee@acme.test", username="ssoemployee", password="LocalPass123!", user_type="brand",
+        )
+        brand = BrandProfile.objects.create(
+            user=user, company_name="Acme", subscription_plan="pro", subscription_active=True,
+        )
+        BrandDomain.objects.create(
+            brand=brand, domain="acme.test", verification_token="token", status="verified",
+        )
+        BrandSSOConfig.objects.create(
+            brand=brand, enabled=True, enforce_sso=True, allow_local_fallback_for_owner=False,
+        )
+        response = APIClient().post("/api/auth/login/", {
+            "username": "employee@acme.test", "password": "LocalPass123!",
+        }, format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_sso_group_access_is_revoked_when_mapping_disappears(self):
+        from .models import BrandSSOConfig, SSOGroupMapping
+        from .services.sso_office365 import _sync_user_access
+        from .workspace import ensure_brand_organization
+
+        owner = User.objects.create_user(
+            email="owner@sso.test", username="ssoowner", password="OwnerPass123!", user_type="brand",
+        )
+        brand = BrandProfile.objects.create(user=owner, company_name="SSO Brand")
+        ensure_brand_organization(brand)
+        user = User.objects.create_user(
+            email="member@sso.test", username="ssomember", password="MemberPass123!", user_type="brand",
+            auth_provider="office365",
+        )
+        config = BrandSSOConfig.objects.create(brand=brand, provisioning_mode="groups")
+        mapping = SSOGroupMapping.objects.create(
+            sso_config=config, group_object_id="group-1", group_name="Members",
+            role="member", scope="environments",
+        )
+        mapping.environments.add(brand)
+
+        _sync_user_access(user=user, sso=config, matched_mappings=[mapping])
+        membership = BrandMembership.objects.get(brand=brand, user=user)
+        self.assertTrue(membership.provisioned_by_sso)
+        self.assertEqual(membership.status, "active")
+
+        _sync_user_access(user=user, sso=config, matched_mappings=[])
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, "revoked")
 
 
 class PublicEndpointsTests(TestCase):
@@ -168,6 +239,28 @@ class ProposalFlowTests(TestCase):
         self.proposal.refresh_from_db()
         self.assertEqual(self.proposal.status, "accepted")
         self.assertEqual(self.proposal.proposed_price, Decimal("750"))
+
+    def test_counter_offer_only_allowed_while_pending(self):
+        self.proposal.status = "paid"
+        self.proposal.save(update_fields=["status"])
+        res = self._as_influencer().post(
+            f"/api/proposals/{self.proposal.id}/counter-offer/",
+            {"counter_price": "750"}, format="json",
+        )
+        self.assertEqual(res.status_code, 400, res.content)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, "paid")
+
+    def test_escrow_amount_cannot_be_overridden(self):
+        self.proposal.status = "contract_signed"
+        self.proposal.save(update_fields=["status"])
+        res = self._as_brand().post(
+            f"/api/proposals/{self.proposal.id}/fund-escrow/",
+            {"amount": "1.00"}, format="json",
+        )
+        self.assertEqual(res.status_code, 400, res.content)
+        self.proposal.refresh_from_db()
+        self.assertFalse(self.proposal.escrow_funded)
 
     def test_messaging_between_participants(self):
         c = self._as_brand()
@@ -277,7 +370,10 @@ class BrandMembershipTests(TestCase):
             email="owner@brand.com", username="ownerbrand", password="pw12345!", user_type="brand",
         )
         # Pro plan: unlimited users + multi-environments (required since plan gating)
-        self.brand = BrandProfile.objects.create(user=self.owner, company_name="Acme Team", subscription_plan="pro")
+        self.brand = BrandProfile.objects.create(
+            user=self.owner, company_name="Acme Team",
+            subscription_plan="pro", subscription_active=True,
+        )
 
         self.admin_user = User.objects.create_user(
             email="admin@brand.com", username="adminbrand", password="pw12345!", user_type="brand",
@@ -486,7 +582,10 @@ class BrandEnvironmentTests(TestCase):
             email="ownerenv@test.com", username="ownerenv", password="pw12345!", user_type="brand",
         )
         # Pro plan: multi-environments allowed (required since plan gating)
-        self.brand1 = BrandProfile.objects.create(user=self.owner, company_name="Env One", subscription_plan="pro")
+        self.brand1 = BrandProfile.objects.create(
+            user=self.owner, company_name="Env One",
+            subscription_plan="pro", subscription_active=True,
+        )
 
         self.other_owner = User.objects.create_user(
             email="owner2@test.com", username="owner2", password="pw12345!", user_type="brand",

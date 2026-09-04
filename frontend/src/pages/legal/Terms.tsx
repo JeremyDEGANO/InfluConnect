@@ -1,229 +1,183 @@
-import { useTranslation } from "react-i18next"
+import { LEGAL_ENTITY, fullAddress } from "@/lib/legalEntity"
+
+type Article = { title: string; paragraphs: string[] }
+
+const E = LEGAL_ENTITY
+
+const ARTICLES: Article[] = [
+  {
+    title: "Article 1 — Objet",
+    paragraphs: [
+      `Les présentes Conditions Générales d'Utilisation (les « CGU ») définissent les conditions d'accès et d'utilisation de la plateforme InfluConnect, éditée par ${E.name} (la « Société »).`,
+      "InfluConnect est une plateforme de mise en relation entre des marques annonceurs et des créateurs de contenu, permettant de formaliser, sécuriser et suivre des collaborations d'influence.",
+      "Toute création de compte et toute utilisation de la plateforme emportent acceptation pleine et entière des présentes CGU. L'utilisateur qui n'accepte pas ces conditions doit renoncer à utiliser le service.",
+      "Les conditions financières (abonnements, commission, séquestre) sont régies par les Conditions Générales de Vente, qui complètent les présentes.",
+    ],
+  },
+  {
+    title: "Article 2 — Définitions",
+    paragraphs: [
+      "« Plateforme » : le site influconnect.fr, ses applications et l'ensemble des services associés.",
+      "« Utilisateur » : toute personne disposant d'un compte, qu'elle agisse en qualité de Marque ou de Créateur.",
+      "« Marque » : personne morale ou entrepreneur individuel utilisant la plateforme pour commander des prestations de création de contenu.",
+      "« Créateur » : personne proposant des prestations de création et de diffusion de contenu, incluant les créateurs UGC produisant des contenus destinés aux canaux propres de la Marque.",
+      "« Campagne » : opération créée par une Marque, définissant un brief, des livrables attendus et une contrepartie.",
+      "« Collaboration » : relation contractuelle formée entre une Marque et un Créateur à la suite de l'acceptation d'une proposition.",
+    ],
+  },
+  {
+    title: "Article 3 — Accès au service et création de compte",
+    paragraphs: [
+      "L'inscription est réservée aux personnes âgées d'au moins 18 ans et juridiquement capables. Les Marques doivent être immatriculées et fournir un numéro SIRET valide.",
+      "L'Utilisateur s'engage à fournir des informations exactes, complètes et à jour. Toute information manifestement fausse ou trompeuse peut entraîner le refus ou la fermeture du compte.",
+      "Les comptes Marque font l'objet d'une vérification préalable par la Société avant activation. Cette vérification porte sur la cohérence entre la dénomination sociale, le numéro d'immatriculation et l'activité déclarée.",
+      "Le compte est strictement personnel. L'Utilisateur est responsable de la confidentialité de ses identifiants et de toute activité réalisée depuis son compte. Il lui est recommandé d'activer la double authentification proposée dans ses réglages de sécurité.",
+      "L'Utilisateur informe sans délai la Société de toute utilisation non autorisée de son compte.",
+    ],
+  },
+  {
+    title: "Article 4 — Profil du Créateur et visibilité dans la marketplace",
+    paragraphs: [
+      "Le Créateur renseigne un profil comprenant notamment un pseudonyme, une présentation, ses thématiques, les formats proposés, ses tarifs indicatifs et ses réseaux sociaux.",
+      "Le profil n'est rendu visible aux Marques dans la marketplace que lorsqu'il est intégralement complété. Cette exigence vise à garantir la pertinence des mises en relation.",
+      "Le Créateur peut déclarer produire des contenus UGC. Cette information est affichée aux Marques et permet un filtrage dédié dans la marketplace.",
+      "Le Créateur garantit l'exactitude des statistiques d'audience qu'il déclare. Lorsqu'un réseau social est connecté via son interface officielle, les statistiques sont récupérées directement auprès de la plateforme concernée et signalées comme telles.",
+      "Toute manipulation artificielle d'audience ou d'engagement, notamment par achat d'abonnements ou d'interactions, constitue un manquement grave aux présentes CGU.",
+    ],
+  },
+  {
+    title: "Article 5 — Fonctionnement des collaborations",
+    paragraphs: [
+      "Une Marque peut proposer une Collaboration à un Créateur qu'elle sélectionne, ou publier un casting ouvert auquel les Créateurs éligibles peuvent candidater.",
+      "Le Créateur est libre d'accepter, de refuser ou de formuler une contre-proposition tarifaire. Un refus, motivé au moyen des options proposées, n'emporte aucune conséquence défavorable sur son profil.",
+      "L'acceptation d'une proposition déclenche la génération d'un contrat reprenant les termes convenus : livrables, montant, échéances, droits d'exploitation et, le cas échéant, exclusivité.",
+      "Le contrat est signé électroniquement par les deux parties. La signature, l'adresse IP et l'horodatage sont enregistrés afin de constituer un faisceau de preuves de l'engagement. Le contrat signé est archivé et reste téléchargeable par les deux parties.",
+      "Le Créateur soumet ensuite ses livrables via la plateforme. La Marque dispose d'un délai pour les valider ou formuler une demande de correction motivée.",
+    ],
+  },
+  {
+    title: "Article 6 — Documents et échanges",
+    paragraphs: [
+      "La Marque peut joindre à une Campagne des documents complémentaires (chartes, visuels, exemples), dans la limite du nombre et des formats autorisés par la plateforme. Ces documents ne sont accessibles qu'aux Créateurs concernés par la Campagne.",
+      "Une messagerie est mise à disposition pour les échanges liés à une Collaboration. Les Utilisateurs s'engagent à y conserver leurs échanges relatifs à l'exécution de la Collaboration, ces messages pouvant être examinés en cas de médiation.",
+      "Les Utilisateurs s'interdisent d'utiliser la messagerie pour diffuser des contenus illicites, harcelants, diffamatoires ou constitutifs d'un démarchage étranger à la Collaboration.",
+    ],
+  },
+  {
+    title: "Article 7 — Obligations de transparence publicitaire",
+    paragraphs: [
+      "Les contenus publiés dans le cadre d'une Collaboration rémunérée ou compensée constituent des communications commerciales.",
+      "Le Créateur s'engage à en signaler le caractère publicitaire de manière claire, lisible et non ambiguë, conformément à la réglementation applicable et aux règles propres à chaque réseau social.",
+      "La Marque s'engage à ne pas demander au Créateur de dissimuler le caractère commercial d'un contenu.",
+      "Le Créateur demeure seul responsable des mentions légales apposées sur les contenus qu'il publie sur ses propres comptes.",
+    ],
+  },
+  {
+    title: "Article 8 — Comportements interdits",
+    paragraphs: [
+      "Il est interdit d'utiliser la plateforme à des fins illicites ou contraires à l'ordre public et aux bonnes mœurs.",
+      "Sont notamment prohibés : la publication de contenus contrefaisants, diffamatoires, haineux, violents ou pornographiques ; l'usurpation d'identité ; la collecte non autorisée de données d'autres Utilisateurs ; toute tentative d'atteinte à la sécurité ou à l'intégrité de la plateforme ; l'utilisation de moyens automatisés d'extraction de données non expressément autorisés.",
+      "Il est également interdit de solliciter le règlement d'une Collaboration en dehors de la plateforme dans le but d'éviter la commission due, ou de contourner les mécanismes de sécurisation des paiements.",
+      "Tout manquement peut entraîner la suspension immédiate du compte, sans préjudice des actions judiciaires que la Société pourrait engager.",
+    ],
+  },
+  {
+    title: "Article 9 — Propriété intellectuelle",
+    paragraphs: [
+      "La plateforme, son architecture, ses interfaces, ses bases de données et ses signes distinctifs sont protégés et demeurent la propriété exclusive de la Société. Aucune reproduction ou exploitation n'est autorisée sans accord écrit préalable.",
+      "Le Créateur conserve la titularité des droits d'auteur sur les contenus qu'il produit, sous réserve des droits expressément cédés ou concédés à la Marque dans le contrat de Collaboration.",
+      "Le Créateur concède à la Société une licence non exclusive et gratuite d'utilisation de ses éléments de profil (pseudonyme, photographie, présentation, extraits de contenus) aux seules fins d'affichage et de promotion de son profil au sein de la plateforme. Cette licence prend fin à la suppression du compte.",
+    ],
+  },
+  {
+    title: "Article 10 — Kit média et documents générés",
+    paragraphs: [
+      "La plateforme permet au Créateur de générer un kit média au format PDF à partir des informations de son profil.",
+      "Ce document n'est accessible qu'aux utilisateurs authentifiés sur la plateforme. Il n'est pas publié sur le web ouvert et n'est pas indexé par les moteurs de recherche.",
+      "Le Créateur demeure responsable de l'exactitude des informations qu'il y fait figurer.",
+    ],
+  },
+  {
+    title: "Article 11 — Disponibilité et évolutions du service",
+    paragraphs: [
+      "La Société met en œuvre les moyens raisonnables pour assurer la disponibilité de la plateforme, sans garantir un fonctionnement ininterrompu et exempt d'erreurs.",
+      "Elle peut interrompre temporairement l'accès pour des opérations de maintenance, en informant les Utilisateurs dans la mesure du possible.",
+      "La Société peut faire évoluer les fonctionnalités de la plateforme. Toute suppression d'une fonctionnalité substantielle est annoncée dans un délai raisonnable.",
+    ],
+  },
+  {
+    title: "Article 12 — Données personnelles",
+    paragraphs: [
+      "Les traitements de données personnelles mis en œuvre sont décrits dans la Politique de confidentialité, accessible depuis le pied de page.",
+      "L'Utilisateur dispose des droits d'accès, de rectification, d'effacement, de limitation, d'opposition et de portabilité, qu'il peut exercer depuis son espace ou en écrivant à l'adresse de contact indiquée.",
+      "Certaines données sont conservées au-delà de la fermeture du compte lorsque la loi l'impose, notamment les contrats signés et les pièces comptables.",
+    ],
+  },
+  {
+    title: "Article 13 — Suspension et suppression du compte",
+    paragraphs: [
+      "L'Utilisateur peut demander la suppression de son compte à tout moment. Les Collaborations en cours et les fonds séquestrés continuent d'être traités jusqu'à leur terme.",
+      "La Société peut suspendre ou supprimer un compte en cas de manquement aux présentes CGU, après mise en demeure restée sans effet, ou immédiatement en cas de fraude, d'activité illicite ou d'atteinte à la sécurité de la plateforme.",
+      "La suppression du compte entraîne la perte d'accès aux fonctionnalités, sans préjudice de la conservation légale de certaines données.",
+    ],
+  },
+  {
+    title: "Article 14 — Responsabilité",
+    paragraphs: [
+      "La Société agit en qualité d'intermédiaire technique et n'est pas partie aux Collaborations conclues entre Marques et Créateurs.",
+      "Elle ne garantit ni la qualité, ni les performances, ni les résultats commerciaux des contenus produits, ni la solvabilité ou le sérieux des Utilisateurs, au-delà des vérifications qu'elle met raisonnablement en œuvre.",
+      "La responsabilité de la Société ne peut être engagée pour les dommages indirects, ni pour les conséquences d'un manquement imputable à un Utilisateur.",
+    ],
+  },
+  {
+    title: "Article 15 — Modification des CGU",
+    paragraphs: [
+      "La Société peut modifier les présentes CGU pour tenir compte d'évolutions légales, techniques ou fonctionnelles.",
+      "Toute modification substantielle est portée à la connaissance des Utilisateurs. La poursuite de l'utilisation après l'entrée en vigueur vaut acceptation de la version modifiée.",
+    ],
+  },
+  {
+    title: "Article 16 — Droit applicable et juridiction",
+    paragraphs: [
+      "Les présentes CGU sont soumises au droit français.",
+      "En cas de différend, les parties s'efforceront de trouver une solution amiable avant toute action contentieuse.",
+      "À défaut, et sous réserve des règles impératives de compétence protectrices du consommateur, tout litige relève des tribunaux compétents dans le ressort du siège social de la Société.",
+    ],
+  },
+]
 
 export default function Terms() {
-  const { i18n } = useTranslation()
-  const isEn = (i18n.language || "fr").toLowerCase().startsWith("en")
-
-  if (isEn) {
-    return (
-      <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
-        <h1>Terms of Service</h1>
-        <p className="text-sm text-aurora-ink-3">Last updated: April 21, 2026</p>
-
-        <h2>1. Service Overview</h2>
-        <p>
-          InfluConnect (the "Platform") is an online service operated by InfluConnect SAS,
-          a company incorporated under French law and headquartered in France. The Platform
-          connects brands and content creators ("influencers") to establish paid partnerships.
-        </p>
-
-        <h2>2. Acceptance of Terms</h2>
-        <p>
-          Registration for and use of the Platform imply full acceptance of these Terms of
-          Service. By creating an account, users acknowledge that they have read, understood,
-          and accepted these Terms and the <a href="/privacy">Privacy Policy</a>.
-        </p>
-
-        <h2>3. User Accounts and Obligations</h2>
-        <p>
-          Registration is free for creators. Brands subscribe to a monthly or yearly plan.
-          Users must provide accurate information and keep it up to date.
-        </p>
-        <p>
-          Minimum age is 16. Minors must obtain legal guardian authorization and remain
-          subject to applicable French law regarding commercial exploitation of minors' image online.
-        </p>
-
-        <h2>4. Social Network Connections</h2>
-        <p>
-          The Platform offers optional OAuth connections to supported social networks
-          (TikTok, YouTube, Instagram, Facebook, Twitch). This connection is voluntary and can
-          be revoked at any time from the user dashboard or directly from the social platform.
-        </p>
-        <p>
-          When connected, the Platform imports public statistics (followers, views, engagement)
-          to build a verified media profile. The Platform never publishes content on behalf of
-          users without explicit user action.
-        </p>
-
-        <h2>5. Partnerships and Payments</h2>
-        <p>
-          Partnerships are contracted between brands and creators through the Platform.
-          InfluConnect acts as a technical intermediary and payment escrow facilitator via Stripe.
-          Platform fees are displayed before each collaboration is confirmed.
-        </p>
-
-        <h2>6. Advertising Transparency</h2>
-        <p>
-          Sponsored content must clearly disclose advertising status in accordance with
-          applicable law. Failure to do so may result in account restrictions and legal liability.
-        </p>
-
-        <h2>7. Prohibited Content</h2>
-        <p>Users must not promote illegal, fraudulent, counterfeit, harmful, or non-compliant products or services through the Platform.</p>
-
-        <h2>8. Intellectual Property</h2>
-        <p>
-          Content produced under a partnership remains owned by the creator unless contractually
-          transferred. InfluConnect brand assets (name, logo, visual identity, software elements)
-          are protected by intellectual property laws.
-        </p>
-
-        <h2>9. Liability Limitation</h2>
-        <p>
-          InfluConnect provides a technical intermediation service. To the maximum extent
-          permitted by law, InfluConnect shall not be liable for indirect, incidental, special,
-          or consequential damages resulting from the relationship between brands and creators.
-        </p>
-
-        <h2>10. Governing Law and Jurisdiction</h2>
-        <p>
-          These Terms are governed by French law. In the absence of amicable resolution,
-          disputes related to these Terms fall under the jurisdiction of courts located in Paris,
-          subject to mandatory legal provisions.
-        </p>
-
-        <h2>11. Suspension and Termination</h2>
-        <p>
-          InfluConnect may suspend or terminate any account that violates these Terms,
-          applicable law, or third-party platform policies.
-        </p>
-
-        <h2>12. Changes to Terms</h2>
-        <p>
-          InfluConnect may update these Terms at any time. Users will be informed of material
-          changes before they take effect.
-        </p>
-
-        <h2>13. Contact Details</h2>
-        <p>
-          For any question related to these Terms: <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <div className="container mx-auto max-w-3xl py-12 px-4 prose prose-sm md:prose-base">
-      <h1>Conditions Générales d'Utilisation</h1>
-      <p className="text-sm text-aurora-ink-3">Dernière mise à jour : 21 avril 2026</p>
+    <div className="min-h-screen bg-white py-16 px-5">
+      <div className="container max-w-3xl mx-auto">
+        <p className="text-[11px] font-semibold text-aurora-blue tracking-[0.18em] uppercase">Légal</p>
+        <h1 className="text-4xl sm:text-5xl font-semibold text-aurora-ink mt-2 tracking-[-0.03em]">
+          Conditions Générales d'Utilisation
+        </h1>
+        <p className="text-aurora-ink-3 mt-3 text-sm">Dernière mise à jour : {E.lastUpdated}</p>
 
-      <h2>1. Présentation</h2>
-      <p>
-        InfluConnect (ci-après « la Plateforme ») est un service en ligne édité par
-        InfluConnect SAS, société de droit français, dont le siège social est situé en France.
-        La Plateforme met en relation des marques et des créateurs de contenu (« influenceurs »)
-        en vue de la conclusion de partenariats commerciaux rémunérés.
-      </p>
+        <div className="mt-8 rounded-2xl border border-aurora-line bg-aurora-surface/60 p-5 text-sm text-aurora-ink-2">
+          <p className="font-semibold text-aurora-ink">Éditeur</p>
+          <p className="mt-1.5">
+            {E.name} — {E.legalForm} au capital de {E.capital}
+            <br />Siège social : {fullAddress()}
+            <br />RCS {E.rcsCity} {E.rcsNumber} — SIRET {E.siret}
+            <br />Directeur de la publication : {E.publicationDirector}
+            <br />Contact : {E.email}
+          </p>
+        </div>
 
-      <h2>2. Acceptation des conditions</h2>
-      <p>
-        L'inscription et l'utilisation de la Plateforme impliquent l'acceptation pleine
-        et entière des présentes Conditions Générales d'Utilisation (CGU). En créant un
-        compte, l'utilisateur reconnaît avoir lu, compris et accepté ces CGU ainsi que
-        la <a href="/legal/privacy">Politique de Confidentialité</a>.
-      </p>
-
-      <h2>3. Comptes utilisateurs</h2>
-      <p>
-        L'inscription est gratuite pour les créateurs. Les marques souscrivent à un
-        abonnement mensuel ou annuel donnant accès à un nombre déterminé de campagnes.
-        L'utilisateur s'engage à fournir des informations exactes et à les maintenir à jour.
-      </p>
-      <p>
-        L'âge minimum requis est de 16 ans. Les mineurs doivent obtenir l'autorisation de
-        leur représentant légal et sont soumis aux dispositions de la loi française du
-        19 octobre 2020 visant à encadrer l'exploitation commerciale de l'image d'enfants
-        sur les plateformes en ligne.
-      </p>
-
-      <h2>4. Connexion aux réseaux sociaux</h2>
-      <p>
-        La Plateforme propose une connexion via OAuth aux réseaux sociaux pris en charge
-        (TikTok, YouTube, Instagram, Facebook, Twitch). Cette connexion est strictement
-        facultative et révocable à tout moment depuis l'espace personnel ou directement
-        depuis les paramètres du réseau social concerné.
-      </p>
-      <p>
-        Lorsque l'utilisateur connecte un compte, la Plateforme importe automatiquement
-        les statistiques publiques (nombre d'abonnés, vues, engagement) afin de constituer
-        un dossier de presse vérifié. Aucune publication n'est effectuée au nom de
-        l'utilisateur sans son action explicite.
-      </p>
-
-      <h2>5. Partenariats et rémunération</h2>
-      <p>
-        Les partenariats sont contractualisés directement entre la marque et le créateur
-        via la Plateforme. InfluConnect agit en qualité d'intermédiaire technique et de
-        séquestre des paiements via Stripe. La commission de la Plateforme est précisée
-        avant la confirmation de chaque partenariat.
-      </p>
-      <p>
-        Les paiements sont libérés au créateur après validation du contenu par la marque,
-        conformément au calendrier convenu. En cas de litige, la procédure de médiation
-        décrite à l'article 9 s'applique.
-      </p>
-
-      <h2>6. Obligations de transparence (loi Influence)</h2>
-      <p>
-        Conformément à la loi n° 2023-451 du 9 juin 2023 visant à encadrer l'influence
-        commerciale, tout contenu sponsorisé doit comporter de manière explicite la mention
-        « Publicité » ou « Collaboration commerciale ». Le non-respect de cette obligation
-        engage la responsabilité du créateur.
-      </p>
-
-      <h2>7. Contenu interdit</h2>
-      <p>L'utilisateur s'interdit de promouvoir via la Plateforme :</p>
-      <ul>
-        <li>La chirurgie esthétique (interdiction légale française) ;</li>
-        <li>Les paris sportifs et jeux d'argent (encadrement spécifique) ;</li>
-        <li>Les produits financiers à risque non régulés ;</li>
-        <li>Tout produit illégal, contrefait ou portant atteinte à autrui.</li>
-      </ul>
-
-      <h2>8. Propriété intellectuelle</h2>
-      <p>
-        Les contenus créés dans le cadre d'un partenariat appartiennent au créateur, qui
-        accorde à la marque les droits d'usage définis contractuellement. La marque
-        InfluConnect, son logo et l'ensemble des éléments graphiques de la Plateforme sont
-        protégés par le droit d'auteur.
-      </p>
-
-      <h2>9. Médiation et litiges</h2>
-      <p>
-        En cas de différend, les parties s'engagent à rechercher une solution amiable
-        avant toute action judiciaire. Conformément à l'article L.612-1 du Code de la
-        consommation, le consommateur peut recourir gratuitement au service de médiation
-        de la consommation.
-      </p>
-
-      <h2>10. Loi applicable et juridiction</h2>
-      <p>
-        Les présentes CGU sont régies par le droit français. À défaut de résolution
-        amiable, tout litige relatif à l'interprétation, la validité ou l'exécution des
-        présentes relève de la compétence des juridictions de Paris, sous réserve des
-        dispositions légales impératives contraires.
-      </p>
-
-      <h2>11. Suspension et résiliation</h2>
-      <p>
-        InfluConnect se réserve le droit de suspendre ou de supprimer tout compte qui
-        contreviendrait aux présentes CGU, à la législation en vigueur ou aux conditions
-        d'utilisation des réseaux sociaux tiers (TikTok, Meta, Google, Twitch).
-      </p>
-
-      <h2>12. Modifications</h2>
-      <p>
-        InfluConnect peut modifier les présentes CGU à tout moment. Les utilisateurs sont
-        informés par e-mail au moins quinze (15) jours avant l'entrée en vigueur des
-        modifications.
-      </p>
-
-      <h2>13. Coordonnées de contact</h2>
-      <p>
-        Pour toute question relative aux présentes CGU :{" "}
-        <a href="mailto:contact@InfluConnect.fr">contact@InfluConnect.fr</a>
-      </p>
+        <div className="prose prose-sm max-w-none mt-10 text-aurora-ink-2 leading-relaxed space-y-8">
+          {ARTICLES.map((article) => (
+            <section key={article.title}>
+              <h2 className="text-xl font-semibold text-aurora-ink tracking-tight">{article.title}</h2>
+              {article.paragraphs.map((paragraph, index) => (
+                <p key={index} className="mt-2">{paragraph}</p>
+              ))}
+            </section>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

@@ -9,7 +9,7 @@ import uuid
 
 logger = logging.getLogger("api.request")
 
-# Never write credentials passed as query params (e.g. docs ?token=<jwt>) to logs.
+# Never write credentials or one-time codes passed as query params to logs.
 _SENSITIVE_QUERY_RE = re.compile(r"((?:^|[?&])(?:token|access|refresh|code|state)=)[^&]+", re.IGNORECASE)
 
 

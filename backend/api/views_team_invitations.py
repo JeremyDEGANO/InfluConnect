@@ -223,6 +223,7 @@ class TeamOverviewView(APIView):
 
         manageable = _manageable_env_ids(request.user, org)
         org_role = get_user_org_role(request.user, org)
+        visible_env_ids = None
         if not manageable and not org_role:
             # Plain members can still see the team roster of their environments.
             accessible = set(
@@ -232,8 +233,12 @@ class TeamOverviewView(APIView):
             )
             if not accessible:
                 return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+            visible_env_ids = accessible
 
-        environments = list(org.environments.order_by('id').values('id', 'company_name', 'is_agency'))
+        environment_qs = org.environments.order_by('id')
+        if visible_env_ids is not None:
+            environment_qs = environment_qs.filter(id__in=visible_env_ids)
+        environments = list(environment_qs.values('id', 'company_name', 'is_agency'))
         env_ids = [e['id'] for e in environments]
 
         members: dict[int, dict] = {}

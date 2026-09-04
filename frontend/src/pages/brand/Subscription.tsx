@@ -29,11 +29,8 @@ export default function Subscription() {
     const list: string[] = []
     if (d) {
       list.push(d.campaigns_per_month === "unlimited" ? "Campagnes illimitées" : `${d.campaigns_per_month} campagnes actives`)
-      list.push(d.contacts === "unlimited" ? "Contacts illimités" : `${d.contacts} contacts`)
       list.push(`Analytics: ${d.analytics}`)
-      list.push(`Support: ${d.support}`)
       if (d.custom_contracts) list.push("Modèles de documents")
-      if (d.dedicated_manager) list.push("Manager dédié")
     }
     if (f.ambassador_programs) list.push("Programme ambassadeurs")
     if (f.events) list.push("Événements")

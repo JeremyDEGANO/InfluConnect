@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { MessageCircle, Send, Loader2, ArrowLeft, Paperclip, X, Smile } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { withDaySeparators } from "@/lib/messageDates"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 
 interface Conversation {
@@ -432,7 +433,18 @@ export default function Messages() {
                   {t("messages.no_messages", "Aucun message")}
                 </div>
               ) : (
-                messages.map(msg => (
+                withDaySeparators(messages).map(entry => {
+                  if (entry.type === "separator") {
+                    return (
+                      <div key={entry.key} className="flex items-center justify-center py-1">
+                        <span className="px-3 py-1 rounded-full bg-aurora-surface text-aurora-ink-3 text-[11px] font-medium uppercase tracking-wide">
+                          {entry.label}
+                        </span>
+                      </div>
+                    )
+                  }
+                  const msg = entry.message
+                  return (
                   <div
                     key={msg.id}
                     className={cn(
@@ -501,7 +513,8 @@ export default function Messages() {
                       </p>
                     </div>
                   </div>
-                ))
+                  )
+                })
               )}
               <div ref={messagesEndRef} />
             </div>

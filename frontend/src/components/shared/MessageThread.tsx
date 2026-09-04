@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn, resolveMediaUrl } from "@/lib/utils"
+import { withDaySeparators } from "@/lib/messageDates"
 
 interface Message {
   id: number
@@ -36,22 +37,34 @@ export function MessageThread({ messages, onSend }: MessageThreadProps) {
   return (
     <div className="flex flex-col h-96">
       <div className="flex-1 overflow-y-auto space-y-3 p-4">
-        {messages.map((msg) => (
-          <div key={msg.id} className={cn("flex gap-2", msg.is_mine && "flex-row-reverse")}>
-            <Avatar className="h-8 w-8 shrink-0">
-              <AvatarImage src={resolveMediaUrl(msg.sender_avatar)} alt={msg.sender_name || "User"} />
-              <AvatarFallback className={cn("text-xs text-white font-semibold", msg.is_mine ? "bg-aurora-blue" : "bg-aurora-ink-3")}>
-                {getInitials(msg.sender_name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", msg.is_mine ? "bg-aurora-blue text-white rounded-tr-sm" : "bg-aurora-surface text-aurora-ink rounded-tl-sm")}>
-              <p className="text-sm">{msg.content || ""}</p>
-              <p className={cn("text-xs mt-1", msg.is_mine ? "text-indigo-200" : "text-aurora-ink-3")}>
-                {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--"}
-              </p>
+        {withDaySeparators(messages).map((entry) => {
+          if (entry.type === "separator") {
+            return (
+              <div key={entry.key} className="flex items-center justify-center py-2">
+                <span className="px-3 py-1 rounded-full bg-aurora-surface text-aurora-ink-3 text-[11px] font-medium uppercase tracking-wide">
+                  {entry.label}
+                </span>
+              </div>
+            )
+          }
+          const msg = entry.message
+          return (
+            <div key={entry.key} className={cn("flex gap-2", msg.is_mine && "flex-row-reverse")}>
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarImage src={resolveMediaUrl(msg.sender_avatar)} alt={msg.sender_name || "User"} />
+                <AvatarFallback className={cn("text-xs text-white font-semibold", msg.is_mine ? "bg-aurora-blue" : "bg-aurora-ink-3")}>
+                  {getInitials(msg.sender_name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", msg.is_mine ? "bg-aurora-blue text-white rounded-tr-sm" : "bg-aurora-surface text-aurora-ink rounded-tl-sm")}>
+                <p className="text-sm">{msg.content || ""}</p>
+                <p className={cn("text-xs mt-1", msg.is_mine ? "text-indigo-200" : "text-aurora-ink-3")}>
+                  {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--"}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         {messages.length === 0 && (
           <div className="text-center text-aurora-ink-3 text-sm py-8">No messages yet. Start the conversation!</div>
         )}

@@ -14,8 +14,11 @@ SUBSCRIPTION_PLANS = {
         "price_eur_monthly": 79,
         "stripe_price_id": "price_starter_stub",
         "features": {
+            "electronic_signature": True,
+            "secure_escrow_payment": True,
+            "dispute_mediation": True,
+            "certified_statistics": True,
             "concurrent_campaigns": 3,
-            "monthly_influencer_contacts": 50,
             "users": 1,
             "multi_environments": False,
             "basic_analytics": True,
@@ -23,13 +26,12 @@ SUBSCRIPTION_PLANS = {
             "contract_templates_max": 0,
             "ambassador_programs": False,
             "events": False,
+            "selective_castings": True,
             "open_castings": False,
             "sso_office365_google": False,
             "slack_teams_integration": False,
             "api_access": False,
             "crm_integration": False,
-            "dedicated_account_manager": False,
-            "priority_support": "none",
         },
     },
     "growth": {
@@ -38,8 +40,11 @@ SUBSCRIPTION_PLANS = {
         "price_eur_monthly": 199,
         "stripe_price_id": "price_growth_stub",
         "features": {
+            "electronic_signature": True,
+            "secure_escrow_payment": True,
+            "dispute_mediation": True,
+            "certified_statistics": True,
             "concurrent_campaigns": 10,
-            "monthly_influencer_contacts": 200,
             "users": 3,
             "multi_environments": False,
             "basic_analytics": True,
@@ -47,13 +52,12 @@ SUBSCRIPTION_PLANS = {
             "contract_templates_max": 5,
             "ambassador_programs": True,
             "events": True,
+            "selective_castings": True,
             "open_castings": True,
             "sso_office365_google": True,
             "slack_teams_integration": True,
             "api_access": False,
             "crm_integration": False,
-            "dedicated_account_manager": False,
-            "priority_support": "email_48h",
         },
     },
     "pro": {
@@ -62,8 +66,11 @@ SUBSCRIPTION_PLANS = {
         "price_eur_monthly": 499,
         "stripe_price_id": "price_pro_stub",
         "features": {
+            "electronic_signature": True,
+            "secure_escrow_payment": True,
+            "dispute_mediation": True,
+            "certified_statistics": True,
             "concurrent_campaigns": -1,  # unlimited
-            "monthly_influencer_contacts": -1,
             "users": -1,
             "multi_environments": True,
             "basic_analytics": True,
@@ -71,13 +78,12 @@ SUBSCRIPTION_PLANS = {
             "contract_templates_max": -1,
             "ambassador_programs": True,
             "events": True,
+            "selective_castings": True,
             "open_castings": True,
             "sso_office365_google": True,
             "slack_teams_integration": True,
             "api_access": True,
             "crm_integration": True,
-            "dedicated_account_manager": True,
-            "priority_support": "email_phone_24h",
         },
     },
 }
@@ -251,6 +257,23 @@ COMPLETION_LABELS_FR = {
 # ---------------------------------------------------------------------------
 # Profile completion weights (must sum to 100)
 # ---------------------------------------------------------------------------
+# A profile counts as "complete enough" at this score. The weights below sum to
+# exactly 100, so requiring 100 hid any influencer missing a single optional
+# item (an avatar, a media-kit image, payment details) from the marketplace —
+# which emptied it. Onboarding and media-kit generation already used 80.
+INFLUENCER_COMPLETION_THRESHOLD = 80
+
+# What a brand actually needs to evaluate a creator. Being payable (an IBAN, a
+# media kit) matters when contracting, not when browsing, so those weights must
+# not decide visibility: gating on the full score emptied the marketplace even
+# though every profile was perfectly presentable.
+INFLUENCER_MARKETPLACE_REQUIRED_FIELDS = [
+    "display_name",
+    "bio",
+    "content_themes",
+    "social_networks",
+]
+
 INFLUENCER_COMPLETION_WEIGHTS = {
     "avatar": 8,
     "bio": 10,

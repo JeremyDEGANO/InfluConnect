@@ -29,7 +29,8 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { resolveMediaUrl } from "@/lib/utils"
 import { InfluencerHoverCard } from "@/components/shared/InfluencerHoverCard"
-import { ArrowLeft, Eye, Calendar, DollarSign, Loader2, Send, Users, CheckCircle2, MessageSquare, Trash2, XCircle, FileText, Sparkles, Download } from "lucide-react"
+import { ArrowLeft, Eye, Calendar, DollarSign, Loader2, Send, Users, CheckCircle2, MessageSquare, Trash2, XCircle, FileText, Sparkles, Download, Paperclip } from "lucide-react"
+import { CampaignDocuments } from "@/components/shared/CampaignDocuments"
 
 interface ChatMessage {
   id: number
@@ -261,6 +262,16 @@ export default function CampaignDetail() {
       // Refresh proposals
       await reloadProposals()
     } catch (e: any) {
+      if (e?.response?.status === 402) {
+        setShowTemplateDialog(false)
+        toast({
+          variant: "destructive",
+          title: t("brand_proposal.subscription_required_title"),
+          description: t("brand_proposal.subscription_required_desc"),
+        })
+        navigate("/brand/subscription")
+        return
+      }
       toast({ 
         variant: "destructive", 
         title: t("common.error"),
@@ -493,6 +504,18 @@ export default function CampaignDetail() {
                   {campaign.target_networks.map((tag) => <Badge key={tag} variant="info">{tag}</Badge>)}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="card-base">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Paperclip className="h-4 w-4 text-aurora-blue" />
+                {t("campaign_documents.title")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CampaignDocuments campaignId={Number(id)} canManage />
             </CardContent>
           </Card>
 

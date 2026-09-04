@@ -115,7 +115,7 @@ export default function SignMobile() {
           <CardContent className="space-y-4">
             <div className="flex gap-2 items-start p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
               <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
-              <p>Votre signature, votre IP et l'horodatage seront enregistrés (eIDAS).</p>
+              <p>Votre signature, votre IP et l'horodatage seront enregistrés.</p>
             </div>
 
             <div className="space-y-2">

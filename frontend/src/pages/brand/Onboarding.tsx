@@ -15,8 +15,14 @@ const FIELD_LABELS: Record<string, string> = {
   sector: "brand_onboarding.field_sector",
   description: "brand_onboarding.field_description",
   logo: "brand_onboarding.field_logo",
+  billing_address: "brand_onboarding.field_billing_address",
+  billing_postal_code: "brand_onboarding.field_billing_postal_code",
+  billing_city: "brand_onboarding.field_billing_city",
 }
-const ALL_FIELDS = ["company_name", "siret", "website", "sector", "description", "logo"]
+const ALL_FIELDS = [
+  "company_name", "siret", "website", "sector", "description", "logo",
+  "billing_address", "billing_postal_code", "billing_city",
+]
 
 export default function BrandOnboarding() {
   const { t } = useTranslation()

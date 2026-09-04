@@ -23,10 +23,21 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+class PaymentConfigurationError(RuntimeError):
+    pass
+
+
 def is_live() -> bool:
     """Return True if real Stripe keys are configured."""
     key = getattr(settings, "STRIPE_SECRET_KEY", "") or ""
     return bool(key) and not key.startswith("stub_")
+
+
+def _ensure_available() -> None:
+    if is_live():
+        return
+    if not getattr(settings, "DEBUG", False) and not getattr(settings, "ALLOW_STUB_PAYMENTS", False):
+        raise PaymentConfigurationError("Payments are not configured for this environment.")
 
 
 def _fake_id(prefix: str) -> str:
@@ -43,6 +54,7 @@ def create_customer(email: str, name: str) -> str:
         # cust = stripe.Customer.create(email=email, name=name)
         # return cust.id
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return _fake_id("cus")
 
 
@@ -53,6 +65,7 @@ def create_subscription(customer_id: str, price_id: str) -> dict:
     """
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     from django.utils import timezone
     from datetime import timedelta
     return {
@@ -66,12 +79,14 @@ def create_subscription(customer_id: str, price_id: str) -> dict:
 def cancel_subscription(subscription_id: str) -> bool:
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return True
 
 
 def change_subscription_plan(subscription_id: str, new_price_id: str) -> dict:
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return {"id": subscription_id, "status": "active", "new_price_id": new_price_id}
 
 
@@ -89,6 +104,7 @@ def create_escrow_payment_intent(
     """
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return {
         "id": _fake_id("pi"),
         "client_secret": _fake_id("pi") + "_secret",
@@ -102,6 +118,7 @@ def confirm_escrow_payment(payment_intent_id: str) -> dict:
     """Mark an escrow PI as funded (in real Stripe this is done client-side)."""
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return {"id": payment_intent_id, "status": "succeeded"}
 
 
@@ -111,6 +128,7 @@ def release_escrow_to_influencer(
     influencer_account_id: Optional[str],
     amount_eur: Decimal,
     commission_rate: Decimal,
+    idempotency_key: str | None = None,
 ) -> dict:
     """
     Release escrowed funds: deduct platform commission, transfer remainder
@@ -121,8 +139,9 @@ def release_escrow_to_influencer(
     net = (amount_eur - commission).quantize(Decimal("0.01"))
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return {
-        "transfer_id": _fake_id("tr"),
+        "transfer_id": f"tr_stub_{idempotency_key}" if idempotency_key else _fake_id("tr"),
         "payment_intent_id": payment_intent_id,
         "net_amount_eur": str(net),
         "commission_eur": str(commission),
@@ -133,6 +152,7 @@ def release_escrow_to_influencer(
 def refund_escrow(payment_intent_id: str) -> dict:
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return {"refund_id": _fake_id("re"), "payment_intent_id": payment_intent_id, "status": "succeeded"}
 
 
@@ -142,6 +162,7 @@ def refund_escrow(payment_intent_id: str) -> dict:
 def create_connected_account(email: str, country: str = "FR") -> dict:
     if is_live():
         raise NotImplementedError("Live Stripe integration not yet wired")
+    _ensure_available()
     return {
         "id": _fake_id("acct"),
         "onboarding_url": "https://stripe.com/connect/onboarding/stub",

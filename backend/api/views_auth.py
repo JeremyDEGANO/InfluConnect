@@ -15,6 +15,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -27,6 +28,7 @@ from .throttling import MFAResetRateThrottle, PasswordResetRateThrottle
 
 TOTP_ISSUER = "InfluConnect"
 PASSWORD_RESET_MAX_AGE = 60 * 60  # 1 hour
+EMAIL_VERIFY_MAX_AGE = 24 * 60 * 60  # 24 hours
 TOTP_RESET_MAX_AGE = 60 * 60  # 1 hour
 EMAIL_OTP_MAX_AGE = 10 * 60  # 10 minutes
 
@@ -41,6 +43,31 @@ def _totp_reset_signer() -> TimestampSigner:
 
 def _password_reset_cache_key(user_id: int) -> str:
     return f"password-reset:{user_id}"
+
+
+def _email_verify_signer() -> TimestampSigner:
+    return TimestampSigner(salt="email-verify")
+
+
+def _email_verify_cache_key(user_id: int) -> str:
+    return f"email-verify:{user_id}"
+
+
+def send_verification_email(user) -> bool:
+    """Issue a fresh one-time link and email it. Safe to call repeatedly."""
+    if not user.email or user.email_verified:
+        return False
+    token = _issue_one_time_token(
+        signer=_email_verify_signer(),
+        cache_key=_email_verify_cache_key(user.pk),
+        user_id=user.pk,
+        ttl=EMAIL_VERIFY_MAX_AGE,
+    )
+    frontend = getattr(settings, "FRONTEND_URL", "https://influconnect.fr").rstrip("/")
+    link = f"{frontend}/verify-email#token={token}"
+    return email_service.send_email_verification(
+        user.email, link, language=user.language_preference,
+    )
 
 
 def _totp_reset_cache_key(user_id: int) -> str:
@@ -397,7 +424,10 @@ class PasswordChangeView(APIView):
         except DjangoValidationError as exc:
             return Response({"detail": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
         user.set_password(new_password)
-        user.save(update_fields=["password"])
+        # Bumping auth_version invalidates every JWT issued before the change
+        # (see auth_jwt), so a stolen token dies with the old password.
+        user.auth_version = (user.auth_version or 0) + 1
+        user.save(update_fields=["password", "auth_version"])
         return Response({"detail": "Password updated."})
 
 
@@ -473,3 +503,79 @@ class TOTPResetConfirmView(APIView):
         user.save(update_fields=["totp_enabled", "totp_secret"])
         cache.delete(cache_key)
         return Response({"detail": "Two-factor authentication has been reset.", "totp_enabled": False})
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+class EmailVerificationRequestView(APIView):
+    """(Re)send the verification link to the signed-in user."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [PasswordResetRateThrottle]
+
+    def post(self, request):
+        user = request.user
+        if user.email_verified:
+            return Response({"detail": "Email already verified.", "email_verified": True})
+        send_verification_email(user)
+        # The response never reveals whether delivery succeeded.
+        return Response({"detail": "Verification email sent.", "email_verified": False})
+
+
+class EmailVerificationConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token") or ""
+        if not token:
+            return Response({"detail": "Token is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_pk, cache_key = _consume_signed_token(
+            token=token,
+            signer=_email_verify_signer(),
+            cache_key_builder=_email_verify_cache_key,
+            max_age=EMAIL_VERIFY_MAX_AGE,
+        )
+        if user_pk is None:
+            detail = (
+                "This verification link has expired."
+                if cache_key == "expired" else
+                "This verification link is invalid or has already been used."
+            )
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(pk=user_pk).first()
+        if user is None:
+            return Response({"detail": "This verification link is invalid."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.email_verified:
+            user.email_verified = True
+            user.email_verified_at = timezone.now()
+            user.save(update_fields=["email_verified", "email_verified_at"])
+        # One-time: burn the nonce so the link cannot be replayed.
+        cache.delete(cache_key)
+        return Response({"detail": "Email verified.", "email_verified": True})
+
+
+# ---------------------------------------------------------------------------
+# Partner API docs — short-lived access code
+# ---------------------------------------------------------------------------
+PARTNER_DOCS_CODE_MAX_AGE = 60  # seconds
+
+
+class PartnerDocsCodeView(APIView):
+    """Mint a single-use, short-lived code so the Swagger UI can be opened.
+
+    The docs page is a plain browser navigation, so it cannot carry the JWT
+    Authorization header. This hands out a throwaway code (consumed by
+    DocsCodeAuthentication) instead of ever putting a real token in a URL.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        code = secrets.token_urlsafe(32)
+        cache.set(f"partner-docs:{code}", request.user.pk, timeout=PARTNER_DOCS_CODE_MAX_AGE)
+        return Response({"code": code, "expires_in": PARTNER_DOCS_CODE_MAX_AGE})

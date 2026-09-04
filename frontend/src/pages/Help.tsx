@@ -3,7 +3,7 @@ import { BookOpen, MessageCircle, Mail, Lightbulb, FileText, Shield, ArrowRight 
 
 const TOPICS = [
   { icon: Lightbulb, title: "Démarrage rapide", desc: "Créer votre compte, compléter votre profil, lancer votre première campagne.", to: "/faq" },
-  { icon: FileText, title: "Contrats & signature", desc: "Templates, signature électronique eIDAS, archivage légal.", to: "/faq" },
+  { icon: FileText, title: "Contrats & signature", desc: "Modèles de contrat, signature électronique, archivage.", to: "/faq" },
   { icon: Shield, title: "Paiements & escrow", desc: "Comprendre Stripe Connect, libération des fonds, factures.", to: "/faq" },
   { icon: BookOpen, title: "Bonnes pratiques", desc: "Briefs, livrables, validation de contenu et droits d'usage.", to: "/faq" },
 ]

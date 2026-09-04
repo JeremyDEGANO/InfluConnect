@@ -37,7 +37,7 @@ export function Footer() {
               <li><Link to="/#features" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("nav.features")}</Link></li>
               <li><Link to="/#how-it-works" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("nav.how_it_works")}</Link></li>
               <li><Link to="/pricing/brands" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.pricing_plans")}</Link></li>
-              <li><Link to="/compare" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.compare", "Comparer les offres")}</Link></li>
+              <li><Link to="/pricing/brands" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.compare", "Comparer les offres")}</Link></li>
               <li><Link to="/marketplace" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("nav.marketplace")}</Link></li>
             </ul>
           </div>
@@ -47,7 +47,7 @@ export function Footer() {
             <ul className="space-y-2.5 text-sm">
               <li><Link to="/pricing/brands" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.pricing_plans")}</Link></li>
               <li><Link to="/register?type=brand" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.book_demo")}</Link></li>
-              <li><Link to="/pricing/agencies" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.for_agencies", "Pour les agences")}</Link></li>
+              <li><Link to="/pricing/brands" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.pricing", "Tarifs")}</Link></li>
               <li><Link to="/register?type=influencer" className="text-aurora-ink-2 hover:text-aurora-ink transition-colors">{t("footer.for_influencers")}</Link></li>
             </ul>
           </div>

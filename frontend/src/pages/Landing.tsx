@@ -1,10 +1,12 @@
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import api from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import {
   FileText, Star, Zap, Users, ArrowRight,
   Search, Lock, MessageSquare, BarChart3, Upload, Heart, Gift,
-  UserPlus, Target, Handshake, DollarSign, Briefcase, Check,
+  UserPlus, Target, Handshake, DollarSign, Check,
 } from "lucide-react"
 
 const FEATURE_KEYS = [
@@ -27,6 +29,46 @@ const STEP_KEYS = [
 
 export default function Landing() {
   const { t } = useTranslation()
+  const [stats, setStats] = useState<{ creators: number; brands: number; total_paid_eur: number } | null>(null)
+  // Entry price comes from the same endpoint as the pricing page so the teaser
+  // can never drift from the real plans.
+  const [entryPrice, setEntryPrice] = useState<{ monthly: number; annual: number } | null>(null)
+
+  useEffect(() => {
+    api.get("/public/stats/").then((r) => setStats(r.data)).catch(() => setStats(null))
+  }, [])
+
+  useEffect(() => {
+    api.get("/reference/plans/")
+      .then((r) => {
+        const list = (r.data?.plans ?? []) as Array<{
+          price_eur_monthly?: number
+          price_eur?: number
+          price_eur_monthly_billed_annually?: number
+        }>
+        const prices = list
+          .map((plan) => {
+            const monthly = Number(plan.price_eur_monthly ?? plan.price_eur ?? 0)
+            return { monthly, annual: Number(plan.price_eur_monthly_billed_annually ?? monthly) }
+          })
+          .filter((plan) => plan.monthly > 0)
+        setEntryPrice(prices.length ? prices.reduce((a, b) => (b.annual < a.annual ? b : a)) : null)
+      })
+      .catch(() => setEntryPrice(null))
+  }, [])
+
+  const fmtPrice = (n: number) =>
+    new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(n))
+
+  const statItems = useMemo(() => {
+    if (!stats) return []
+    const compact = (n: number) => new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 }).format(n)
+    const items: { value: string; label: string }[] = []
+    if (stats.creators > 0) items.push({ value: compact(stats.creators), label: t("landing.stat_creators") })
+    if (stats.brands > 0) items.push({ value: compact(stats.brands), label: t("landing.stat_brands") })
+    if (stats.total_paid_eur > 0) items.push({ value: `€${compact(stats.total_paid_eur)}`, label: t("landing.stat_paid") })
+    return items
+  }, [stats, t])
 
   return (
     <div className="min-h-screen bg-white">
@@ -50,10 +92,6 @@ export default function Landing() {
               {t("landing.role_brand")}
             </span>
             <span className="inline-flex items-center gap-1.5 bg-white ring-1 ring-aurora-line rounded-full px-3 py-1 text-[12px] text-aurora-ink-2 font-medium">
-              <Briefcase className="h-3.5 w-3.5 text-aurora-blue" />
-              {t("landing.role_agency")}
-            </span>
-            <span className="inline-flex items-center gap-1.5 bg-white ring-1 ring-aurora-line rounded-full px-3 py-1 text-[12px] text-aurora-ink-2 font-medium">
               <Users className="h-3.5 w-3.5 text-aurora-blue" />
               {t("landing.role_influencer")}
             </span>
@@ -71,27 +109,19 @@ export default function Landing() {
                 {t("landing.cta_brand")}
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link to="/register?type=agency">
-                <Briefcase className="h-4 w-4" />
-                {t("landing.cta_agency")}
-              </Link>
-            </Button>
           </div>
 
-          {/* Stats bar */}
-          <div className="mt-16 grid grid-cols-3 gap-6 max-w-2xl mx-auto fade-in-up fade-in-up-delay-4">
-            {[
-              { value: "2,847", label: t("landing.stat_creators") },
-              { value: "412", label: t("landing.stat_brands") },
-              { value: "€1.3M", label: t("landing.stat_paid") },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="num text-3xl sm:text-4xl font-semibold text-aurora-ink tracking-[-0.02em]">{stat.value}</div>
-                <div className="text-[12px] text-aurora-ink-3 mt-1.5 font-medium">{stat.label}</div>
-              </div>
-            ))}
-          </div>
+          {/* Stats bar — real platform figures, hidden until they are meaningful */}
+          {statItems.length > 0 && (
+            <div className="mt-16 grid gap-6 max-w-2xl mx-auto fade-in-up fade-in-up-delay-4" style={{ gridTemplateColumns: `repeat(${statItems.length}, minmax(0, 1fr))` }}>
+              {statItems.map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <div className="num text-3xl sm:text-4xl font-semibold text-aurora-ink tracking-[-0.02em]">{stat.value}</div>
+                  <div className="text-[12px] text-aurora-ink-3 mt-1.5 font-medium">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -148,28 +178,30 @@ export default function Landing() {
             {t("landing.pricing_title", "Une tarification simple, prévisible.")}
           </h2>
           <p className="text-aurora-ink-2 mt-4 max-w-xl mx-auto">{t("landing.pricing_subtitle", "Choisissez l'offre adaptée à votre rôle. Sans engagement.")}</p>
-          <div className="mt-10 grid sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
+          <div className="mt-10 max-w-md mx-auto">
             <div className="bg-white rounded-3xl border border-aurora-line p-8 text-left shadow-soft">
               <h3 className="text-lg font-semibold text-aurora-ink tracking-tight">{t("landing.role_brand")}</h3>
-              <p className="text-sm text-aurora-ink-2 mt-2">À partir de <span className="num font-semibold text-aurora-ink">49€</span> / mois</p>
+              {entryPrice && (
+                <>
+                  <p className="text-sm text-aurora-ink-2 mt-2">
+                    À partir de <span className="num font-semibold text-aurora-ink">{fmtPrice(entryPrice.annual)}€</span> / mois
+                  </p>
+                  {entryPrice.annual < entryPrice.monthly && (
+                    <p className="text-[12px] text-aurora-ink-3 mt-1">
+                      Avec facturation annuelle — <span className="num">{fmtPrice(entryPrice.monthly)}€</span> / mois sans engagement.
+                    </p>
+                  )}
+                </>
+              )}
               <ul className="mt-5 space-y-2 text-[13px] text-aurora-ink-2">
                 <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Recherche illimitée</li>
                 <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Escrow sécurisé Stripe</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Contrats électroniques eIDAS</li>
+                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Contrats électroniques signés en ligne</li>
               </ul>
               <Button variant="gradient" className="mt-6 w-full" asChild><Link to="/pricing/brands">Voir les offres marques</Link></Button>
             </div>
-            <div className="bg-white rounded-3xl border border-aurora-line p-8 text-left shadow-soft">
-              <h3 className="text-lg font-semibold text-aurora-ink tracking-tight">{t("landing.role_agency")}</h3>
-              <p className="text-sm text-aurora-ink-2 mt-2">À partir de <span className="num font-semibold text-aurora-ink">149€</span> / mois</p>
-              <ul className="mt-5 space-y-2 text-[13px] text-aurora-ink-2">
-                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Multi-marques & talents</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Délégations & commissions</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-aurora-blue shrink-0 mt-0.5" /> Reporting consolidé</li>
-              </ul>
-              <Button variant="outline" className="mt-6 w-full" asChild><Link to="/pricing/agencies">Voir les offres agences</Link></Button>
-            </div>
           </div>
+          {/* Offre agences temporairement retirée de la communication — à remettre plus tard */}
           <div className="mt-8">
             <Link to="/compare" className="inline-flex items-center gap-1.5 text-sm font-medium text-aurora-blue-deep hover:underline">
               Comparer toutes les offres <ArrowRight className="h-3.5 w-3.5" />
@@ -221,7 +253,7 @@ export default function Landing() {
             {[
               { q: "Comment fonctionne le paiement escrow ?", a: "La marque bloque le montant de la collaboration sur son compte Stripe lors de la signature. Les fonds sont libérés automatiquement à l'influenceur après validation du contenu (ou après 14 jours sans contestation)." },
               { q: "Est-ce gratuit pour les influenceurs ?", a: "Oui. L'inscription, la création du media kit, la réception de propositions et le paiement sont 100% gratuits. Nous prélevons une commission de 15% sur chaque collaboration, payée par la marque." },
-              { q: "Puis-je personnaliser mes contrats ?", a: "Oui, les plans Growth et Pro permettent de créer vos propres templates HTML avec variables dynamiques (livrables, prix, exclusivité, etc.). Les contrats sont signés électroniquement (eIDAS) et archivés 10 ans." },
+              { q: "Puis-je personnaliser mes contrats ?", a: "Oui, les plans Growth et Pro permettent de créer vos propres modèles avec variables dynamiques (livrables, prix, exclusivité, etc.). Les contrats sont signés électroniquement et archivés." },
               { q: "Êtes-vous conforme RGPD ?", a: "Oui, hébergement France (OVH Cloud), données chiffrées au repos, DPA disponible, droit à l'oubli automatisé et registre des traitements à jour." },
               { q: "Que se passe-t-il en cas de litige ?", a: "Notre équipe de médiation intervient sous 48 heures. Les fonds restent bloqués en escrow jusqu'à résolution. En dernier recours, le Tribunal de commerce de Paris est compétent." },
             ].map((faq) => (

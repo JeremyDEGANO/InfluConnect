@@ -4,7 +4,7 @@ import { Sparkles, Shield, Heart, Users, ArrowRight } from "lucide-react"
 
 export default function About() {
   const values = [
-    { icon: Shield, title: "Confiance", desc: "Escrow Stripe, contrats eIDAS, KYC vérifié — chaque interaction est sécurisée." },
+    { icon: Shield, title: "Confiance", desc: "Paiement sous séquestre, contrats signés électroniquement, identités vérifiées — chaque interaction est sécurisée." },
     { icon: Sparkles, title: "Excellence", desc: "Une expérience produit pensée dans le moindre détail, du matching à la facturation." },
     { icon: Heart, title: "Bienveillance", desc: "Marques, créateurs, agences : tout le monde gagne quand la collaboration est saine." },
     { icon: Users, title: "Communauté", desc: "Une plateforme construite avec et pour ses utilisateurs, à l'écoute chaque jour." },

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { fetchAdminOverview, type AdminOverview, fetchAdminFraudFlags, resolveAdminFraudFlag, type AdminFraudFlag } from "@/lib/apiExtra"
+import { fetchAdminOverview, type AdminOverview, fetchAdminFraudFlags, resolveAdminFraudFlag, type AdminFraudFlag, fetchAdminHistory, type AdminHistory } from "@/lib/apiExtra"
 import { StatsCard } from "@/components/shared/StatsCard"
+import { TrendChart, type TrendPoint } from "@/components/shared/TrendChart"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -18,13 +19,35 @@ function money(value: number) {
   return `EUR ${Number(value ?? 0).toLocaleString()}`
 }
 
+// Validated with the dataviz palette checker (all-pairs, light surface):
+// lightness band, chroma floor, CVD separation, normal-vision floor, contrast.
+const CHART_COLORS = {
+  revenue: "#4f46e5",
+  influencers: "#0d9488",
+  budget: "#d97706",
+  proposals: "#e11d48",
+} as const
+
+const RANGE_OPTIONS = [3, 6, 12] as const
+type RangeMonths = (typeof RANGE_OPTIONS)[number]
+
+/** "2026-09" -> "sept." in the user's locale. */
+function monthLabel(month: string, locale: string) {
+  const [year, m] = month.split("-").map(Number)
+  if (!year || !m) return month
+  return new Date(year, m - 1, 1).toLocaleDateString(locale, { month: "short" })
+}
+
 export default function Admin() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { toast } = useToast()
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [fraudFlags, setFraudFlags] = useState<AdminFraudFlag[]>([])
   const [fraudLoading, setFraudLoading] = useState(false)
+  const [history, setHistory] = useState<AdminHistory | null>(null)
+  const [historyMonths, setHistoryMonths] = useState<RangeMonths>(6)
+  const [historyLoading, setHistoryLoading] = useState(true)
 
   const loadFraudFlags = () => {
     setFraudLoading(true)
@@ -35,6 +58,14 @@ export default function Admin() {
   }
 
   useEffect(() => { loadFraudFlags() }, [])
+
+  useEffect(() => {
+    setHistoryLoading(true)
+    fetchAdminHistory(historyMonths)
+      .then(setHistory)
+      .catch(() => toast({ variant: "destructive", title: t("common.error") }))
+      .finally(() => setHistoryLoading(false))
+  }, [historyMonths])
 
   const resolveFlag = async (id: number) => {
     try {
@@ -53,6 +84,20 @@ export default function Admin() {
       .catch(() => toast({ variant: "destructive", title: t("common.error") }))
       .finally(() => setLoading(false))
   }, [t, toast])
+
+  const series = useMemo(() => {
+    const locale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR"
+    const points = history?.points ?? []
+    const build = (pick: (p: AdminHistory["points"][number]) => number): TrendPoint[] =>
+      points.map((p) => ({ label: monthLabel(p.label, locale), value: pick(p), partial: p.is_current_month }))
+    return {
+      revenue: build((p) => p.commission_eur),
+      influencers: build((p) => p.active_influencers),
+      budget: build((p) => p.budget_committed_eur),
+      proposals: build((p) => p.proposals_sent),
+      campaigns: build((p) => p.campaigns_created),
+    }
+  }, [history, i18n.language])
 
   const proposalEntries = useMemo(() => {
     const entries = Object.entries(overview?.proposal_status_counts ?? {})
@@ -82,12 +127,140 @@ export default function Admin() {
       />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatsCard title={t("admin_page.total_users")} value={kpis.users_total} progress={75} progressColor="bg-aurora-blue" />
-        <StatsCard title={t("admin_page.new_users_30d")} value={kpis.users_new_last_30d} progress={Math.min(100, (kpis.users_new_last_30d / Math.max(1, kpis.users_total)) * 100 * 5)} progressColor="bg-emerald-500" />
-        <StatsCard title={t("admin_page.active_companies")} value={kpis.brands_active_subscription} progress={60} progressColor="bg-aurora-blue-deep" />
-        <StatsCard title={t("admin_page.active_campaigns")} value={kpis.campaigns_live} progress={Math.min(100, kpis.campaigns_live * 5)} progressColor="bg-amber-500" />
-        <StatsCard title={t("admin_page.open_tickets")} value={kpis.support_tickets_open} progress={Math.min(100, kpis.support_tickets_open * 10)} progressColor="bg-rose-500" />
+        <StatsCard title={t("admin_page.total_users")} value={kpis.users_total} />
+        <StatsCard
+          title={t("admin_page.new_users_30d")}
+          value={kpis.users_new_last_30d}
+          hint={`${kpis.users_total > 0 ? Math.round((kpis.users_new_last_30d / kpis.users_total) * 100) : 0}% ${t("admin_page.of_total", "du total")}`}
+        />
+        <StatsCard
+          title={t("admin_page.active_companies")}
+          value={kpis.brands_active_subscription}
+          hint={`${t("admin_page.on_total", "sur")} ${kpis.brands_total}`}
+          progress={kpis.brands_total > 0 ? (kpis.brands_active_subscription / kpis.brands_total) * 100 : 0}
+          progressColor="bg-aurora-blue-deep"
+        />
+        <StatsCard
+          title={t("admin_page.active_campaigns")}
+          value={kpis.campaigns_live}
+          hint={`${t("admin_page.on_total", "sur")} ${kpis.campaigns_total}`}
+          progress={kpis.campaigns_total > 0 ? (kpis.campaigns_live / kpis.campaigns_total) * 100 : 0}
+          progressColor="bg-amber-500"
+        />
+        <StatsCard
+          title={t("admin_page.open_tickets")}
+          value={kpis.support_tickets_open}
+          hint={kpis.support_tickets_stale_48h > 0 ? `${kpis.support_tickets_stale_48h} > 48h` : undefined}
+        />
       </div>
+
+      {/* Historique: series derived from real timestamps, never estimates. */}
+      <Card className="card-base">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle className="text-base">{t("admin_page.history_title", "Historique")}</CardTitle>
+            <p className="text-xs text-aurora-ink-3 mt-1">
+              {t("admin_page.history_subtitle", "Mois clos, puis mois en cours (partiel).")}
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-aurora-surface border border-aurora-line">
+            {RANGE_OPTIONS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setHistoryMonths(value)}
+                aria-pressed={historyMonths === value}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  historyMonths === value ? "bg-white text-aurora-ink shadow-sm" : "text-aurora-ink-3 hover:text-aurora-ink-2"
+                }`}
+              >
+                {value} {t("admin_page.months_short", "mois")}
+              </button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-16 text-aurora-ink-3 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />{t("common.loading")}
+            </div>
+          ) : (
+            <div className="grid lg:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <p className="text-sm font-medium text-aurora-ink">
+                  {t("admin_page.chart_revenue", "Revenu encaisse")}
+                  <span className="text-xs font-normal text-aurora-ink-3 ml-1.5">
+                    ({t("admin_page.chart_revenue_hint", "commission")} {history?.commission_rate ?? 0}%)
+                  </span>
+                </p>
+                <TrendChart points={series.revenue} color={CHART_COLORS.revenue} format={(v) => money(v)} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-aurora-ink">
+                  {t("admin_page.chart_influencers", "Influenceurs actifs")}
+                  <span className="text-xs font-normal text-aurora-ink-3 ml-1.5">
+                    ({t("admin_page.chart_influencers_hint", "collaborations engagees")})
+                  </span>
+                </p>
+                <TrendChart points={series.influencers} color={CHART_COLORS.influencers} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-aurora-ink">
+                  {t("admin_page.chart_budget", "Budget engage")}
+                  <span className="text-xs font-normal text-aurora-ink-3 ml-1.5">
+                    ({t("admin_page.chart_budget_hint", "sequestre finance")})
+                  </span>
+                </p>
+                <TrendChart points={series.budget} color={CHART_COLORS.budget} format={(v) => money(v)} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-aurora-ink">
+                  {t("admin_page.chart_proposals", "Propositions envoyees")}
+                </p>
+                <TrendChart points={series.proposals} color={CHART_COLORS.proposals} />
+              </div>
+            </div>
+          )}
+
+          {/* Table view: the values never rest on color alone. */}
+          {!historyLoading && (history?.points?.length ?? 0) > 0 && (
+            <details className="mt-5">
+              <summary className="text-xs text-aurora-ink-3 cursor-pointer hover:text-aurora-ink-2">
+                {t("admin_page.history_table", "Voir les donnees")}
+              </summary>
+              <div className="overflow-x-auto mt-3">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-aurora-ink-3 border-b border-aurora-line">
+                      <th className="text-left font-medium py-2 pr-3">{t("admin_page.month", "Mois")}</th>
+                      <th className="text-right font-medium py-2 px-3">{t("admin_page.chart_revenue", "Revenu encaisse")}</th>
+                      <th className="text-right font-medium py-2 px-3">{t("admin_page.chart_influencers", "Influenceurs actifs")}</th>
+                      <th className="text-right font-medium py-2 px-3">{t("admin_page.chart_budget", "Budget engage")}</th>
+                      <th className="text-right font-medium py-2 px-3">{t("admin_page.chart_proposals", "Propositions envoyees")}</th>
+                      <th className="text-right font-medium py-2 pl-3">{t("admin_page.total_campaigns")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(history?.points ?? []).map((p) => (
+                      <tr key={p.month} className="border-b border-aurora-line/60 last:border-0">
+                        <td className="py-2 pr-3 text-aurora-ink-2">
+                          {monthLabel(p.label, i18n.language?.startsWith("en") ? "en-US" : "fr-FR")}
+                          {p.is_current_month && <span className="text-aurora-ink-3"> ({t("admin_page.partial", "en cours")})</span>}
+                        </td>
+                        <td className="py-2 px-3 text-right num text-aurora-ink">{money(p.commission_eur)}</td>
+                        <td className="py-2 px-3 text-right num text-aurora-ink">{p.active_influencers}</td>
+                        <td className="py-2 px-3 text-right num text-aurora-ink">{money(p.budget_committed_eur)}</td>
+                        <td className="py-2 px-3 text-right num text-aurora-ink">{p.proposals_sent}</td>
+                        <td className="py-2 pl-3 text-right num text-aurora-ink">{p.campaigns_created}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="card-base lg:col-span-2">
@@ -96,21 +269,34 @@ export default function Admin() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-aurora-line p-3">
-                <p className="text-xs text-aurora-ink-3">{t("admin_page.revenue_this_month")}</p>
-                <p className="text-xl font-semibold text-aurora-ink">{money(projection.projected_this_month)}</p>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                <p className="text-xs text-emerald-800">{t("admin_page.mrr_active", "MRR facturé")}</p>
+                <p className="text-xl font-semibold text-aurora-ink">{money(projection.mrr_active)}</p>
+                <p className="text-[11px] text-aurora-ink-3 mt-0.5">
+                  {projection.active_subscriptions} {t("admin_page.active_subscriptions", "abonnements actifs")}
+                </p>
               </div>
               <div className="rounded-xl border border-aurora-line p-3">
-                <p className="text-xs text-aurora-ink-3">{t("admin_page.revenue_next_month")}</p>
-                <p className="text-xl font-semibold text-aurora-ink">{money(projection.projected_next_month)}</p>
+                <p className="text-xs text-aurora-ink-3">{t("admin_page.potential_approved", "Potentiel — à convertir")}</p>
+                <p className="text-xl font-semibold text-aurora-ink-2">{money(projection.potential_approved_eur)}</p>
+                <p className="text-[11px] text-aurora-ink-3 mt-0.5">
+                  {projection.potential_approved_count} {t("admin_page.free_tier_companies", "sociétés en essai gratuit")}
+                </p>
               </div>
               <div className="rounded-xl border border-aurora-line p-3">
-                <p className="text-xs text-aurora-ink-3">{t("admin_page.delta_next_month")}</p>
-                <p className={`text-xl font-semibold ${projection.delta_next_vs_this >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                  {projection.delta_next_vs_this >= 0 ? "+" : ""}{money(projection.delta_next_vs_this)}
+                <p className="text-xs text-aurora-ink-3">{t("admin_page.potential_pending", "Potentiel — en validation")}</p>
+                <p className="text-xl font-semibold text-aurora-ink-2">{money(projection.potential_pending_eur)}</p>
+                <p className="text-[11px] text-aurora-ink-3 mt-0.5">
+                  {projection.potential_pending_count} {t("admin_page.awaiting_validation", "dossiers en attente")}
                 </p>
               </div>
             </div>
+            <p className="text-[11px] text-aurora-ink-3">
+              {t(
+                "admin_page.revenue_note",
+                "Le MRR ne compte que les abonnements actifs. Les montants « potentiel » ne sont pas facturés : une marque reste gratuite jusqu'à sa première contractualisation, sans échéance garantie.",
+              )}
+            </p>
 
             <div className="grid sm:grid-cols-3 gap-3">
               {(["starter", "growth", "pro"] as const).map((plan) => {
@@ -163,10 +349,16 @@ export default function Admin() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title={t("admin_page.active_campaigns")} value={liveCampaigns.length} progress={Math.min(100, liveCampaigns.length * 5)} progressColor="bg-aurora-blue" />
-        <StatsCard title={t("admin_page.budget", "Budget")} value={money(liveBudgetTotal)} progress={Math.min(100, liveBudgetTotal > 0 ? 60 : 0)} progressColor="bg-amber-500" />
-        <StatsCard title={t("admin_page.influencers", "Influenceurs")} value={liveInfluencersTarget} progress={Math.min(100, liveInfluencersTarget * 4)} progressColor="bg-emerald-500" />
-        <StatsCard title={t("admin_page.proposals", "Propositions")} value={liveProposalsTotal} hint={`${t("admin_page.in_progress", "En cours")}: ${liveProposalsInProgress}`} progress={Math.min(100, liveProposalsTotal * 3)} progressColor="bg-aurora-blue-deep" />
+        <StatsCard title={t("admin_page.active_campaigns")} value={liveCampaigns.length} />
+        <StatsCard title={t("admin_page.budget", "Budget")} value={money(liveBudgetTotal)} />
+        <StatsCard title={t("admin_page.influencers", "Influenceurs")} value={liveInfluencersTarget} />
+        <StatsCard
+          title={t("admin_page.proposals", "Propositions")}
+          value={liveProposalsTotal}
+          hint={`${t("admin_page.in_progress", "En cours")}: ${liveProposalsInProgress}`}
+          progress={liveProposalsTotal > 0 ? (liveProposalsInProgress / liveProposalsTotal) * 100 : 0}
+          progressColor="bg-aurora-blue-deep"
+        />
       </div>
 
       <Card className="card-base">

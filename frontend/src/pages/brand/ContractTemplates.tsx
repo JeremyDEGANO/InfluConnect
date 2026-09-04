@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { Editor } from "@tiptap/react"
+import DOMPurify from "dompurify"
 import api, { apiErrorMessage } from "@/lib/api"
 import { fetchContractTemplates } from "@/lib/apiExtra"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,10 +45,10 @@ const VARIABLES: { code: string; labelKey: string; fallback: string; sample: str
 ]
 
 const fillSample = (html: string) =>
-  VARIABLES.reduce(
+  DOMPurify.sanitize(VARIABLES.reduce(
     (acc, v) => acc.replaceAll(`{{${v.code}}}`, `<mark style="background:#eef2ff;color:#3730a3;border-radius:3px;padding:0 3px;">${v.sample}</mark>`),
     html,
-  )
+  ))
 
 // ---------------------------------------------------------------------------
 // Ready-to-use starter templates (adapt then save — like the DocuSign gallery)

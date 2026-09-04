@@ -164,7 +164,17 @@ export default function BrandProposalDetail() {
       toast({ title: t("brand_proposal.contract_generated") })
       setShowTemplateDialog(false)
       await load()
-    } catch {
+    } catch (err: any) {
+      if (err?.response?.status === 402) {
+        setShowTemplateDialog(false)
+        toast({
+          variant: "destructive",
+          title: t("brand_proposal.subscription_required_title"),
+          description: t("brand_proposal.subscription_required_desc"),
+        })
+        navigate("/brand/subscription")
+        return
+      }
       toast({ variant: "destructive", title: t("common.error") })
     } finally {
       setActing(false)

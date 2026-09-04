@@ -9,13 +9,16 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { AddressAutocomplete } from "@/components/shared/AddressAutocomplete"
 import { Loader2, Upload } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 export default function BrandEditProfile() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -31,7 +34,12 @@ export default function BrandEditProfile() {
     sector: "",
     description: "",
     billing_address: "",
+    billing_postal_code: "",
+    billing_city: "",
+    billing_country: "FR",
   })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showSubmitted, setShowSubmitted] = useState(false)
 
   const refreshProfile = () => {
     return api.get("/auth/me/").then((res) => {
@@ -47,6 +55,9 @@ export default function BrandEditProfile() {
           sector: bp.sector ?? "",
           description: bp.description ?? "",
           billing_address: bp.billing_address ?? "",
+          billing_postal_code: bp.billing_postal_code ?? "",
+          billing_city: bp.billing_city ?? "",
+          billing_country: bp.billing_country || "FR",
         }))
         setLogoUrl(bp.logo ?? null)
         setValidationStatus(bp.validation_status ?? "pending")
@@ -83,21 +94,75 @@ export default function BrandEditProfile() {
     }
   }
 
+  /** Mirrors the backend rules so the user sees the problem before the round-trip. */
+  const validate = () => {
+    const next: Record<string, string> = {}
+    const siret = form.siret.replace(/\s+/g, "")
+    if (!form.company_name.trim()) next.company_name = t("brand_profile.err_required", "Champ obligatoire")
+    if (!siret) next.siret = t("brand_profile.err_required", "Champ obligatoire")
+    else if (!/^\d{14}$/.test(siret)) next.siret = t("brand_profile.err_siret", "Le SIRET doit contenir exactement 14 chiffres.")
+    if (!form.sector) next.sector = t("brand_profile.err_required", "Champ obligatoire")
+    if (!form.website.trim()) next.website = t("brand_profile.err_required", "Champ obligatoire")
+    if (!form.description.trim()) next.description = t("brand_profile.err_required", "Champ obligatoire")
+    if (!form.billing_address.trim()) next.billing_address = t("brand_profile.err_required", "Champ obligatoire")
+    const postal = form.billing_postal_code.replace(/\s+/g, "")
+    if (!postal) next.billing_postal_code = t("brand_profile.err_required", "Champ obligatoire")
+    else if (!/^[A-Za-z0-9-]{4,10}$/.test(postal)) next.billing_postal_code = t("brand_profile.err_postal", "Code postal invalide.")
+    if (!form.billing_city.trim()) next.billing_city = t("brand_profile.err_required", "Champ obligatoire")
+    if (form.billing_country && !/^[A-Za-z]{2}$/.test(form.billing_country.trim())) {
+      next.billing_country = t("brand_profile.err_country", "Code pays ISO à 2 lettres (ex. FR).")
+    }
+    setErrors(next)
+    return next
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    const found = validate()
+    if (Object.keys(found).length > 0) {
+      // Previously the click did nothing at all when a field was wrong.
+      toast({
+        variant: "destructive",
+        title: t("brand_profile.err_title", "Formulaire incomplet"),
+        description: t("brand_profile.err_desc", "Corrigez les champs en rouge avant d'enregistrer."),
+      })
+      const firstInvalid = document.querySelector<HTMLElement>("[data-invalid='true']")
+      firstInvalid?.scrollIntoView({ behavior: "smooth", block: "center" })
+      return
+    }
     setLoading(true)
     try {
+      // The contact name lives on the user, not the brand profile: it used to
+      // be collected here and silently dropped.
+      await api.patch("/auth/me/", {
+        first_name: form.first_name,
+        last_name: form.last_name,
+      })
       await api.patch("/brands/profile/", {
         company_name: form.company_name,
-        siret: form.siret,
+        siret: form.siret.replace(/\s+/g, ""),
         website: form.website,
         sector: form.sector,
         description: form.description,
         billing_address: form.billing_address,
+        billing_postal_code: form.billing_postal_code.replace(/\s+/g, ""),
+        billing_city: form.billing_city,
+        billing_country: (form.billing_country || "FR").toUpperCase(),
       })
       await refreshProfile()
+      setErrors({})
       toast({ title: t("common.success"), description: t("brand_profile.updated") })
-    } catch {
+      // Tell the user what happens next instead of leaving them guessing.
+      if (validationStatus !== "approved") setShowSubmitted(true)
+    } catch (err: any) {
+      const data = err?.response?.data
+      if (data && typeof data === "object") {
+        const serverErrors: Record<string, string> = {}
+        for (const [key, value] of Object.entries(data)) {
+          serverErrors[key] = Array.isArray(value) ? String(value[0]) : String(value)
+        }
+        setErrors(serverErrors)
+      }
       toast({ title: t("common.error"), variant: "destructive" })
     } finally {
       setLoading(false)
@@ -167,8 +232,20 @@ export default function BrandEditProfile() {
                 </div>
               </div>
             </div>
-            <div><Label>{t("auth.company_name")} *</Label><Input className="mt-1" value={form.company_name} onChange={(e) => update("company_name", e.target.value)} /></div>
-            <div><Label>{t("brand_profile.siret", "SIRET")} *</Label><Input className="mt-1" value={form.siret} onChange={(e) => update("siret", e.target.value)} placeholder="14 chiffres" maxLength={14} /></div>
+            <div>
+              <Label>{t("auth.company_name")} *</Label>
+              <Input className="mt-1" value={form.company_name} data-invalid={!!errors.company_name}
+                     aria-invalid={!!errors.company_name}
+                     onChange={(e) => update("company_name", e.target.value)} />
+              <FieldError message={errors.company_name} />
+            </div>
+            <div>
+              <Label>{t("brand_profile.siret", "SIRET")} *</Label>
+              <Input className="mt-1" value={form.siret} data-invalid={!!errors.siret}
+                     aria-invalid={!!errors.siret}
+                     onChange={(e) => update("siret", e.target.value)} placeholder="14 chiffres" maxLength={17} />
+              <FieldError message={errors.siret} />
+            </div>
             <div>
               <Label>{t("brand_profile.industry")} *</Label>
               <select
@@ -189,8 +266,52 @@ export default function BrandEditProfile() {
               <textarea className="mt-1 w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={form.description} onChange={(e) => update("description", e.target.value)} />
             </div>
             <div>
-              <Label>{t("brand_profile.billing_address", "Adresse de facturation")}</Label>
-              <textarea className="mt-1 w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={form.billing_address} onChange={(e) => update("billing_address", e.target.value)} />
+              <Label>{t("brand_profile.billing_address", "Adresse de facturation")} *</Label>
+              <div className="mt-1">
+                <AddressAutocomplete
+                  value={form.billing_address}
+                  country={form.billing_country || "FR"}
+                  invalid={!!errors.billing_address}
+                  placeholder={t("brand_profile.address_placeholder", "N° et nom de rue")}
+                  onChange={(street) => update("billing_address", street)}
+                  onSelect={(s) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      billing_address: s.street || s.label,
+                      billing_postal_code: s.postal_code || prev.billing_postal_code,
+                      billing_city: s.city || prev.billing_city,
+                      billing_country: s.country || prev.billing_country,
+                    }))
+                  }
+                />
+              </div>
+              <FieldError message={errors.billing_address} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <Label>{t("brand_profile.postal_code", "Code postal")} *</Label>
+                <Input className="mt-1" value={form.billing_postal_code} data-invalid={!!errors.billing_postal_code}
+                       aria-invalid={!!errors.billing_postal_code}
+                       placeholder="75011" maxLength={10}
+                       onChange={(e) => update("billing_postal_code", e.target.value)} />
+                <FieldError message={errors.billing_postal_code} />
+              </div>
+              <div>
+                <Label>{t("brand_profile.city", "Ville")} *</Label>
+                <Input className="mt-1" value={form.billing_city} data-invalid={!!errors.billing_city}
+                       aria-invalid={!!errors.billing_city}
+                       placeholder="Paris"
+                       onChange={(e) => update("billing_city", e.target.value)} />
+                <FieldError message={errors.billing_city} />
+              </div>
+              <div>
+                <Label>{t("brand_profile.country", "Pays")}</Label>
+                <Input className="mt-1" value={form.billing_country} data-invalid={!!errors.billing_country}
+                       aria-invalid={!!errors.billing_country}
+                       placeholder="FR" maxLength={2}
+                       onChange={(e) => update("billing_country", e.target.value.toUpperCase())} />
+                <FieldError message={errors.billing_country} />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -198,6 +319,72 @@ export default function BrandEditProfile() {
           {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.loading")}</> : t("common.save")}
         </Button>
       </form>
+
+      <Dialog open={showSubmitted} onOpenChange={setShowSubmitted}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {validationStatus === "pending"
+                ? t("brand_profile.saved_title_pending", "Modifications enregistrées")
+                : t("brand_profile.saved_title", "Informations enregistrées")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-aurora-ink-2">
+            {validationStatus === "pending" ? (
+              <>
+                <p>{t("brand_profile.saved_pending", "Vos informations sont enregistrées.")}</p>
+                <p>
+                  {t(
+                    "brand_profile.saved_pending_next",
+                    "Votre dossier est déjà en cours d'examen par notre équipe. Vos modifications ont été prises en compte : vous recevrez un email dès qu'il sera traité (48h ouvrées).",
+                  )}
+                </p>
+              </>
+            ) : validationStatus === "rejected" ? (
+              <>
+                <p>{t("brand_profile.saved_pending", "Vos informations sont enregistrées.")}</p>
+                <p>
+                  {t(
+                    "brand_profile.saved_rejected_next",
+                    "Votre dossier avait été refusé : soumettez-le à nouveau depuis la page Onboarding pour un nouvel examen.",
+                  )}
+                </p>
+              </>
+            ) : (
+              <>
+                <p>
+                  {t(
+                    "brand_profile.saved_review",
+                    "Vos informations sont enregistrées. Votre dossier doit être vérifié par notre équipe avant que vous puissiez lancer des campagnes.",
+                  )}
+                </p>
+                <p>
+                  {t(
+                    "brand_profile.saved_next",
+                    "Rendez-vous sur la page Onboarding pour vérifier qu'il ne manque rien, puis soumettez votre dossier. Vous recevrez un email dès qu'il sera examiné (48h ouvrées).",
+                  )}
+                </p>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSubmitted(false)}>
+              {t("common.close", "Fermer")}
+            </Button>
+            {validationStatus !== "pending" && (
+              <Button variant="gradient" onClick={() => navigate("/brand/onboarding")}>
+                {t("brand_profile.go_to_onboarding", "Voir l'onboarding")}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+/** Inline validation message under a field. */
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p className="text-xs text-rose-600 mt-1">{message}</p>
 }

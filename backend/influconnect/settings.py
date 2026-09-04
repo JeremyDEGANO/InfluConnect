@@ -11,13 +11,20 @@ SECRET_KEY = config('SECRET_KEY', default=_DEV_SECRET_KEY)
 # Fail-safe default: production behaviour unless DEBUG=true is set explicitly.
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = [h.strip() for h in config('ALLOWED_HOSTS', default='*').split(',') if h.strip()]
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in config('ALLOWED_HOSTS', default='*' if DEBUG else '').split(',')
+    if h.strip()
+]
 
 if not DEBUG and SECRET_KEY == _DEV_SECRET_KEY:
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
         'SECRET_KEY must be set via environment in production (DEBUG=False).'
     )
+if not DEBUG and (not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('ALLOWED_HOSTS must contain explicit hosts in production.')
 
 # Trust the Caddy reverse proxy so Django builds correct https:// URLs
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -38,6 +45,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'api',
 ]
 
@@ -108,6 +116,18 @@ STORAGES = {
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+DATA_UPLOAD_MAX_NUMBER_FILES = 10
+
+# Must be shared across gunicorn workers: login OTP codes, SSO state and
+# throttling counters all live here. A per-process LocMemCache breaks them.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'django_cache_table',
+    }
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -118,7 +138,7 @@ if _cors_origins:
     CORS_ALLOWED_ORIGINS = _cors_origins
     CORS_ALLOW_ALL_ORIGINS = False
 else:
-    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-brand-id',
     'x-workspace-id',
@@ -128,13 +148,19 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = 'same-origin'
 X_FRAME_OPTIONS = 'DENY'
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'api.auth_jwt.VersionedJWTAuthentication',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PERMISSION_CLASSES': (
@@ -142,7 +168,13 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ),
     'DEFAULT_THROTTLE_RATES': {
+        'user': '600/hour',
+        'anon': '100/hour',
         'auth_login': '10/min',
         'auth_password_reset': '5/hour',
         'auth_mfa_reset': '5/hour',
@@ -150,6 +182,9 @@ REST_FRAMEWORK = {
         'team_invite_public': '30/hour',
         'team_invite_register': '10/hour',
         'auth_register': '20/hour',
+        'event_invite_public': '30/hour',
+        # Typeahead: generous per user, but bounded per IP.
+        'address_lookup': '300/hour',
     },
 }
 
@@ -159,14 +194,14 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SCHEMA_PATH_PREFIX': r'/api',
     'SERVE_PERMISSIONS': ['api.permissions.IsBrandOrAgencyWorkspaceUser'],
-    'SERVE_AUTHENTICATION': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
+    'SERVE_AUTHENTICATION': ['api.auth_jwt.VersionedJWTAuthentication'],
 }
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
@@ -215,12 +250,14 @@ STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 PLATFORM_COMMISSION_RATE = config('PLATFORM_COMMISSION_RATE', default=15, cast=float)
+ALLOW_STUB_PAYMENTS = config('ALLOW_STUB_PAYMENTS', default=DEBUG, cast=bool)
 
 # ---------------------------------------------------------------------------
 # Frontend URL (for email links, QR codes, etc.)
 # ---------------------------------------------------------------------------
 FRONTEND_URL = config('FRONTEND_URL', default='https://influconnect.fr')
 LOG_LEVEL = config('LOG_LEVEL', default='INFO')
+ENABLE_DJANGO_ADMIN = config('ENABLE_DJANGO_ADMIN', default=DEBUG, cast=bool)
 
 # ---------------------------------------------------------------------------
 # Social network OAuth credentials (CDC §8 — auto stats import)
